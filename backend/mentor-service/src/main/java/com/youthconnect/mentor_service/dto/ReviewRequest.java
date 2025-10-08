@@ -1,0 +1,11 @@
+package com.youthconnect.mentor_service.dto;
+
+import lombok.Data;
+
+@Data
+public class ReviewRequest {
+    private Long reviewerId; // In a real app, this is derived from the JWT
+    private Long revieweeId; // The mentor being reviewed
+    private int rating;
+    private String comment;
+}

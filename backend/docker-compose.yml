@@ -1,0 +1,296 @@
+# =================================================================================
+# Youth Connect Uganda Platform - Complete Docker Compose Configuration
+# =================================================================================
+#
+# This docker-compose file sets up the complete development environment including:
+# - All microservices (user, content, opportunity, mentor, USSD, edge-functions)
+# - MySQL database with initialization
+# - Redis for caching and session management
+# - Eureka service registry
+# - API Gateway
+# - Monitoring stack (Prometheus, Grafana)
+# - External integrations (Africa's Talking SMS simulation)
+#
+# Usage:
+#   Development: docker-compose up -d
+#   Production:  docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# @author Youth Connect Uganda Development Team
+# @version 1.0.0
+# =================================================================================
+
+
+version: '3.8'
+
+networks:
+  youthconnect-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
+  uploads_data:
+
+services:
+  # =================================================================================
+  # DATABASE SERVICES
+  # =================================================================================
+
+  mysql:
+    image: mysql:8.0.34
+    container_name: youthconnect-mysql
+    restart: unless-stopped
+    ports:
+      - "3307:3306"  # FIXED: External port 3307, internal port 3306
+    environment:
+      MYSQL_ROOT_PASSWORD: Douglas20!
+      MYSQL_DATABASE: youth_connect_db
+      MYSQL_USER: youthconnect_user
+      MYSQL_PASSWORD: youthconnect_pass
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - youthconnect-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: youthconnect-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - youthconnect-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # =================================================================================
+  # CORE INFRASTRUCTURE
+  # =================================================================================
+
+  service-registry:
+    build:
+      context: ./service-registry
+      dockerfile: Dockerfile
+    container_name: youthconnect-service-registry
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    networks:
+      - youthconnect-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: youthconnect-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    networks:
+      - youthconnect-network
+    depends_on:
+      service-registry:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # =================================================================================
+  # BUSINESS SERVICES
+  # =================================================================================
+
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: youthconnect-user-service
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      # FIXED: Database configuration with correct port mapping
+      DB_HOST: mysql
+      DB_PORT: 3306  # Internal MySQL port
+      DB_NAME: youth_connect_db
+      DB_USER: youthconnect_user
+      DB_PASSWORD: youthconnect_pass
+      # Service discovery
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
+      # JWT configuration
+      JWT_SECRET: aVeryLongAndSecureSecretKeyForYouthConnectUgandaHackathonProjectWith256BitsMinimum
+      JWT_EXPIRATION: 36000000
+      # Redis configuration
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      # Application settings
+      APP_ENVIRONMENT: docker
+      LOG_LEVEL: INFO
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - youthconnect-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/v1/api/auth/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # =================================================================================
+  # CRITICAL MISSING SERVICES - IMPLEMENT THESE FIRST
+  # =================================================================================
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: youthconnect-notification-service
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: youth_connect_db
+      DB_USER: youthconnect_user
+      DB_PASSWORD: youthconnect_pass
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      # SMS Configuration (Africa's Talking)
+      AFRICAS_TALKING_API_KEY: ${AFRICAS_TALKING_API_KEY:-sandbox_key}
+      AFRICAS_TALKING_USERNAME: ${AFRICAS_TALKING_USERNAME:-youthconnect}
+      # Email Configuration
+      SPRING_MAIL_HOST: smtp.gmail.com
+      SPRING_MAIL_PORT: 587
+      SPRING_MAIL_USERNAME: ${SMTP_USERNAME:-notifications@youthconnect.ug}
+      SPRING_MAIL_PASSWORD: ${SMTP_PASSWORD:-email_password}
+      APP_ENVIRONMENT: docker
+    networks:
+      - youthconnect-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+
+  ai-recommendation-service:
+    build:
+      context: ./ai-recommendation-service
+      dockerfile: Dockerfile
+    container_name: youthconnect-ai-service
+    restart: unless-stopped
+    ports:
+      - "8087:8087"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: youth_connect_db
+      DB_USER: youthconnect_user
+      DB_PASSWORD: youthconnect_pass
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      USER_SERVICE_URL: http://user-service:8081
+      APP_ENVIRONMENT: docker
+    networks:
+      - youthconnect-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+
+  file-management-service:
+    build:
+      context: ./file-management-service
+      dockerfile: Dockerfile
+    container_name: youthconnect-file-service
+    restart: unless-stopped
+    ports:
+      - "8089:8089"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: youth_connect_db
+      DB_USER: youthconnect_user
+      DB_PASSWORD: youthconnect_pass
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
+      FILE_STORAGE_PATH: /app/uploads
+      APP_ENVIRONMENT: docker
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - youthconnect-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+
+  analytics-service:
+    build:
+      context: ./analytics-service
+      dockerfile: Dockerfile
+    container_name: youthconnect-analytics-service
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: youth_connect_db
+      DB_USER: youthconnect_user
+      DB_PASSWORD: youthconnect_pass
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      USER_SERVICE_URL: http://user-service:8081
+      APP_ENVIRONMENT: docker
+    networks:
+      - youthconnect-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy

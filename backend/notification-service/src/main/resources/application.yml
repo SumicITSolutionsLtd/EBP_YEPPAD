@@ -1,0 +1,113 @@
+# =============================================================================
+# NOTIFICATION SERVICE - application.yml
+# Location: notification-service/src/main/resources/application.yml
+# =============================================================================
+
+spring:
+  application:
+    name: notification-service
+
+  # ===========================================================================
+  # Database Configuration
+  # ===========================================================================
+  datasource:
+    url: jdbc:mysql://localhost:3307/youth_connect_db?useSSL=false&serverTimezone=Africa/Kampala
+    username: root
+    password: ${DB_PASSWORD:your_password}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+
+  # ===========================================================================
+  # JPA / Hibernate Configuration
+  # ===========================================================================
+  jpa:
+    hibernate:
+      ddl-auto: update   # Use "validate" in production, "update" in development
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQL8Dialect
+
+  # ===========================================================================
+  # Email Configuration (Gmail SMTP)
+  # ===========================================================================
+  mail:
+    host: ${SMTP_HOST:smtp.gmail.com}
+    port: ${SMTP_PORT:587}
+    username: ${EMAIL_USERNAME:noreply@youthconnect.ug}
+    password: ${EMAIL_PASSWORD:your_app_password}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+        debug: false
+
+# =============================================================================
+# Server Configuration
+# =============================================================================
+server:
+  port: 7077
+
+# =============================================================================
+# Eureka Client Configuration
+# =============================================================================
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${random.value}
+
+# =============================================================================
+# Africa's Talking SMS Configuration
+# =============================================================================
+africas-talking:
+  api-key: ${AFRICAS_TALKING_API_KEY:your_api_key}
+  username: ${AFRICAS_TALKING_USERNAME:youthconnect_ug}
+  base-url: https://api.africastalking.com/version1
+  sender-id: YouthConnect
+
+# =============================================================================
+# Application Custom Configuration
+# =============================================================================
+app:
+  notification:
+    retry-attempts: 3
+    batch-size: 100
+    rate-limit: 1000 # per hour
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+logging:
+  level:
+    com.youthconnect.notification_service: DEBUG
+    org.springframework.mail: DEBUG
+    org.springframework.web: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# =============================================================================
+# Management & Actuator Configuration
+# =============================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

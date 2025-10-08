@@ -1,0 +1,63 @@
+package com.youthconnect.opportunity_service.controller;
+
+import com.youthconnect.opportunity_service.dto.OpportunityDTO;
+import com.youthconnect.opportunity_service.dto.OpportunityRequest;
+import com.youthconnect.opportunity_service.service.OpportunityService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+import java.util.Optional;
+
+@RestController
+@RequestMapping("/api/opportunities")
+@RequiredArgsConstructor
+public class OpportunityController {
+
+    private final OpportunityService opportunityService;
+
+    @PostMapping
+    public ResponseEntity<OpportunityDTO> createOpportunity(@RequestBody OpportunityRequest request) {
+        OpportunityDTO createdOpportunity = opportunityService.createOpportunity(request);
+        return new ResponseEntity<>(createdOpportunity, HttpStatus.CREATED);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<OpportunityDTO>> getAllOpportunities(
+            @RequestParam(required = false) Optional<Opportunity.OpportunityType> type) {
+        List<OpportunityDTO> opportunities = opportunityService.getAllOpportunities(type);
+        return ResponseEntity.ok(opportunities);
+    }
+
+    // ==========================================================
+    // == NEW ENDPOINTS FOR UPDATE AND DELETE ==
+    // ==========================================================
+
+    /**
+     * Endpoint to update an existing opportunity.
+     * @param id The ID of the opportunity to update.
+     * @param request The request body with the updated details.
+     * @return The updated opportunity DTO.
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<OpportunityDTO> updateOpportunity(
+            @PathVariable Long id, @RequestBody OpportunityRequest request) {
+        // The service layer will contain the logic to find the opportunity by ID,
+        // update its fields, and save it.
+        OpportunityDTO updatedOpportunity = opportunityService.updateOpportunity(id, request);
+        return ResponseEntity.ok(updatedOpportunity);
+    }
+
+    /**
+     * Endpoint to delete an opportunity.
+     * @param id The ID of the opportunity to delete.
+     * @return A No Content (204) response on successful deletion.
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteOpportunity(@PathVariable Long id) {
+        // The service layer will handle the logic of finding and deleting the record.
+        opportunityService.deleteOpportunity(id);
+        return ResponseEntity.noContent().build();
+    }
+}

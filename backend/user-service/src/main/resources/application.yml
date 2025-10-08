@@ -1,0 +1,75 @@
+spring:
+  application:
+    name: user-service
+  
+  datasource:
+    url: jdbc:mysql://localhost:3307/youth_connect_db?useSSL=false&serverTimezone=Africa/Nairobi
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:Douglas20!}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+
+server:
+  port: 8081
+
+# Eureka Discovery
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+
+# Application Configuration
+app:
+  name: "Youth Connect User Service"
+  version: "1.0.0"
+  environment: ${ENVIRONMENT:development}
+
+  security:
+    internal-api-key: ${INTERNAL_API_KEY:internal-secret-key-2024}
+    cors:
+      allowed-origins:
+        - http://localhost:3000
+        - http://localhost:3001
+        - https://youthconnect.ug
+      allowed-methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      allowed-headers:
+        - "*"
+      exposed-headers:
+        - Authorization
+        - Content-Type
+      allow-credentials: true
+      max-age: 3600
+
+  cache:
+    ttl: 3600
+    max-entries: 1000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    com.youthconnect.user_service: DEBUG
+    org.springframework.web: INFO

@@ -1,0 +1,22 @@
+package com.youthconnect.edge_functions.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+/**
+ * DTO for USSD registration requests containing minimal user information
+ * collected via USSD interface. This matches the structure used in user-service.
+ */
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class UssdRegistrationRequestDTO {
+    private String phoneNumber;
+    private String firstName;
+    private String lastName;
+    private String gender;
+    private String ageGroup;
+    private String district;
+    private String businessStage;
+}

@@ -1,0 +1,101 @@
+# Youth Connect Uganda - User Service Docker Compose
+# For local development and testing
+
+version: '3.8'
+
+services:
+  # User Service
+  user-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: youthconnect-user-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - DB_HOST=mysql-db
+      - DB_PORT=3306
+      - DB_NAME=youth_connect_db
+      - DB_USERNAME=root
+      - DB_PASSWORD=Douglas20!
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+      - INTERNAL_API_KEY=internal-secret-key-2024
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+    networks:
+      - youthconnect-network
+    volumes:
+      - user-service-logs:/app/logs
+      - user-service-uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # MySQL Database
+  mysql-db:
+    image: mysql:8.0
+    container_name: youthconnect-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=Douglas20!
+      - MYSQL_DATABASE=youth_connect_db
+      - MYSQL_USER=youthconnect
+      - MYSQL_PASSWORD=user123
+    ports:
+      - "3307:3306"
+    networks:
+      - youthconnect-network
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ../src/main/resources/db/migration:/docker-entrypoint-initdb.d
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --innodb_buffer_pool_size=256M
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pDouglas20!"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Eureka Discovery Server (for service registration)
+  eureka-server:
+    image: springcloud/eureka
+    container_name: youthconnect-eureka
+    ports:
+      - "8761:8761"
+    networks:
+      - youthconnect-network
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+
+  # Redis for caching (optional)
+  redis-cache:
+    image: redis:7.2-alpine
+    container_name: youthconnect-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - youthconnect-network
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+
+networks:
+  youthconnect-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local
+  user-service-logs:
+    driver: local
+  user-service-uploads:
+    driver: local

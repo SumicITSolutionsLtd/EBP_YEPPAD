@@ -1,0 +1,35 @@
+server:
+port: 8085
+
+spring:
+application:
+name: edge-functions-service
+cloud:
+config:
+enabled: false
+
+eureka:
+client:
+service-url:
+defaultZone: http://localhost:8761/eureka/
+fetch-registry: true
+register-with-eureka: true
+instance:
+prefer-ip-address: true
+
+# OpenAI Configuration
+openai:
+api:
+key: ${OPENAI_API_KEY:your-openai-key-here}
+base-url: https://api.openai.com/v1
+
+# Service URLs (will be discovered via Eureka)
+service:
+user: http://user-service
+opportunity: http://opportunity-service
+mentor: http://mentor-service
+content: http://content-service
+
+logging:
+level:
+com.youthconnect.edge_functions: DEBUG

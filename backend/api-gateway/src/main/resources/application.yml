@@ -1,0 +1,47 @@
+# 1. Define the port for the API Gateway itself.
+server:
+  port: 8088 # The frontend will talk to this port. Your Postman variable should point here.
+
+# 2. Give the application a unique name for the service registry.
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      # 3. This section defines all the routing rules for your microservices.
+      routes:
+        # Rule for the user-service
+        - id: user-service
+          uri: lb://user-service # "lb://" tells the gateway to look up "user-service" in Eureka.
+          predicates:
+            - Path=/api/auth/**, /api/users/** # Forward requests for auth and user profiles.
+
+        # Rule for the content-service
+        - id: content-service
+          uri: lb://content-service
+          predicates:
+            - Path=/api/learning/**, /api/feed/**
+
+        # Rule for the opportunity-service
+        - id: opportunity-service
+          uri: lb://opportunity-service
+          predicates:
+            - Path=/api/opportunities/**
+
+        # Rule for the mentor-service
+        - id: mentor-service
+          uri: lb://mentor-service
+          predicates:
+            - Path=/api/mentorship/**
+
+        # Rule for the ussd-service
+        - id: ussd-service
+          uri: lb://ussd-service
+          predicates:
+            - Path=/api/ussd/**
+
+# 4. Tell the gateway where to find the service registry (Eureka).
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka

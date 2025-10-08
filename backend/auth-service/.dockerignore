@@ -1,0 +1,26 @@
+# ============================================================================
+# FILE: .dockerignore
+# ============================================================================
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+.mvn/
+mvnw
+mvnw.cmd
+
+.git
+.gitignore
+.gitattributes
+
+*.md
+LICENSE
+
+.idea
+*.iml
+.vscode
+.DS_Store
+
+logs/
+*.log

@@ -1,0 +1,61 @@
+# =================================================================================
+# Analytics Service Configuration
+# =================================================================================
+
+server:
+  port: 8090
+
+spring:
+  application:
+    name: analytics-service
+
+  # Database for analytics data
+  datasource:
+    url: jdbc:mysql://localhost:3307/youth_connect_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true
+    username: root
+    password: Douglas20!
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+  # Cache configuration
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+
+# Eureka Configuration
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+# Analytics Configuration
+app:
+  analytics:
+    aggregation-interval: 3600 # 1 hour in seconds
+    retention-days: 365
+    real-time-enabled: true
+    batch-size: 1000
+  reports:
+    export-formats:
+      - PDF
+      - CSV
+      - XLSX
+    storage-path: /app/reports
+    template-path: /app/templates
+  integration:
+    user-service-url: http://user-service:8081
+    opportunity-service-url: http://opportunity-service:8082
+    content-service-url: http://content-service:8085
+    mentor-service-url: http://mentor-service:8084
+
+# Logging
+logging:
+  level:
+    com.youthconnect.analytics_service: DEBUG

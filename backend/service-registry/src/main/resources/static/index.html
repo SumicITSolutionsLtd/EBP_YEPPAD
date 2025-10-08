@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<!--
+  ================================================================================
+  YouthConnect Uganda - Service Registry Dashboard
+  ================================================================================
+  Custom landing page for Eureka Server with:
+  - Branded interface for YouthConnect Uganda
+  - Quick access to monitoring endpoints
+  - System status information
+  - Responsive design for all devices
+
+  Author: YouthConnect Uganda Development Team
+  Version: 2.0.0
+  Last Updated: 2025-01-29
+  ================================================================================
+-->
+<html lang="en">
+<head>
+    <!-- ============================================ -->
+    <!-- Meta Tags for SEO and Responsiveness         -->
+    <!-- ============================================ -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="YouthConnect Uganda Service Registry - Eureka Server for microservices discovery">
+    <meta name="keywords" content="YouthConnect, Service Registry, Eureka, Microservices, Uganda">
+    <meta name="author" content="YouthConnect Uganda">
+
+    <!-- Page Title -->
+    <title>YouthConnect Uganda - Service Registry Dashboard</title>
+
+    <!-- ============================================ -->
+    <!-- External CSS Dependencies                     -->
+    <!-- ============================================ -->
+
+    <!-- Bootstrap 5.3 - Modern responsive framework -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha512-t4GWSVZO1eC8BM339Xd7Uphw5s17a86tIZIj8qRxhnKub6WoyhnrxeCIMeAqBPgdZGlCcG2PrZjMc+Wr78+5Xg=="
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer" />
+
+    <!-- Font Awesome for Icons (optional) -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+          rel="stylesheet"
+          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer" />
+
+    <!-- Custom CSS - YouthConnect branding -->
+    <link rel="stylesheet" href="/css/custom.css">
+
+    <!-- ============================================ -->
+    <!-- Inline Critical CSS (for faster loading)      -->
+    <!-- ============================================ -->
+    <style>
+        /* Prevent flash of unstyled content */
+        body {
+            opacity: 0;
+            transition: opacity 0.3s ease-in;
+        }
+
+        body.loaded {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- ============================================ -->
+<!-- Navigation Header                             -->
+<!-- ============================================ -->
+<nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container-fluid">
+
+        <!-- Brand Logo and Name -->
+        <a class="navbar-brand" href="/">
+            <!-- Emoji icon for visual appeal -->
+            <span style="font-size: 1.8rem;">🌟</span>
+            YouthConnect Uganda - Service Registry
+        </a>
+
+        <!-- Mobile Menu Toggle Button -->
+        <button class="navbar-toggler"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#navbarNav"
+                aria-controls="navbarNav"
+                aria-expanded="false"
+                aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <!-- Navigation Links -->
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+
+                <!-- Eureka Dashboard Link -->
+                <li class="nav-item">
+                    <a class="nav-link" href="/eureka" title="View registered services">
+                        <i class="fas fa-th-large"></i> Dashboard
+                    </a>
+                </li>
+
+                <!-- Health Check Endpoint -->
+                <li class="nav-item">
+                    <a class="nav-link" href="/actuator/health" title="Service health status">
+                        <i class="fas fa-heartbeat"></i> Health
+                    </a>
+                </li>
+
+                <!-- Metrics Endpoint -->
+                <li class="nav-item">
+                    <a class="nav-link" href="/actuator/metrics" title="System metrics">
+                        <i class="fas fa-chart-line"></i> Metrics
+                    </a>
+                </li>
+
+                <!-- Application Info -->
+                <li class="nav-item">
+                    <a class="nav-link" href="/actuator/info" title="Application information">
+                        <i class="fas fa-info-circle"></i> Info
+                    </a>
+                </li>
+
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- ============================================ -->
+<!-- Main Content Area                             -->
+<!-- ============================================ -->
+<div class="container-fluid">
+
+    <!-- ======================================== -->
+    <!-- Welcome Banner                           -->
+    <!-- ======================================== -->
+    <div class="alert alert-info" role="alert">
+        <h4 class="alert-heading">
+            <i class="fas fa-rocket"></i> Welcome to YouthConnect Service Registry!
+        </h4>
+        <p>
+            This Eureka Server manages service discovery for the YouthConnect Uganda platform.
+            All microservices register here for dynamic service discovery, health monitoring,
+            and load balancing across the distributed system.
+        </p>
+        <hr>
+        <p class="mb-0">
+            <strong>Quick Start:</strong> Visit the
+            <a href="/eureka" class="alert-link">
+                <i class="fas fa-external-link-alt"></i> Eureka Dashboard
+            </a>
+            to view all registered services and their instances.
+        </p>
+    </div>
+
+    <!-- ======================================== -->
+    <!-- System Status Cards                      -->
+    <!-- ======================================== -->
+    <div class="row">
+
+        <!-- Card 1: System Status -->
+        <div class="col-md-4 mb-3">
+            <div class="info-card">
+                <h3>
+                    <i class="fas fa-server"></i> System Status
+                </h3>
+                <p>
+                    <strong>Status:</strong>
+                    <span class="badge badge-success">
+                            <i class="fas fa-check-circle"></i> Running
+                        </span>
+                </p>
+                <p>
+                    <strong>Environment:</strong>
+                    <span class="text-muted">Production</span>
+                </p>
+                <p>
+                    <strong>Version:</strong>
+                    <code>2.0.0</code>
+                </p>
+                <p>
+                    <strong>Uptime:</strong>
+                    <span id="uptime">Loading...</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Card 2: Quick Links -->
+        <div class="col-md-4 mb-3">
+            <div class="info-card">
+                <h3>
+                    <i class="fas fa-link"></i> Quick Links
+                </h3>
+                <ul class="list-unstyled">
+                    <li class="mb-2">
+                        <i class="fas fa-th-large text-primary"></i>
+                        <a href="/eureka">Eureka Dashboard</a>
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-cogs text-primary"></i>
+                        <a href="/actuator">Actuator Endpoints</a>
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-chart-bar text-primary"></i>
+                        <a href="/actuator/prometheus">Prometheus Metrics</a>
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-file-code text-primary"></i>
+                        <a href="/actuator/env">Environment</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Card 3: Support Information -->
+        <div class="col-md-4 mb-3">
+            <div class="info-card">
+                <h3>
+                    <i class="fas fa-life-ring"></i> Support
+                </h3>
+                <p>
+                    <strong>Email:</strong><br>
+                    <a href="mailto:devops@youthconnect.ug">
+                        <i class="fas fa-envelope"></i> devops@youthconnect.ug
+                    </a>
+                </p>
+                <p>
+                    <strong>Team:</strong><br>
+                    <span class="text-muted">Platform Engineering</span>
+                </p>
+                <p>
+                    <strong>Documentation:</strong><br>
+                    <a href="/HELP.md" target="_blank">
+                        <i class="fas fa-book"></i> View Documentation
+                    </a>
+                </p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ======================================== -->
+    <!-- Registered Services Section              -->
+    <!-- ======================================== -->
+    <h2>
+        <i class="fas fa-network-wired"></i> Registered Services
+    </h2>
+    <div class="info-card">
+        <div id="services-container">
+            <!-- Services will be loaded dynamically via JavaScript -->
+            <p class="text-center">
+                <i class="fas fa-spinner fa-spin"></i> Loading services...
+            </p>
+        </div>
+        <hr>
+        <p class="mb-0">
+            <strong>Note:</strong> For detailed information about all registered services
+            and their instances, visit the
+            <a href="/eureka">
+                <strong><i class="fas fa-external-link-alt"></i> Eureka Dashboard</strong>
+            </a>.
+        </p>
+    </div>
+
+    <!-- ======================================== -->
+    <!-- Platform Services Overview               -->
+    <!-- ======================================== -->
+    <h2>
+        <i class="fas fa-cubes"></i> Platform Microservices
+    </h2>
+    <div class="row">
+
+        <!-- Core Services -->
+        <div class="col-md-6 mb-3">
+            <div class="info-card">
+                <h3>Core Services</h3>
+                <ul>
+                    <li><strong>API Gateway</strong> (Port 8088) - Entry point</li>
+                    <li><strong>Auth Service</strong> (Port 8080) - Authentication</li>
+                    <li><strong>User Service</strong> (Port 8082) - User management</li>
+                    <li><strong>Opportunity Service</strong> (Port 8083) - Opportunities</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Support Services -->
+        <div class="col-md-6 mb-3">
+            <div class="info-card">
+                <h3>Support Services</h3>
+                <ul>
+                    <li><strong>USSD Service</strong> (Port 8004) - Mobile interface</li>
+                    <li><strong>Notification Service</strong> (Port 8086) - SMS/Email</li>
+                    <li><strong>Content Service</strong> (Port 8085) - Content mgmt</li>
+                    <li><strong>AI Service</strong> (Port 8089) - Recommendations</li>
+                </ul>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ============================================ -->
+<!-- Footer                                        -->
+<!-- ============================================ -->
+<footer>
+    <div class="container">
+        <p>
+            <i class="fas fa-copyright"></i> 2025 YouthConnect Uganda |
+            Empowering Youth Through Technology
+        </p>
+        <p class="text-muted">
+            Powered by <strong>Spring Cloud Netflix Eureka</strong>
+        </p>
+        <p class="text-muted small">
+            Service Registry v2.0.0 |
+            <a href="/actuator/health">System Health</a> |
+            <a href="/actuator/info">Build Info</a>
+        </p>
+    </div>
+</footer>
+
+<!-- ============================================ -->
+<!-- JavaScript Dependencies                       -->
+<!-- ============================================ -->
+
+<!-- Bootstrap Bundle (includes Popper.js) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"
+        integrity="sha512-VK2zcvntEufaimc4lhCDJy9IbwCL7cYqfxGb2cdcdg8cXMQQDHs2MXBPdHNVXMkkl3wdSPHLF1Tz2l9Dw3C8Qg=="
+        crossorigin="anonymous"
+        referrerpolicy="no-referrer"></script>
+
+<!-- ============================================ -->
+<!-- Custom JavaScript for Dynamic Content         -->
+<!-- ============================================ -->
+<script>
+    /**
+     * Initialize page when DOM is fully loaded
+     */
+    document.addEventListener('DOMContentLoaded', function() {
+        // Show body with fade-in effect
+        document.body.classList.add('loaded');
+
+        // Load registered services
+        loadRegisteredServices();
+
+        // Update uptime periodically
+        updateUptime();
+        setInterval(updateUptime, 60000); // Update every minute
+    });
+
+    /**
+     * Fetch and display registered services from Eureka
+     */
+    async function loadRegisteredServices() {
+        try {
+            const response = await fetch('/eureka/apps', {
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch services');
+
+            const data = await response.json();
+            const applications = data.applications?.application || [];
+
+            const container = document.getElementById('services-container');
+
+            if (applications.length === 0) {
+                container.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>No services registered yet.</strong>
+                        Microservices will appear here once they register with this Eureka server.
+                    </div>
+                `;
+                return;
+            }
+
+            // Build services table
+            let html = `
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Service Name</th>
+                                <th>Instances</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            applications.forEach(app => {
+                const instanceCount = app.instance?.length || 0;
+                const upCount = app.instance?.filter(i => i.status === 'UP').length || 0;
+                const status = upCount > 0 ? 'UP' : 'DOWN';
+                const badgeClass = status === 'UP' ? 'badge-success' : 'badge-danger';
+
+                html += `
+                    <tr>
+                        <td><strong>${app.name}</strong></td>
+                        <td>${upCount}/${instanceCount}</td>
+                        <td><span class="badge ${badgeClass}">${status}</span></td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            container.innerHTML = html;
+
+        } catch (error) {
+            console.error('Error loading services:', error);
+            document.getElementById('services-container').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <strong>Error loading services.</strong>
+                    Please check the console for details or visit the
+                    <a href="/eureka">Eureka Dashboard</a> directly.
+                </div>
+            `;
+        }
+    }
+
+    /**
+     * Update and display system uptime
+     */
+    async function updateUptime() {
+        try {
+            const response = await fetch('/actuator/metrics/process.uptime');
+            const data = await response.json();
+            const uptimeSeconds = data.measurements[0].value;
+
+            const days = Math.floor(uptimeSeconds / 86400);
+            const hours = Math.floor((uptimeSeconds % 86400) / 3600);
+            const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+
+            let uptimeText = '';
+            if (days > 0) uptimeText += `${days}d `;
+            if (hours > 0) uptimeText += `${hours}h `;
+            uptimeText += `${minutes}m`;
+
+            document.getElementById('uptime').textContent = uptimeText;
+        } catch (error) {
+            document.getElementById('uptime').textContent = 'N/A';
+        }
+    }
+</script>
+
+</body>
+</html>

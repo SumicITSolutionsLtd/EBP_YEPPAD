@@ -1,0 +1,294 @@
+package com.youthconnect.analytics_service.service;
+
+import com.youthconnect.analytics_service.client.UserServiceClient;
+import com.youthconnect.analytics_service.client.OpportunityServiceClient;
+import com.youthconnect.analytics_service.dto.*;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.*;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AnalyticsService {
+
+    private final UserServiceClient userServiceClient;
+    private final OpportunityServiceClient opportunityServiceClient;
+    private final MetricsCalculationService metricsService;
+    private final DataAggregationService aggregationService;
+
+    /**
+     * Get comprehensive NGO dashboard data
+     */
+    @Cacheable(value = "ngoDashboard", key = "#ngoId + '_' + #days")
+    public NgoDashboardData getNgoDashboardData(Long ngoId, int days) {
+        log.info("Generating NGO dashboard data for NGO: {} (last {} days)", ngoId, days);
+
+        try {
+            LocalDateTime startDate = LocalDateTime.now().minusDays(days);
+
+            // Get basic metrics
+            int totalOpportunities = aggregationService.countOpportunitiesByNgo(ngoId, startDate);
+            int totalApplications = aggregationService.countApplicationsByNgo(ngoId, startDate);
+            int approvedApplications = aggregationService.countApprovedApplicationsByNgo(ngoId, startDate);
+            int activeUsers = aggregationService.countActiveUsersByNgo(ngoId, startDate);
+
+            // Calculate rates
+            double applicationRate = totalOpportunities > 0 ? (double) totalApplications / totalOpportunities : 0.0;
+            double approvalRate = totalApplications > 0 ? (double) approvedApplications / totalApplications : 0.0;
+
+            // Get trend data
+            List<DailyMetric> applicationTrend = aggregationService.getApplicationTrendByNgo(ngoId, days);
+            List<DailyMetric> userRegistrationTrend = aggregationService.getUserRegistrationTrend(days);
+
+            // Get geographic distribution
+            Map<String, Integer> geographicDistribution = aggregationService.getGeographicDistributionByNgo(ngoId);
+
+            // Get top performing opportunities
+            List<OpportunityPerformance> topOpportunities = aggregationService.getTopOpportunitiesByNgo(ngoId, 5);
+
+            return NgoDashboardData.builder()
+                    .ngoId(ngoId)
+                    .periodDays(days)
+                    .totalOpportunities(totalOpportunities)
+                    .totalApplications(totalApplications)
+                    .approvedApplications(approvedApplications)
+                    .activeUsers(activeUsers)
+                    .applicationRate(applicationRate)
+                    .approvalRate(approvalRate)
+                    .applicationTrend(applicationTrend)
+                    .userRegistrationTrend(userRegistrationTrend)
+                    .geographicDistribution(geographicDistribution)
+                    .topOpportunities(topOpportunities)
+                    .generatedAt(LocalDateTime.now())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error generating NGO dashboard data for {}: {}", ngoId, e.getMessage());
+            throw new RuntimeException("Failed to generate NGO dashboard data", e);
+        }
+    }
+
+    /**
+     * Get comprehensive Funder dashboard data
+     */
+    @Cacheable(value = "funderDashboard", key = "#funderId + '_' + #days")
+    public FunderDashboardData getFunderDashboardData(Long funderId, int days) {
+        log.info("Generating Funder dashboard data for Funder: {} (last {} days)", funderId, days);
+
+        try {
+            LocalDateTime startDate = LocalDateTime.now().minusDays(days);
+
+            // Get funding metrics
+            double totalFundingCommitted = aggregationService.getTotalFundingByFunder(funderId, startDate);
+            double totalFundingDisbursed = aggregationService.getDisbursedFundingByFunder(funderId, startDate);
+            int fundedProjects = aggregationService.countFundedProjectsByFunder(funderId, startDate);
+            int totalApplications = aggregationService.countApplicationsByFunder(funderId, startDate);
+
+            // Calculate success metrics
+            double averageFundingAmount = fundedProjects > 0 ? totalFundingCommitted / fundedProjects : 0.0;
+            double disbursementRate = totalFundingCommitted > 0 ? totalFundingDisbursed / totalFundingCommitted : 0.0;
+
+            // Get impact metrics
+            Map<String, Integer> sectorDistribution = aggregationService.getSectorDistributionByFunder(funderId);
+            List<ProjectImpact> impactMetrics = aggregationService.getProjectImpactsByFunder(funderId, 10);
+
+            // Get funding trends
+            List<DailyMetric> fundingTrend = aggregationService.getFundingTrendByFunder(funderId, days);
+
+            return FunderDashboardData.builder()
+                    .funderId(funderId)
+                    .periodDays(days)
+                    .totalFundingCommitted(totalFundingCommitted)
+                    .totalFundingDisbursed(totalFundingDisbursed)
+                    .fundedProjects(fundedProjects)
+                    .totalApplications(totalApplications)
+                    .averageFundingAmount(averageFundingAmount)
+                    .disbursementRate(disbursementRate)
+                    .sectorDistribution(sectorDistribution)
+                    .impactMetrics(impactMetrics)
+                    .fundingTrend(fundingTrend)
+                    .generatedAt(LocalDateTime.now())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error generating Funder dashboard data for {}: {}", funderId, e.getMessage());
+            throw new RuntimeException("Failed to generate Funder dashboard data", e);
+        }
+    }
+
+    /**
+     * Get platform-wide analytics
+     */
+    @Cacheable(value = "platformDashboard", key = "#days")
+    public PlatformDashboardData getPlatformDashboardData(int days) {
+        log.info("Generating platform dashboard data (last {} days)", days);
+
+        try {
+            LocalDateTime startDate = LocalDateTime.now().minusDays(days);
+
+            // Get user metrics
+            int totalUsers = aggregationService.getTotalUsers();
+            int newUsers = aggregationService.getNewUsers(startDate);
+            int activeUsers = aggregationService.getActiveUsers(startDate);
+
+            // Get opportunity metrics
+            int totalOpportunities = aggregationService.getTotalOpportunities();
+            int newOpportunities = aggregationService.getNewOpportunities(startDate);
+            int totalApplications = aggregationService.getTotalApplications(startDate);
+
+            // Get engagement metrics
+            UserEngagementData engagement = getUserEngagementData(days);
+
+            // Get growth trends
+            List<DailyMetric> userGrowthTrend = aggregationService.getUserGrowthTrend(days);
+            List<DailyMetric> opportunityTrend = aggregationService.getOpportunityGrowthTrend(days);
+
+            // Get role distribution
+            Map<String, Integer> roleDistribution = aggregationService.getUserRoleDistribution();
+
+            return PlatformDashboardData.builder()
+                    .periodDays(days)
+                    .totalUsers(totalUsers)
+                    .newUsers(newUsers)
+                    .activeUsers(activeUsers)
+                    .totalOpportunities(totalOpportunities)
+                    .newOpportunities(newOpportunities)
+                    .totalApplications(totalApplications)
+                    .engagement(engagement)
+                    .userGrowthTrend(userGrowthTrend)
+                    .opportunityTrend(opportunityTrend)
+                    .roleDistribution(roleDistribution)
+                    .generatedAt(LocalDateTime.now())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error generating platform dashboard data: {}", e.getMessage());
+            throw new RuntimeException("Failed to generate platform dashboard data", e);
+        }
+    }
+
+    /**
+     * Get user engagement metrics
+     */
+    @Cacheable(value = "userEngagement", key = "#days")
+    public UserEngagementData getUserEngagementData(int days) {
+        log.info("Calculating user engagement metrics (last {} days)", days);
+
+        try {
+            LocalDateTime startDate = LocalDateTime.now().minusDays(days);
+
+            // Calculate engagement metrics
+            int dailyActiveUsers = aggregationService.getDailyActiveUsers();
+            int weeklyActiveUsers = aggregationService.getWeeklyActiveUsers();
+            int monthlyActiveUsers = aggregationService.getMonthlyActiveUsers();
+
+            double avgSessionDuration = metricsService.calculateAverageSessionDuration(startDate);
+            double avgPagesPerSession = metricsService.calculateAveragePagesPerSession(startDate);
+            double bounceRate = metricsService.calculateBounceRate(startDate);
+
+            // Get engagement by feature
+            Map<String, Integer> featureUsage = aggregationService.getFeatureUsage(startDate);
+
+            // Calculate engagement score (0-100)
+            double engagementScore = metricsService.calculateEngagementScore(
+                    dailyActiveUsers, avgSessionDuration, avgPagesPerSession, bounceRate);
+
+            return UserEngagementData.builder()
+                    .periodDays(days)
+                    .dailyActiveUsers(dailyActiveUsers)
+                    .weeklyActiveUsers(weeklyActiveUsers)
+                    .monthlyActiveUsers(monthlyActiveUsers)
+                    .averageSessionDuration(avgSessionDuration)
+                    .averagePagesPerSession(avgPagesPerSession)
+                    .bounceRate(bounceRate)
+                    .engagementScore(engagementScore)
+                    .featureUsage(featureUsage)
+                    .calculatedAt(LocalDateTime.now())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error calculating user engagement: {}", e.getMessage());
+            throw new RuntimeException("Failed to calculate user engagement", e);
+        }
+    }
+
+    /**
+     * Get opportunity application analytics
+     */
+    public List<OpportunityApplicationData> getOpportunityApplicationData(Long ngoId, int days) {
+        log.info("Getting opportunity application data - NGO: {}, Days: {}", ngoId, days);
+
+        try {
+            LocalDateTime startDate = LocalDateTime.now().minusDays(days);
+            return aggregationService.getOpportunityApplicationData(ngoId, startDate);
+
+        } catch (Exception e) {
+            log.error("Error getting opportunity application data: {}", e.getMessage());
+            throw new RuntimeException("Failed to get application data", e);
+        }
+    }
+
+    /**
+     * Get impact metrics for specific opportunity
+     */
+    public ImpactMetrics getOpportunityImpactMetrics(Long opportunityId) {
+        log.info("Calculating impact metrics for opportunity: {}", opportunityId);
+
+        try {
+            return metricsService.calculateOpportunityImpact(opportunityId);
+
+        } catch (Exception e) {
+            log.error("Error calculating impact metrics: {}", e.getMessage());
+            throw new RuntimeException("Failed to calculate impact metrics", e);
+        }
+    }
+
+    /**
+     * Get real-time analytics
+     */
+    public RealtimeAnalyticsData getRealtimeAnalytics() {
+        try {
+            int currentActiveUsers = aggregationService.getCurrentActiveUsers();
+            int todayRegistrations = aggregationService.getTodayRegistrations();
+            int todayApplications = aggregationService.getTodayApplications();
+            int ongoingSessions = aggregationService.getOngoingSessions();
+
+            // Get recent activities (last hour)
+            List<RecentActivity> recentActivities = aggregationService.getRecentActivities(60); // 60 minutes
+
+            return RealtimeAnalyticsData.builder()
+                    .currentActiveUsers(currentActiveUsers)
+                    .todayRegistrations(todayRegistrations)
+                    .todayApplications(todayApplications)
+                    .ongoingSessions(ongoingSessions)
+                    .recentActivities(recentActivities)
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error getting real-time analytics: {}", e.getMessage());
+            throw new RuntimeException("Failed to get real-time data", e);
+        }
+    }
+
+    /**
+     * Check data service health
+     */
+    public boolean checkDataServiceHealth() {
+        try {
+            // Test connections to dependent services
+            userServiceClient.checkHealth();
+            opportunityServiceClient.checkHealth();
+            return true;
+        } catch (Exception e) {
+            log.error("Data service health check failed: {}", e.getMessage());
+            return false;
+        }
+    }
+}

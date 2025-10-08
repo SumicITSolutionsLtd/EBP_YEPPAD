@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<!-- This section correctly inherits configurations from your parent project. -->
+	<!-- Make sure your parent pom.xml is set up correctly in the root directory. -->
+	<parent>
+		<groupId>com.youthconnect</groupId>
+		<artifactId>parent-project</artifactId>
+		<version>1.0.0-SNAPSHOT</version>
+		<relativePath>../pom.xml</relativePath> <!-- This tells Maven to look one directory up for the parent pom. -->
+	</parent>
+
+	<artifactId>api-gateway</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>api-gateway</name>
+	<description>The single entry point and router for all frontend and external service requests.</description>
+
+	<properties>
+		<java.version>17</java.version>
+		<!-- The spring-cloud.version should be managed in your parent pom.xml for consistency -->
+	</properties>
+
+	<dependencies>
+		<!-- ====================================================================== -->
+		<!-- == THIS IS THE CRITICAL DEPENDENCY FIX == -->
+		<!-- ====================================================================== -->
+		<!-- This is the RE-ACTIVE gateway dependency. It uses Netty and is non-blocking.
+             The 'spring-cloud-starter-gateway-server-webmvc' has been REMOVED. -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-gateway</artifactId>
+		</dependency>
+
+		<!-- This dependency allows the gateway to find other microservices via the Eureka registry. -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+		</dependency>
+
+		<!-- Standard Spring Boot dependency for testing -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+</project>

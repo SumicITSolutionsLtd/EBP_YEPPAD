@@ -1,0 +1,59 @@
+# =================================================================================
+# File Management Service Configuration
+# =================================================================================
+
+server:
+  port: 8089
+
+spring:
+  application:
+    name: file-management-service
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+      enabled: true
+
+# Eureka Configuration
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+# File Management Configuration
+app:
+  file:
+    storage:
+      type: LOCAL # LOCAL, S3, MINIO
+      path: uploads/
+      base-url: http://localhost:8089
+    upload:
+      max-file-size: 50MB
+      allowed-types:
+        - jpg
+        - jpeg
+        - png
+        - pdf
+        - doc
+        - docx
+        - mp3
+        - wav
+        - m4a
+        - txt
+    audio:
+      processing-enabled: true
+      formats:
+        - mp3
+        - wav
+        - m4a
+    security:
+      virus-scan-enabled: false
+      encryption-enabled: false
+
+# Logging
+logging:
+  level:
+    com.youthconnect.file_service: DEBUGspring.application.name=file-management-service
