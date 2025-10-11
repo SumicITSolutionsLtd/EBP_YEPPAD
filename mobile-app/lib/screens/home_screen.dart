@@ -1,7 +1,7 @@
 import 'package:ebp_platform/screens/login_screen.dart';
 import 'package:flutter/material.dart';
-import 'jobs_screen.dart';
-import 'learn_screen.dart';
+import 'jobs/jobs_screen.dart';
+import 'learn/learn_screen.dart';
 import 'mentorship/mentorship_screen.dart';
 import 'skills/skills_screen.dart';
 import 'community_screen.dart';

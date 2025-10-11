@@ -3,7 +3,7 @@ import '../models/profile_model.dart';
 class ProfileService {
   // Mock data (in real app, fetched from backend)
   static ProfileModel userProfile = ProfileModel(
-    name: "Ayesiga Yonah",
+    name: "Yonah A",
     email: "yonah@gmail.com",
     phone: "+256 700 123456",
     location: "Kampala, Uganda",

@@ -60,7 +60,7 @@ class _SplashScreenState extends State<SplashScreen>
             ),
           ),
 
-          // Bottom content: progress bar + "Empowering the youth"
+        /*  // Bottom content: progress bar + "Empowering the youth"
           Positioned(
             bottom: 40,
             left: 0,
@@ -68,17 +68,17 @@ class _SplashScreenState extends State<SplashScreen>
             child: Column(
               children: const [
                 CircularProgressIndicator(color: Colors.white),
-                SizedBox(height: 20),
+                SizedBox(height: 20),*/
                 Text(
                   "Empowering the youth",
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 18,
                     color: Colors.white70,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+                    fontWeight: FontWeight.bold,
+                //  ),
+                //),
+             // ],
             ),
           ),
         ],
