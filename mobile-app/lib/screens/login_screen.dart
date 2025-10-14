@@ -34,7 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 // App Logo
                 Image.asset(
                   'assets/images/ebplogotwo.png',
-                  height: 100,
+                  height: 150, width: 150,
                 ),
                 const SizedBox(height: 20),
 
