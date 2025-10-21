@@ -1,9 +1,47 @@
-import React, { useState, useRef, useEffect } from 'react';
+/*import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageCircle, Send, X, Bot, User } from 'lucide-react';
+const MessageCircle: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M8 15c1.5-1 3-1 4-1s2.5 0 4 1" />
+    <path d="M8 12h8" />
+  </svg>
+);
+
+const Send: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M22 2L11 13" />
+    <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+  </svg>
+);
+
+const X: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
+const Bot: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <rect x="3" y="7" width="18" height="11" rx="2" />
+    <path d="M16 3v4" />
+    <path d="M8 3v4" />
+    <circle cx="8.5" cy="12" r="1" />
+    <circle cx="15.5" cy="12" r="1" />
+    <path d="M8 18v1a2 2 0 0 0 4 0v-1" />
+  </svg>
+);
+
+const User: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -120,7 +158,6 @@ Answer questions about these services in a friendly, informative way. If asked a
       <Button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary hover:bg-primary/90 shadow-strong z-50"
-        size="icon"
       >
         <MessageCircle className="h-6 w-6 text-primary-foreground" />
       </Button>
@@ -135,10 +172,8 @@ Answer questions about these services in a friendly, informative way. If asked a
           {t('chatbot.title')}
         </CardTitle>
         <Button
-          variant="ghost"
-          size="icon"
           onClick={() => setIsOpen(false)}
-          className="text-primary-foreground hover:bg-primary-foreground/20"
+          className="h-9 w-9 p-0 text-primary-foreground hover:bg-primary-foreground/20"
         >
           <X className="h-4 w-4" />
         </Button>
@@ -215,4 +250,4 @@ Answer questions about these services in a friendly, informative way. If asked a
   );
 };
 
-export default ChatBot;
+export default ChatBot;*/
