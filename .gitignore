@@ -1,0 +1,14 @@
+# Ignore backup and temporary files
+*~
+*.bak
+*.swp
+*.log
+
+# OS system files
+.DS_Store
+Thumbs.db
+
+# Node, Java, Python, and build directories (if any)
+node_modules/
+target/
+build/
