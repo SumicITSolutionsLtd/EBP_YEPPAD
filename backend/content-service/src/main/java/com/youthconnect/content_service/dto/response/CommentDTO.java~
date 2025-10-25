@@ -1,4 +1,0 @@
-package com.youthconnect.content_service.dto.response;
-
-public class CommentDTO {
-}

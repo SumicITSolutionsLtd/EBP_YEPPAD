@@ -1,4 +1,0 @@
-package com.youthconnect.content_service.repository;
-
-public class PostVoteRepository {
-}
