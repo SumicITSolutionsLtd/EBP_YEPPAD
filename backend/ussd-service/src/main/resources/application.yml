@@ -42,7 +42,7 @@ spring:
 
   # Production Database (PostgreSQL)
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:youth_connect_db}
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:epb_db}
     username: ${DB_USERNAME:ussd_user}
     password: ${DB_PASSWORD:CHANGE_ME_IN_PRODUCTION}
     driver-class-name: org.postgresql.Driver
@@ -285,10 +285,10 @@ management:
 logging:
   level:
     root: WARN
-    com.youthconnect.ussd_service: INFO
-    com.youthconnect.ussd_service.controller: INFO
-    com.youthconnect.ussd_service.service: INFO
-    com.youthconnect.ussd_service.security: WARN
+    com.entrepreneurshipboosterplatform.ussd_service: INFO
+    com.entrepreneurshipboosterplatform.ussd_service.controller: INFO
+    com.entrepreneurshipboosterplatform.ussd_service.service: INFO
+    com.entrepreneurshipboosterplatform.ussd_service.security: WARN
     org.springframework.web: WARN
     org.springframework.security: WARN
     org.springframework.cloud: INFO

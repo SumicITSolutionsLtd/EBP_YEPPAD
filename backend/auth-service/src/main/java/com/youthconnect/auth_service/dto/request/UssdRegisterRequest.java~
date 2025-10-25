@@ -1,0 +1,4 @@
+package com.youthconnect.auth_service.dto.request;
+
+public class UssdRegisterRequest {
+}

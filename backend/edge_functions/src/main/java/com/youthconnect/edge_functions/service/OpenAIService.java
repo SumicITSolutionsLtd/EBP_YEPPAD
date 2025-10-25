@@ -1,269 +1,369 @@
 package com.youthconnect.edge_functions.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.youthconnect.edge_functions.config.OpenAIConfig;
 import com.youthconnect.edge_functions.dto.ChatRequest;
-import com.youthconnect.edge_functions.dto.ChatResponse;
+import com.youthconnect.edge_functions.dto.response.ChatResponse;
+import com.youthconnect.edge_functions.exception.AIServiceException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.env.Environment;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
-import java.util.Base64;
 
 /**
- * OpenAIService handles all interactions with OpenAI APIs including:
- * - Chat completions (GPT models)
- * - Text-to-speech (TTS)
- * - Speech-to-text (Whisper)
+ * OpenAI Service - Production-Ready Implementation
  *
- * This service uses environment variables for configuration to ensure
- * security and flexibility across different deployment environments.
+ * Handles all interactions with OpenAI APIs:
+ * - Chat completions (GPT-4/GPT-3.5-turbo)
+ * - Text-to-Speech (TTS) for audio learning modules
+ * - Speech-to-Text (Whisper) for voice inputs
+ *
+ * Features:
+ * - Comprehensive error handling
+ * - Fallback mechanisms when AI unavailable
+ * - Request/response logging
+ * - Cost optimization
+ *
+ * @author Douglas Kings Kato
+ * @version 2.0 (Production Ready)
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class OpenAIService {
 
-    private final Environment environment;
-    private final RestTemplate restTemplate;
+    private final OpenAIConfig openAIConfig;
+    private final RestTemplate openAIRestTemplate;
     private final ObjectMapper objectMapper;
 
-    /**
-     * Retrieves the OpenAI API key from environment variables with fallback logic
-     * @return OpenAI API key or default placeholder if not configured
-     */
-    private String getOpenAIApiKey() {
-        // Try multiple ways to get the API key with priority order
-        String apiKey = environment.getProperty("OPENAI_API_KEY"); // Highest priority - system env var
-        if (apiKey == null || apiKey.isEmpty()) {
-            apiKey = environment.getProperty("openai.api.key"); // application.yml property
-        }
-        if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your-openai-key-here")) {
-            apiKey = "your-openai-key-here"; // Final fallback
-            log.warn("OpenAI API key not configured. Using placeholder. Please set OPENAI_API_KEY environment variable.");
-        }
-        return apiKey;
-    }
+    // ============================================
+    // CHAT COMPLETION (GPT)
+    // ============================================
 
     /**
-     * Retrieves the OpenAI API base URL with fallback to default
-     * @return OpenAI API base URL
-     */
-    private String getOpenAIBaseUrl() {
-        return environment.getProperty("openai.api.base-url", "https://api.openai.com/v1");
-    }
-
-    /**
-     * Sends a message to OpenAI Chat API and returns the AI response
+     * Sends a message to OpenAI Chat API with conversation history
+     *
+     * Use cases:
+     * - AI assistant for user questions
+     * - Opportunity recommendation explanations
+     * - Business advice chatbot
+     *
      * @param chatRequest Contains message, system prompt, and conversation history
-     * @return ChatResponse with AI response and usage data
+     * @return ChatResponse with AI response and usage metrics
+     * @throws AIServiceException if OpenAI API fails
      */
     public ChatResponse chatWithAI(ChatRequest chatRequest) {
         try {
-            String apiKey = getOpenAIApiKey();
-            String baseUrl = getOpenAIBaseUrl();
-
-            // Validate API key configuration
-            if (apiKey.equals("your-openai-key-here")) {
-                throw new RuntimeException("OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.");
+            // Check if OpenAI is configured
+            if (!openAIConfig.isConfigured()) {
+                log.warn("OpenAI not configured, returning fallback response");
+                return createFallbackResponse();
             }
 
-            log.debug("Sending chat request to OpenAI with message: {}",
-                    chatRequest.getMessage().substring(0, Math.min(50, chatRequest.getMessage().length())) + "...");
+            log.debug("🤖 Sending chat request to OpenAI");
 
-            // Build conversation messages for OpenAI API
+            // ============================================
+            // BUILD CONVERSATION MESSAGES
+            // ============================================
             List<Map<String, String>> messages = new ArrayList<>();
 
-            // Add system prompt (default if not provided)
-            String systemPrompt = chatRequest.getSystemPrompt() != null ?
-                    chatRequest.getSystemPrompt() :
-                    "You are a helpful assistant for Kwetu Hub, a youth employment platform in Uganda. " +
-                            "Provide concise, helpful responses tailored for youth seeking opportunities.";
+            // Add system prompt (defines AI behavior)
+            String systemPrompt = chatRequest.getSystemPrompt() != null
+                    ? chatRequest.getSystemPrompt()
+                    : buildDefaultSystemPrompt();
+
             messages.add(Map.of("role", "system", "content", systemPrompt));
 
-            // Add conversation history if available
+            // Add conversation history for context
             if (chatRequest.getConversationHistory() != null) {
-                for (Map<String, String> msg : chatRequest.getConversationHistory()) {
-                    messages.add(Map.of("role", msg.get("role"), "content", msg.get("content")));
-                }
+                messages.addAll(chatRequest.getConversationHistory());
             }
 
             // Add current user message
             messages.add(Map.of("role", "user", "content", chatRequest.getMessage()));
 
-            // Prepare OpenAI API request payload
+            // ============================================
+            // PREPARE API REQUEST
+            // ============================================
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", "gpt-4o-mini"); // Fast and cost-effective model
+            requestBody.put("model", openAIConfig.getDefaultChatModel());
             requestBody.put("messages", messages);
-            requestBody.put("max_tokens", 200); // Keep responses concise
-            requestBody.put("temperature", 0.7); // Balanced creativity
-            requestBody.put("presence_penalty", 0.1); // Slightly discourage repetition
-            requestBody.put("frequency_penalty", 0.1); // Slightly discourage frequent words
+            requestBody.put("max_tokens", openAIConfig.getMaxTokens());
+            requestBody.put("temperature", openAIConfig.getTemperature());
 
-            // Prepare HTTP headers with authentication
+            // Prepare HTTP headers
             HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + apiKey);
             headers.setContentType(MediaType.APPLICATION_JSON);
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
-            // Make API call to OpenAI
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    baseUrl + "/chat/completions",
+            // ============================================
+            // MAKE API CALL
+            // ============================================
+            ResponseEntity<Map> response = openAIRestTemplate.exchange(
+                    openAIConfig.getChatCompletionsUrl(),
                     HttpMethod.POST,
                     entity,
                     Map.class
             );
 
-            // Process successful response
+            // ============================================
+            // PROCESS RESPONSE
+            // ============================================
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Map<String, Object> responseBody = response.getBody();
+
+                @SuppressWarnings("unchecked")
                 List<Map<String, Object>> choices = (List<Map<String, Object>>) responseBody.get("choices");
 
                 if (choices != null && !choices.isEmpty()) {
+                    @SuppressWarnings("unchecked")
                     Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
                     String aiResponse = (String) message.get("content");
 
-                    // Create and return response DTO
-                    ChatResponse chatResponse = new ChatResponse();
-                    chatResponse.setResponse(aiResponse);
-                    chatResponse.setUsage((Map<String, Object>) responseBody.get("usage"));
+                    log.debug("✅ Successfully received AI response ({} tokens)",
+                            ((Map<?, ?>) responseBody.get("usage")).get("total_tokens"));
 
-                    log.debug("Successfully received AI response");
-                    return chatResponse;
+                    return ChatResponse.builder()
+                            .response(aiResponse)
+                            .usage((Map<String, Object>) responseBody.get("usage"))
+                            .build();
                 }
             }
 
-            throw new RuntimeException("Failed to get valid response from OpenAI API");
+            throw new AIServiceException("Failed to get valid response from OpenAI");
+
+        } catch (HttpClientErrorException e) {
+            log.error("❌ OpenAI API client error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+
+            if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                throw AIServiceException.rateLimitExceeded();
+            } else if (e.getStatusCode() == HttpStatus.UNAUTHORIZED) {
+                throw AIServiceException.apiKeyNotConfigured();
+            } else {
+                throw new AIServiceException("AI service error: " + e.getStatusCode(), e);
+            }
+
+        } catch (HttpServerErrorException e) {
+            log.error("❌ OpenAI API server error: {}", e.getStatusCode());
+            throw new AIServiceException("AI service temporarily unavailable", e);
 
         } catch (Exception e) {
-            log.error("OpenAI API error: {}", e.getMessage(), e);
-            throw new RuntimeException("AI service temporarily unavailable. Please try again later.");
+            log.error("❌ OpenAI API error: {}", e.getMessage(), e);
+            throw new AIServiceException("AI service temporarily unavailable", e);
         }
     }
 
+    // ============================================
+    // TEXT-TO-SPEECH (TTS)
+    // ============================================
+
     /**
      * Converts text to speech using OpenAI TTS API
-     * @param text Text to convert to speech
+     *
+     * Use cases:
+     * - Generate audio for learning modules
+     * - Create voice messages for notifications
+     * - Accessibility features
+     *
+     * @param text Text to convert (max 4096 characters)
      * @param voice Voice type (alloy, echo, fable, onyx, nova, shimmer)
-     * @return Base64 encoded audio content
+     * @return Base64 encoded MP3 audio
+     * @throws AIServiceException if conversion fails
      */
     public String textToSpeech(String text, String voice) {
         try {
-            String apiKey = getOpenAIApiKey();
-            String baseUrl = getOpenAIBaseUrl();
-
-            if (apiKey.equals("your-openai-key-here")) {
-                throw new RuntimeException("OpenAI API key not configured.");
+            // Check if OpenAI is configured
+            if (!openAIConfig.isConfigured()) {
+                throw AIServiceException.apiKeyNotConfigured();
             }
 
-            log.debug("Converting text to speech: {}", text.substring(0, Math.min(30, text.length())) + "...");
+            log.debug("🔊 Converting text to speech ({} characters)", text.length());
 
-            // Prepare TTS request payload
+            // Validate text length (OpenAI limit)
+            if (text.length() > 4096) {
+                throw AIServiceException.invalidRequest("Text too long (max 4096 characters)");
+            }
+
+            // ============================================
+            // PREPARE TTS REQUEST
+            // ============================================
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", "tts-1"); // Fast model for real-time use
+            requestBody.put("model", openAIConfig.getDefaultTtsModel());
             requestBody.put("input", text);
-            requestBody.put("voice", voice != null ? voice : "alloy"); // Default to friendly voice
+            requestBody.put("voice", voice != null ? voice : openAIConfig.getDefaultVoice());
             requestBody.put("response_format", "mp3");
             requestBody.put("speed", 0.9); // Slightly slower for clarity
 
-            // Prepare HTTP request
             HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + apiKey);
             headers.setContentType(MediaType.APPLICATION_JSON);
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
-            // Call OpenAI TTS API
-            ResponseEntity<byte[]> response = restTemplate.exchange(
-                    baseUrl + "/audio/speech",
+            // ============================================
+            // MAKE API CALL
+            // ============================================
+            ResponseEntity<byte[]> response = openAIRestTemplate.exchange(
+                    openAIConfig.getTtsUrl(),
                     HttpMethod.POST,
                     entity,
                     byte[].class
             );
 
-            // Process response
+            // ============================================
+            // PROCESS RESPONSE
+            // ============================================
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 String base64Audio = Base64.getEncoder().encodeToString(response.getBody());
-                log.debug("Successfully generated speech audio");
+                log.debug("✅ Successfully generated speech audio ({} bytes)", response.getBody().length);
                 return base64Audio;
             }
 
-            throw new RuntimeException("Failed to generate speech from OpenAI TTS API");
+            throw new AIServiceException("Failed to generate speech");
 
         } catch (Exception e) {
-            log.error("OpenAI TTS error: {}", e.getMessage(), e);
-            throw new RuntimeException("Text-to-speech service unavailable. Please try again later.");
+            log.error("❌ OpenAI TTS error: {}", e.getMessage(), e);
+            throw new AIServiceException("Text-to-speech service unavailable", e);
         }
     }
 
+    // ============================================
+    // SPEECH-TO-TEXT (Whisper) - ✅ FIXED
+    // ============================================
+
     /**
      * Converts speech audio to text using OpenAI Whisper API
-     * @param audioData Base64 encoded audio data
+     *
+     * ✅ FIXED: Now accepts byte[] instead of String
+     *
+     * Use cases:
+     * - Voice questions from youth via mobile
+     * - USSD audio inputs
+     * - Voice search functionality
+     *
+     * @param audioData Audio file as byte array (max 25MB)
      * @return Transcribed text
+     * @throws AIServiceException if transcription fails
      */
-    public String speechToText(String audioData) {
+    public String speechToText(byte[] audioData) { // ✅ FIXED PARAMETER TYPE
         try {
-            String apiKey = getOpenAIApiKey();
-            String baseUrl = getOpenAIBaseUrl();
-
-            if (apiKey.equals("your-openai-key-here")) {
-                throw new RuntimeException("OpenAI API key not configured.");
+            // Check if OpenAI is configured
+            if (!openAIConfig.isConfigured()) {
+                throw AIServiceException.apiKeyNotConfigured();
             }
 
-            log.debug("Converting speech to text");
+            log.debug("🎤 Converting speech to text ({} bytes audio)", audioData.length);
 
-            // Decode base64 audio data
-            byte[] audioBytes = Base64.getDecoder().decode(audioData);
+            // Validate audio size (OpenAI limit: 25MB)
+            if (audioData.length > 25 * 1024 * 1024) {
+                throw AIServiceException.invalidRequest("Audio file too large (max 25 MB)");
+            }
 
-            // Prepare multipart form data for Whisper API
+            // ============================================
+            // PREPARE MULTIPART REQUEST
+            // ============================================
             HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + apiKey);
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
-            // Create multipart request body
-            org.springframework.util.MultiValueMap<String, Object> body =
-                    new org.springframework.util.LinkedMultiValueMap<>();
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
 
-            // Add audio file part
-            org.springframework.core.io.ByteArrayResource audioResource =
-                    new org.springframework.core.io.ByteArrayResource(audioBytes) {
-                        @Override
-                        public String getFilename() {
-                            return "audio.webm";
-                        }
-                    };
+            // Create ByteArrayResource with filename
+            ByteArrayResource audioResource = new ByteArrayResource(audioData) {
+                @Override
+                public String getFilename() {
+                    return "audio.webm"; // Filename required by OpenAI
+                }
+            };
 
             body.add("file", audioResource);
-            body.add("model", "whisper-1");
-            body.add("language", "en"); // Primary language with fallback for local languages
+            body.add("model", openAIConfig.getWhisperModel());
+            body.add("language", "en"); // English as primary language
 
-            HttpEntity<org.springframework.util.MultiValueMap<String, Object>> entity =
-                    new HttpEntity<>(body, headers);
+            HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(body, headers);
 
-            // Call OpenAI Whisper API
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    baseUrl + "/audio/transcriptions",
+            // ============================================
+            // MAKE API CALL
+            // ============================================
+            ResponseEntity<Map> response = openAIRestTemplate.exchange(
+                    openAIConfig.getWhisperUrl(),
                     HttpMethod.POST,
                     entity,
                     Map.class
             );
 
-            // Process response
+            // ============================================
+            // PROCESS RESPONSE
+            // ============================================
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 String transcribedText = (String) response.getBody().get("text");
-                log.debug("Successfully transcribed audio to text: {}", transcribedText);
+                log.debug("✅ Successfully transcribed audio: '{}'", transcribedText);
                 return transcribedText;
             }
 
-            throw new RuntimeException("Failed to transcribe audio using OpenAI Whisper API");
+            throw new AIServiceException("Failed to transcribe audio");
 
         } catch (Exception e) {
-            log.error("OpenAI Whisper error: {}", e.getMessage(), e);
-            throw new RuntimeException("Speech-to-text service unavailable. Please try again later.");
+            log.error("❌ OpenAI Whisper error: {}", e.getMessage(), e);
+            throw new AIServiceException("Speech-to-text service unavailable", e);
         }
+    }
+
+    // ============================================
+    // HELPER METHODS
+    // ============================================
+
+    /**
+     * Build default system prompt for AI assistant
+     */
+    private String buildDefaultSystemPrompt() {
+        return "You are a helpful AI assistant for the Entrepreneurship Booster Platform, " +
+                "designed to help Ugandan youth with business advice, opportunity guidance, " +
+                "and skill development. Be concise, practical, and culturally relevant. " +
+                "Focus on actionable advice for youth entrepreneurs in Uganda.";
+    }
+
+    /**
+     * Create fallback response when OpenAI is unavailable
+     */
+    private ChatResponse createFallbackResponse() {
+        return ChatResponse.builder()
+                .response("I'm having trouble connecting to my AI service right now. " +
+                        "However, you can still browse opportunities, apply for programs, " +
+                        "access learning modules, and connect with mentors. " +
+                        "Try asking your question again in a few moments.")
+                .usage(Map.of(
+                        "prompt_tokens", 0,
+                        "completion_tokens", 0,
+                        "total_tokens", 0
+                ))
+                .build();
+    }
+
+    // ============================================
+    // SERVICE STATUS
+    // ============================================
+
+    /**
+     * Check if OpenAI service is configured and available
+     */
+    public boolean isConfigured() {
+        return openAIConfig.isConfigured();
+    }
+
+    /**
+     * Get human-readable status message
+     */
+    public String getStatus() {
+        return isConfigured()
+                ? "OpenAI API configured and ready"
+                : "OpenAI API not configured - AI features disabled";
     }
 }

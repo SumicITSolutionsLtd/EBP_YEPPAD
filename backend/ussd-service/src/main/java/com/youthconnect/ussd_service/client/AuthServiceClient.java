@@ -41,7 +41,7 @@ import java.util.Map;
  * - Fallback to graceful degradation
  * - Phone numbers are validated before transmission
  *
- * @author YouthConnect Uganda Development Team
+ * @author Douglas Kings Kato & Harold
  * @version 1.0.0
  */
 @FeignClient(
@@ -69,7 +69,7 @@ public interface AuthServiceClient {
      *
      * Default Credentials:
      * ===================
-     * - Phone: +256700123456
+     * - Phone: +256701430234
      * - Password: USSD3456 (last 4 digits)
      * - User can change password later
      *
@@ -204,8 +204,8 @@ public interface AuthServiceClient {
      *
      * SMS Content Example:
      * ===================
-     * "YouthConnect: Reset your password at
-     *  youthconnect.ug/reset?token=abc123
+     * "Entrepreneurship Booster Platform: Reset your password at
+     *  entrepreneurshipboosterplatform.ug/reset?token=abc123
      *  Or dial *256# and select Password Reset.
      *  Token expires in 1 hour."
      *
@@ -219,7 +219,7 @@ public interface AuthServiceClient {
      * Request Format:
      * ==============
      * {
-     *   "phoneNumber": "+256700123456"
+     *   "phoneNumber": "+256701430234"
      * }
      *
      * @param request Map containing phoneNumber

@@ -1,21 +1,52 @@
 package com.youthconnect.edge_functions.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * Opportunity DTO matching opportunity-service structure
+ * FIXED: Added missing fields (type, employerId)
+ */
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class OpportunityDTO {
+    // Core identification
     private Long opportunityId;
     private Long postedById;
+
+    // Opportunity details
     private String title;
     private String description;
     private String location;
+    private String district;
+
+    // Classification
+    private String opportunityType;  // GRANT, LOAN, JOB, TRAINING, SKILL_MARKET
+
+    // Financial details
     private BigDecimal salaryMin;
-    private String opportunityType;
+    private BigDecimal fundingAmount;
+    private String currency;
+
+    // Status and deadlines
     private String status;
-    private LocalDateTime applicationDeadline;  
-    private LocalDateTime createdAt;
+    private LocalDateTime applicationDeadline;
+
+    // Contact information
     private String contactInfo;
     private String contactMethod;
+
+    // Posted by details: Added for job postings
+    private Long employerId;  // For job opportunities
+
+    // Timestamps
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

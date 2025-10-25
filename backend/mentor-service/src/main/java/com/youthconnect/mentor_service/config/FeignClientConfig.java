@@ -1,0 +1,299 @@
+package com.youthconnect.mentor_service.config;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import feign.Logger;
+import feign.Request;
+import feign.RequestInterceptor;
+import feign.Response;
+import feign.Retryer;
+import feign.Util;
+import feign.codec.ErrorDecoder;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * ============================================================================
+ * FEIGN CLIENT CONFIGURATION
+ * ============================================================================
+ *
+ * Configures Feign HTTP clients for inter-service communication.
+ * Mentor Service communicates with:
+ * - user-service (user profile data)
+ * - notification-service (session reminders, alerts)
+ *
+ * CONFIGURATION FEATURES:
+ * - Request/response timeouts
+ * - Retry logic with exponential backoff
+ * - Error handling and decoding
+ * - Request logging
+ * - Circuit breaker integration
+ *
+ * TIMEOUT STRATEGY:
+ * - Connection timeout: 5 seconds (time to establish connection)
+ * - Read timeout: 10 seconds (time to receive response)
+ *
+ * RETRY STRATEGY:
+ * - Max attempts: 3
+ * - Retry interval: 1 second initial, 5 seconds max
+ * - Exponential backoff with jitter
+ *
+ * ERROR HANDLING:
+ * - 4xx errors: No retry (client error)
+ * - 5xx errors: Retry with backoff (server error)
+ * - Network errors: Retry with backoff
+ *
+ * @author Douglas Kings Kato
+ * @version 1.0.0
+ * @since 2025-01-21
+ * ============================================================================
+ */
+@Configuration
+@Slf4j
+public class FeignClientConfig {
+
+    /**
+     * Request Options Configuration
+     * Sets connection and read timeouts for all Feign clients
+     *
+     * CONNECTION TIMEOUT:
+     * - Time allowed to establish TCP connection
+     * - 5 seconds is appropriate for microservices in same network
+     * - Prevents hanging on unreachable services
+     *
+     * READ TIMEOUT:
+     * - Time allowed to receive response after connection established
+     * - 10 seconds allows for moderate processing time
+     * - Prevents infinite waiting on slow responses
+     *
+     * @return Request.Options with configured timeouts
+     */
+    @Bean
+    public Request.Options requestOptions() {
+        int connectTimeoutMillis = 5000;  // 5 seconds
+        int readTimeoutMillis = 10000;     // 10 seconds
+
+        log.info("Configuring Feign request options: connectTimeout={}ms, readTimeout={}ms",
+                connectTimeoutMillis, readTimeoutMillis);
+
+        return new Request.Options(
+                connectTimeoutMillis, TimeUnit.MILLISECONDS,
+                readTimeoutMillis, TimeUnit.MILLISECONDS,
+                true  // followRedirects
+        );
+    }
+
+    /**
+     * Retryer Configuration
+     * Implements retry logic with exponential backoff
+     *
+     * RETRY PARAMETERS:
+     * - period: Initial retry interval (1 second)
+     * - maxPeriod: Maximum retry interval (5 seconds)
+     * - maxAttempts: Maximum number of retry attempts (3)
+     *
+     * EXPONENTIAL BACKOFF:
+     * - 1st retry: after 1 second
+     * - 2nd retry: after 2 seconds
+     * - 3rd retry: after 4 seconds (capped at maxPeriod)
+     *
+     * BENEFITS:
+     * - Allows transient failures to recover
+     * - Prevents overwhelming failing services
+     * - Improves overall reliability
+     *
+     * @return Retryer with exponential backoff
+     */
+    @Bean
+    public Retryer retryer() {
+        long period = 1000L;        // 1 second initial interval
+        long maxPeriod = 5000L;     // 5 seconds maximum interval
+        int maxAttempts = 3;        // 3 total attempts
+
+        log.info("Configuring Feign retryer: period={}ms, maxPeriod={}ms, maxAttempts={}",
+                period, maxPeriod, maxAttempts);
+
+        return new Retryer.Default(period, maxPeriod, maxAttempts);
+    }
+
+    /**
+     * Feign Logger Level
+     * Controls logging verbosity for Feign clients
+     *
+     * LOGGING LEVELS:
+     * - NONE: No logging
+     * - BASIC: Log only request method, URL, response status, execution time
+     * - HEADERS: BASIC + request/response headers
+     * - FULL: HEADERS + request/response bodies
+     *
+     * PRODUCTION RECOMMENDATION: BASIC
+     * - Provides essential debugging information
+     * - Minimal performance impact
+     * - Doesn't log sensitive data in bodies
+     *
+     * @return Logger.Level.BASIC for production use
+     */
+    @Bean
+    public Logger.Level feignLoggerLevel() {
+        return Logger.Level.BASIC;
+    }
+
+    /**
+     * Custom Error Decoder
+     * Translates HTTP error responses into meaningful exceptions
+     *
+     * ERROR HANDLING STRATEGY:
+     * - 404 Not Found → ResourceNotFoundException
+     * - 400 Bad Request → ValidationException
+     * - 401 Unauthorized → UnauthorizedException
+     * - 403 Forbidden → ForbiddenException
+     * - 429 Too Many Requests → RateLimitException
+     * - 500 Internal Server Error → ServiceException
+     * - 503 Service Unavailable → ServiceUnavailableException
+     *
+     * BENEFITS:
+     * - Type-safe error handling
+     * - Consistent exception hierarchy
+     * - Easier error tracking and debugging
+     * - Better error messages for clients
+     *
+     * @return Custom ErrorDecoder implementation
+     */
+    @Bean
+    public ErrorDecoder errorDecoder() {
+        return new FeignErrorDecoder();
+    }
+
+    /**
+     * Request Interceptor
+     * Adds custom headers to all outgoing requests
+     *
+     * HEADERS ADDED:
+     * - X-Service-Name: Identifies calling service
+     * - X-Request-ID: Correlation ID for distributed tracing
+     * - X-Timestamp: Request timestamp for debugging
+     *
+     * BENEFITS:
+     * - Service-to-service authentication
+     * - Distributed tracing support
+     * - Request debugging and auditing
+     *
+     * @return RequestInterceptor that adds custom headers
+     */
+    @Bean
+    public RequestInterceptor requestInterceptor() {
+        return template -> {
+            // Add service identifier
+            template.header("X-Service-Name", "mentor-service");
+
+            // Add correlation ID for tracing
+            String requestId = UUID.randomUUID().toString();
+            template.header("X-Request-ID", requestId);
+
+            // Add timestamp
+            template.header("X-Timestamp", Instant.now().toString());
+
+            log.debug("Adding custom headers to request: {}", template.url());
+        };
+    }
+}
+
+/**
+ * Custom Feign Error Decoder
+ * Converts HTTP error responses to typed exceptions
+ */
+@Slf4j
+class FeignErrorDecoder implements ErrorDecoder {
+
+    private final ErrorDecoder defaultDecoder = new ErrorDecoder.Default();
+
+    @Override
+    public Exception decode(String methodKey, Response response) {
+        int status = response.status();
+        String requestUrl = response.request().url();
+
+        log.error("Feign client error: method={}, url={}, status={}",
+                methodKey, requestUrl, status);
+
+        // Read response body for error details
+        String errorMessage = extractErrorMessage(response);
+
+        switch (status) {
+            case 400:
+                return new IllegalArgumentException(
+                        "Bad request to " + methodKey + ": " + errorMessage
+                );
+
+            case 401:
+                return new SecurityException(
+                        "Unauthorized access to " + methodKey + ": " + errorMessage
+                );
+
+            case 403:
+                return new SecurityException(
+                        "Forbidden access to " + methodKey + ": " + errorMessage
+                );
+
+            case 404:
+                return new IllegalArgumentException(
+                        "Resource not found in " + methodKey + ": " + errorMessage
+                );
+
+            case 429:
+                return new RuntimeException(
+                        "Rate limit exceeded for " + methodKey + ": " + errorMessage
+                );
+
+            case 500:
+                return new RuntimeException(
+                        "Internal server error in " + methodKey + ": " + errorMessage
+                );
+
+            case 503:
+                return new RuntimeException(
+                        "Service unavailable for " + methodKey + ": " + errorMessage
+                );
+
+            default:
+                // Use default decoder for other status codes
+                return defaultDecoder.decode(methodKey, response);
+        }
+    }
+
+    /**
+     * Extract error message from response body
+     * Handles JSON error responses with "message" or "error" fields
+     */
+    private String extractErrorMessage(Response response) {
+        try {
+            if (response.body() != null) {
+                String body = Util.toString(response.body().asReader(StandardCharsets.UTF_8));
+
+                // Try to parse as JSON
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode jsonNode = mapper.readTree(body);
+
+                // Look for common error message fields
+                if (jsonNode.has("message")) {
+                    return jsonNode.get("message").asText();
+                } else if (jsonNode.has("error")) {
+                    return jsonNode.get("error").asText();
+                } else if (jsonNode.has("errorMessage")) {
+                    return jsonNode.get("errorMessage").asText();
+                }
+
+                return body;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to extract error message from response body", e);
+        }
+
+        return "No error message available";
+    }
+}

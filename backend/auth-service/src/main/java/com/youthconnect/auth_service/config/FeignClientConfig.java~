@@ -1,0 +1,4 @@
+package com.youthconnect.auth_service.config;
+
+public class FeignClientConfig {
+}

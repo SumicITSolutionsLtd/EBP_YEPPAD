@@ -1,0 +1,4 @@
+package com.youthconnect.file.service.exception;
+
+public class FileStorageException {
+}

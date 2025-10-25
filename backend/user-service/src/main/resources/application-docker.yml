@@ -1,15 +1,26 @@
+# ============================================================================
+# DOCKER ENVIRONMENT CONFIGURATION
+# ============================================================================
 spring:
   config:
     activate:
       on-profile: docker
 
   datasource:
-    url: jdbc:mysql://${DB_HOST:db}:${DB_PORT:3307}/${DB_NAME:youth_connect_db}?useSSL=false&serverTimezone=Africa/Nairobi
+    url: jdbc:mysql://${DB_HOST:mysql-db}:${DB_PORT:3306}/${DB_NAME:youth_connect_db}?useSSL=false&serverTimezone=Africa/Nairobi
     username: ${DB_USER:root}
-    password: ${DB_PASSWORD:password}
+    password: ${DB_PASSWORD:Douglas20!}
 
+# Docker-specific settings
+app:
+  environment: docker
+  upload:
+    upload-dir: /app/uploads  # Docker volume mount point
+
+# Eureka enabled in Docker
 eureka:
   client:
+    enabled: ${EUREKA_ENABLED:false}
     service-url:
       defaultZone: ${EUREKA_SERVER:http://eureka-server:8761/eureka/}
 

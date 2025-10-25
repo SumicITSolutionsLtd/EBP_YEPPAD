@@ -1,0 +1,78 @@
+package com.youthconnect.mentor_service.repository;
+
+import com.youthconnect.mentor_service.entity.Review;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+/**
+ * ============================================================================
+ * REVIEW REPOSITORY
+ * ============================================================================
+ *
+ * Data access layer for reviews and ratings.
+ *
+ * @author Douglas Kings Kato
+ * @version 1.0.0
+ * @since 2025-01-22
+ * ============================================================================
+ */
+@Repository
+public interface ReviewRepository extends JpaRepository<Review, Long> {
+
+    /**
+     * Find all reviews for a specific reviewee (mentor)
+     *
+     * @param revieweeId The mentor's user ID
+     * @return List of reviews
+     */
+    List<Review> findByRevieweeId(Long revieweeId);
+
+    /**
+     * Find reviews by reviewee and type
+     *
+     * @param revieweeId The mentor's user ID
+     * @param reviewType The review type
+     * @return List of reviews
+     */
+    List<Review> findByRevieweeIdAndReviewType(Long revieweeId, Review.ReviewType reviewType);
+
+    /**
+     * Count reviews for a mentor by type
+     *
+     * @param revieweeId The mentor's user ID
+     * @param reviewType The review type
+     * @return Count of reviews
+     */
+    long countByRevieweeIdAndReviewType(Long revieweeId, Review.ReviewType reviewType);
+
+    /**
+     * Get average rating for a mentor
+     *
+     * @param mentorId The mentor's user ID
+     * @return Average rating or null if no reviews
+     */
+    @Query("SELECT AVG(r.rating) FROM Review r WHERE r.revieweeId = :mentorId " +
+            "AND r.reviewType = 'MENTOR_SESSION' AND r.isApproved = true")
+    Double getAverageRatingForMentor(@Param("mentorId") Long mentorId);
+
+    /**
+     * Check if review exists for a session
+     *
+     * @param sessionId The session ID
+     * @param reviewerId The reviewer's user ID
+     * @return true if review exists
+     */
+    boolean existsBySessionIdAndReviewerId(Long sessionId, Long reviewerId);
+
+    /**
+     * Find review by session ID
+     *
+     * @param sessionId The session ID
+     * @return List of reviews for the session
+     */
+    List<Review> findBySessionId(Long sessionId);
+}

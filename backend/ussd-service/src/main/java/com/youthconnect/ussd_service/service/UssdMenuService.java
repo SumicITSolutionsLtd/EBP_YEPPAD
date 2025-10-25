@@ -24,7 +24,7 @@ import java.util.Optional;
  *
  * Flow: *256# → Registration/Login → Main Menu → Features
  *
- * @author YouthConnect Uganda Team
+ * @author Douglas Kings Kato & Harold
  * @version 2.0 Production
  */
 @Slf4j
@@ -142,11 +142,11 @@ public class UssdMenuService {
             session.setCurrentMenu(MENU_REGISTER_NAME);
             return "CON Enter your full name:\n(First and Last name)";
         } else if ("2".equals(input)) {
-            return "END YouthConnect Uganda\n\n" +
+            return "END Entrepreneurship Booster Platform Uganda\n\n" +
                     "Empowering young entrepreneurs\n" +
                     "with opportunities, training,\n" +
                     "and mentorship.\n\n" +
-                    "Visit: youthconnect.ug";
+                    "Visit: entrepreneurshipboosterplatform.ug";
         }
         return "END Invalid option. Dial *256# again.";
     }
@@ -261,7 +261,7 @@ public class UssdMenuService {
                 log.info("Registration successful: {}", session.getPhoneNumber());
 
                 return "END Registration successful!\n\n" +
-                        "Welcome to YouthConnect!\n\n" +
+                        "Welcome to Entrepreneurship Booster Platform!\n\n" +
                         "Dial *256# again to explore\n" +
                         "opportunities and resources.";
             } else {
@@ -379,8 +379,8 @@ public class UssdMenuService {
      */
     private String handleProfileMenu(String input, UssdSession session) {
         return switch (input) {
-            case "1" -> "END View full profile at:\nyouthconnect.ug/profile";
-            case "2" -> "END Update profile at:\nyouthconnect.ug/profile";
+            case "1" -> "END View full profile at:\nentrepreneurshipboosterplatform.ug/profile";
+            case "2" -> "END Update profile at:\nentrepreneurshipboosterplatform.ug/profile";
             case "3" -> {
                 session.setCurrentMenu(MENU_MAIN);
                 yield showMainMenu();
@@ -482,14 +482,14 @@ public class UssdMenuService {
     // ========================================================================
 
     private String showWelcomeUnregistered() {
-        return "CON Welcome to YouthConnect!\n\n" +
+        return "CON Welcome to Entrepreneurship Booster Platform!\n\n" +
                 "Empowering young entrepreneurs\n\n" +
                 "1. Register Now\n" +
                 "2. Learn More";
     }
 
     private String showMainMenu() {
-        return "CON YouthConnect Main Menu\n\n" +
+        return "CON Entrepreneurship Booster Platform Main Menu\n\n" +
                 "1. Find Opportunities\n" +
                 "2. Mentorship\n" +
                 "3. Learning Resources\n" +
@@ -513,10 +513,10 @@ public class UssdMenuService {
     }
 
     private String showHelp() {
-        return "END YouthConnect Help\n\n" +
+        return "END Entrepreneurship Booster Platform Help\n\n" +
                 "For support:\n" +
                 "Call: 0800-123-456\n" +
-                "Email: support@youthconnect.ug\n" +
-                "Web: youthconnect.ug";
+                "Email: support@entrepreneurshipboosterplatform.ug\n" +
+                "Web: entrepreneurshipboosterplatform.ug";
     }
 }

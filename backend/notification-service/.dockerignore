@@ -1,0 +1,194 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# DOCKER IGNORE - Notification Service
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Excludes unnecessary files from Docker build context for:
+# - Faster builds (smaller context size)
+# - Smaller final images
+# - Better security (no secrets in image)
+#
+# Author: Douglas Kings Kato
+# Version: 1.0
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════════════
+# BUILD ARTIFACTS & CACHE
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Maven
+target/
+.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.properties
+
+# Gradle (if used)
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# ═══════════════════════════════════════════════════════════════════════════
+# IDE FILES
+# ═══════════════════════════════════════════════════════════════════════════
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+.idea_modules/
+
+# Eclipse
+.classpath
+.project
+.settings/
+.apt_generated
+.factorypath
+.springBeans
+.sts4-cache
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DOCUMENTATION & HELP FILES
+# ═══════════════════════════════════════════════════════════════════════════
+
+HELP.md
+README.md
+*.md
+docs/
+documentation/
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CONFIGURATION & SECRETS (NEVER IN DOCKER IMAGE)
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Environment files
+.env
+.env.*
+.env.local
+.env.development
+.env.staging
+.env.production
+.env.example
+
+# Application properties with secrets
+application-dev.yml
+application-prod.yml
+application-local.yml
+
+# Firebase credentials
+firebase-service-account.json
+*-service-account.json
+firebase-adminsdk-*.json
+
+# AWS credentials
+.aws/
+credentials
+
+# Database dumps
+*.sql
+*.dump
+*.backup
+
+# SSL/TLS certificates
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VERSION CONTROL
+# ═══════════════════════════════════════════════════════════════════════════
+
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LOGS & TEMPORARY FILES
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Logs
+logs/
+*.log
+*.log.*
+log/
+spring.log
+application.log
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TEST FILES (Exclude from production image)
+# ═══════════════════════════════════════════════════════════════════════════
+
+**/src/test/
+**/*Test.java
+**/*Tests.java
+test-output/
+coverage/
+*.test
+.nyc_output/
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DOCKER FILES (Don't need these in the image)
+# ═══════════════════════════════════════════════════════════════════════════
+
+docker-compose*.yml
+Dockerfile
+Dockerfile.*
+.dockerignore
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CI/CD FILES
+# ═══════════════════════════════════════════════════════════════════════════
+
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+azure-pipelines.yml
+bitbucket-pipelines.yml
+.circleci/
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PACKAGE MANAGER FILES (Not needed in runtime)
+# ═══════════════════════════════════════════════════════════════════════════
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MISC
+# ═══════════════════════════════════════════════════════════════════════════
+
+*.pid
+*.seed
+*.pid.lock
+.cache
+.parcel-cache

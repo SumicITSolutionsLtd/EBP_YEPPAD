@@ -7,7 +7,7 @@ import java.time.temporal.ChronoUnit;
 /**
  * Model class representing a USSD session with expiration support.
  *
- * @author YouthConnect Uganda Development Team
+ * @author Douglas Kings Kato & Harold
  * @version 2.0.0
  */
 @Data

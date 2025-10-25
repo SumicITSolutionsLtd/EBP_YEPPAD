@@ -1,0 +1,495 @@
+# ============================================================================
+# Youth Connect Uganda - User Service Configuration
+# ============================================================================
+# Main configuration file with all environment-independent settings
+# Environment-specific overrides in application-{profile}.yml
+# ============================================================================
+
+spring:
+  application:
+    name: user-service
+  
+  # ============================================================================
+  # DATABASE CONFIGURATION
+  # ============================================================================
+  datasource:
+    url: jdbc:mysql://localhost:3307/youth_connect_db?useSSL=false&serverTimezone=Africa/Nairobi&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:Douglas20!}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+    # HikariCP Connection Pool Settings
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000        # 30 seconds
+      idle-timeout: 600000             # 10 minutes
+      max-lifetime: 1800000            # 30 minutes
+      pool-name: YouthConnectHikariCP
+      auto-commit: true
+      leak-detection-threshold: 60000  # 1 minute
+
+  # ============================================================================
+  # JPA/HIBERNATE CONFIGURATION - CRITICAL FIXES
+  # ============================================================================
+  jpa:
+    hibernate:
+      # CRITICAL: Changed to 'none' to avoid duplicate key errors
+      # Use Flyway or Liquibase for schema management in production
+      ddl-auto: none  # Options: none, validate, update, create, create-drop
+      naming:
+        # Use default Spring naming strategy for consistency
+        physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
+        implicit-strategy: org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy
+
+    show-sql: false
+
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+
+        # JDBC Batch Configuration
+        jdbc:
+          batch_size: 20
+          fetch_size: 50
+
+        # Optimization Settings
+        order_inserts: true
+        order_updates: true
+        batch_versioned_data: true
+
+        # Statistics and Logging
+        generate_statistics: false
+        use_sql_comments: true
+
+        # Connection Handling
+        connection:
+          provider_disables_autocommit: false
+
+        # Query Configuration
+        query:
+          in_clause_parameter_padding: true
+          fail_on_pagination_over_collection_fetch: true
+
+        # Cache Settings (uses Caffeine from CacheConfig)
+        cache:
+          use_second_level_cache: true
+          use_query_cache: true
+          region:
+            factory_class: org.hibernate.cache.jcache.JCacheRegionFactory
+
+    # CRITICAL FIX: Disable Open-in-View to prevent lazy loading issues
+    open-in-view: false
+
+  # ============================================================================
+  # SERVLET CONFIGURATION
+  # ============================================================================
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB      # Maximum file size per file
+      max-request-size: 15MB   # Maximum total request size
+      file-size-threshold: 2MB # Files larger than this go to temp disk
+      location: ${java.io.tmpdir}/youth-connect-uploads
+
+  # ============================================================================
+  # MAIN CONFIGURATION - Bean Override
+  # ============================================================================
+  main:
+    # CRITICAL FIX: Allow bean definition overriding
+    # This prevents the CacheWarmupService and CacheMetricsRegistrar conflicts
+    allow-bean-definition-overriding: false  # Keep false, we fixed the bean names
+    allow-circular-references: false
+
+# ============================================================================
+# SERVER CONFIGURATION
+# ============================================================================
+server:
+  port: 8081
+
+  # Compression for better performance
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,application/javascript,application/json
+    min-response-size: 1024  # Compress responses larger than 1KB
+
+  # Error Handling
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never  # Never expose stack traces to clients
+    include-exception: false
+    whitelabel:
+      enabled: false  # Disable default error page
+
+  # Thread Configuration
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 10
+    connection-timeout: 20000  # 20 seconds
+    max-connections: 8192
+    accept-count: 100
+
+# ============================================================================
+# EUREKA SERVICE DISCOVERY (OPTIONAL)
+# ============================================================================
+eureka:
+  client:
+    enabled: ${EUREKA_ENABLED:false}  # Disabled by default, enable in docker/prod
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+    register-with-eureka: ${EUREKA_ENABLED:false}
+    fetch-registry: ${EUREKA_ENABLED:false}
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
+
+# ============================================================================
+# RESILIENCE4J CIRCUIT BREAKER
+# ============================================================================
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 100
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 5
+        automatic-transition-from-open-to-half-open-enabled: true
+    instances:
+      notificationService:
+        base-config: default
+      fileManagementService:
+        base-config: default
+
+  retry:
+    configs:
+      default:
+        max-attempts: 3
+        wait-duration: 1s
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+    instances:
+      notificationService:
+        base-config: default
+
+  ratelimiter:
+    configs:
+      default:
+        limit-for-period: 100
+        limit-refresh-period: 1s
+        timeout-duration: 0s
+    instances:
+      apiRateLimiter:
+        base-config: default
+
+# ============================================================================
+# APPLICATION CUSTOM CONFIGURATION (Maps to ApplicationProperties.java)
+# ============================================================================
+app:
+  name: "Youth Connect User Service"
+  version: "1.0.0"
+  environment: ${ENVIRONMENT:development}
+
+  # ==========================================================================
+  # SECURITY CONFIGURATION
+  # ==========================================================================
+  security:
+    internal-api-key: ${INTERNAL_API_KEY:internal-secret-key-2024}
+
+    # JWT Configuration
+    jwt:
+      secret: ${JWT_SECRET:your-256-bit-secret-key-change-in-production}
+      expiration: 86400000  # 24 hours in milliseconds
+      refresh-expiration: 604800000  # 7 days in milliseconds
+
+    # CORS Configuration for Frontend Integration
+    cors:
+      allowed-origins:
+        - http://localhost:3000        # React dev server
+        - http://localhost:3001        # Alternative frontend port
+        - http://localhost:4200        # Angular dev server
+        - https://youthconnect.ug      # Production domain
+        - https://www.youthconnect.ug  # Production www
+      allowed-methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+        - OPTIONS
+      allowed-headers:
+        - "*"
+      exposed-headers:
+        - Authorization
+        - Content-Type
+        - X-Total-Count
+        - X-Page-Number
+        - X-Page-Size
+      allow-credentials: true
+      max-age: 3600  # 1 hour
+
+    # Rate Limiting Configuration
+    rate-limit:
+      enabled: true
+      requests-per-minute: 100
+      burst-size: 20
+
+  # ==========================================================================
+  # CACHE CONFIGURATION
+  # ==========================================================================
+  cache:
+    enabled: true
+    ttl: 3600          # 1 hour in seconds
+    max-entries: 1000
+
+  # ==========================================================================
+  # AUDIT & LOGGING CONFIGURATION
+  # ==========================================================================
+  audit:
+    include-request-body: true
+    include-response-body: false
+    log-slow-requests: true
+    slow-request-threshold-ms: 5000  # 5 seconds
+
+  # ==========================================================================
+  # FILE UPLOAD CONFIGURATION
+  # ==========================================================================
+  upload:
+    # Base upload directory - where all files are stored
+    upload-dir: ${APP_UPLOAD_DIR:./uploads}
+
+    # File Size Limits (in bytes)
+    max-file-size: 10485760      # 10MB
+    max-request-size: 15728640   # 15MB
+
+    # Allowed file extensions for security
+    allowed-extensions:
+      - jpg
+      - jpeg
+      - png
+      - gif
+      - webp
+      - pdf
+      - doc
+      - docx
+      - xls
+      - xlsx
+      - ppt
+      - pptx
+      - mp3
+      - wav
+      - m4a
+      - ogg
+      - mp4
+      - webm
+
+    # Security Features
+    virus-scan-enabled: false
+    auto-compression: true
+
+    # Image Processing
+    generate-thumbnails: true
+    thumbnail-width: 200
+    thumbnail-height: 200
+
+# ============================================================================
+# ACTUATOR ENDPOINTS (Monitoring & Health Checks)
+# ============================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,env,loggers,caches
+      base-path: /actuator
+
+  endpoint:
+    health:
+      show-details: when-authorized
+      show-components: always
+      probes:
+        enabled: true  # Enable liveness and readiness probes
+
+    caches:
+      enabled: true  # Enable cache endpoint for monitoring
+
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${app.environment}
+
+  health:
+    db:
+      enabled: true
+    diskspace:
+      enabled: true
+      threshold: 100MB
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
+
+# ============================================================================
+# LOGGING CONFIGURATION
+# ============================================================================
+logging:
+  level:
+    root: INFO
+    com.youthconnect.user_service: DEBUG
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.cache: DEBUG
+
+  pattern:
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:%wEx}"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
+
+  file:
+    name: logs/user-service.log
+    max-size: 10MB
+    max-history: 30
+    total-size-cap: 1GB
+    path: ./logs
+
+# ============================================================================
+# SPRINGDOC OPENAPI CONFIGURATION
+# ============================================================================
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+  show-actuator: true
+
+---
+# ============================================================================
+# DEVELOPMENT ENVIRONMENT CONFIGURATION
+# ============================================================================
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  datasource:
+    url: jdbc:mysql://localhost:3307/youth_connect_db?useSSL=false&serverTimezone=Africa/Nairobi&createDatabaseIfNotExist=true
+    username: root
+    password: Douglas20!
+
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: update  # Auto-update schema in dev (use with caution)
+    properties:
+      hibernate:
+        format_sql: true
+
+# Development-specific settings
+app:
+  environment: development
+  upload:
+    upload-dir: ./uploads
+    virus-scan-enabled: false
+  cache:
+    ttl: 60  # Short TTL for dev (1 minute)
+
+# Verbose logging for development
+logging:
+  level:
+    root: DEBUG
+    com.youthconnect.user_service: DEBUG
+    org.springframework.web: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+eureka:
+  client:
+    enabled: false
+
+---
+# ============================================================================
+# DOCKER ENVIRONMENT CONFIGURATION
+# ============================================================================
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST:mysql-db}:${DB_PORT:3306}/${DB_NAME:youth_connect_db}?useSSL=false&serverTimezone=Africa/Nairobi&createDatabaseIfNotExist=true
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:Douglas20!}
+
+app:
+  environment: docker
+  upload:
+    upload-dir: /app/uploads
+
+eureka:
+  client:
+    enabled: ${EUREKA_ENABLED:false}
+    service-url:
+      defaultZone: ${EUREKA_SERVER:http://eureka-server:8761/eureka/}
+
+logging:
+  level:
+    root: INFO
+    com.youthconnect.user_service: DEBUG
+
+---
+# ============================================================================
+# PRODUCTION ENVIRONMENT CONFIGURATION
+# ============================================================================
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useSSL=true&serverTimezone=Africa/Nairobi
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      leak-detection-threshold: 30000
+
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: validate  # Never auto-update in production
+
+app:
+  environment: production
+  upload:
+    upload-dir: ${APP_UPLOAD_DIR:/var/youthconnect/uploads}
+    virus-scan-enabled: true
+  cache:
+    ttl: 7200  # 2 hours
+    max-entries: 5000
+
+logging:
+  level:
+    root: WARN
+    com.youthconnect.user_service: INFO
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
+
+eureka:
+  client:
+    enabled: true
+    service-url:
+      defaultZone: ${EUREKA_SERVER:http://eureka-server:8761/eureka/}

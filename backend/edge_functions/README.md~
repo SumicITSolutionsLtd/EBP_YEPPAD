@@ -1,0 +1,424 @@
+# Edge Functions Service
+
+**Version:** 1.0.0  
+**Status:** Production Ready  
+**Author:** Douglas Kings Kato  
+**Project:** Youth Entrepreneurship Booster Platform
+
+## 🎯 Purpose
+
+Edge Functions Service is a critical orchestration layer that:
+- **Bridges multiple microservices** for complex workflows
+- **Handles USSD integration** for feature phone accessibility (*256#)
+- **Provides AI-powered features** via OpenAI GPT-4
+- **Coordinates multi-service operations** with resilience patterns
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  Edge Functions Service                      │
+├─────────────────────────────────────────────────────────────┤
+│  • USSD Integration (*256# - Feature Phone Access)          │
+│  • OpenAI Integration (GPT-4, TTS, Whisper)                 │
+│  • Multi-Service Orchestration (Saga Pattern)               │
+│  • Circuit Breaker & Retry Patterns                         │
+│  • Async Operations with CompletableFuture                  │
+└─────────────────────────────────────────────────────────────┘
+         │                │                │
+         ▼                ▼                ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│ User Service │  │ Opportunity  │  │ Notification │
+│   (8081)     │  │   Service    │  │   Service    │
+│              │  │   (8083)     │  │   (8086)     │
+└──────────────┘  └──────────────┘  └──────────────┘
+```
+
+## 📋 Features
+
+### 🤖 AI Services (OpenAI Integration)
+- **Chat Completions**: GPT-4 powered conversational AI
+- **Text-to-Speech**: Generate audio for learning modules
+- **Speech-to-Text**: Transcribe voice questions
+
+### 📱 USSD Integration
+- **Feature Phone Access**: No smartphone required
+- **Multi-Language Support**: English, Luganda, Lugbara, Alur
+- **Menu Navigation**: Hierarchical USSD menus
+- **Opportunity Browsing**: View and apply via *256#
+
+### 🔄 Multi-Service Orchestration
+- **User Registration Workflow**: Coordinate user creation, notifications, AI setup
+- **Application Workflow**: Handle opportunity applications end-to-end
+- **Saga Pattern**: Distributed transaction management
+- **Compensation Logic**: Rollback on failures
+
+### 🛡️ Resilience Patterns
+- **Circuit Breaker**: Prevent cascading failures
+- **Retry Logic**: Exponential backoff for transient failures
+- **Rate Limiting**: Token bucket algorithm
+- **Timeout Management**: Configurable timeouts per operation
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Java 17 or higher
+- Maven 3.9+
+- Docker & Docker Compose
+- OpenAI API key (optional)
+
+### Environment Setup
+
+Create `.env` file:
+```bash
+# OpenAI Configuration
+OPENAI_API_KEY=sk-your-openai-api-key-here
+
+# Database Configuration
+DB_USERNAME=youthconnect
+DB_PASSWORD=youthconnect123
+DB_ROOT_PASSWORD=root123
+
+# Redis Configuration
+REDIS_PASSWORD=redis123
+
+# Africa's Talking (SMS/USSD)
+AT_USERNAME=your-at-username
+AT_API_KEY=your-at-api-key
+
+# SMTP Configuration
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+```
+
+### Local Development
+
+1. **Start Infrastructure Services**
+```bash
+# Start Eureka, MySQL, Redis
+docker-compose up -d service-registry mysql redis
+```
+
+2. **Build the Service**
+```bash
+mvn clean install -DskipTests
+```
+
+3. **Run the Service**
+```bash
+mvn spring-boot:run
+```
+
+4. **Access the Service**
+- API: http://localhost:8091
+- Health Check: http://localhost:8091/actuator/health
+- Swagger UI: http://localhost:8091/swagger-ui.html
+
+### Docker Deployment
+
+```bash
+# Build Docker image
+docker build -t youthconnect/edge-functions:latest .
+
+# Run complete stack
+docker-compose up -d
+
+# View logs
+docker-compose logs -f edge-functions
+
+# Stop services
+docker-compose down
+```
+
+## 📡 API Endpoints
+
+### AI Services
+
+#### Chat with AI
+```http
+POST /api/edge/chat
+Content-Type: application/json
+
+{
+  "message": "How do I start a business in Uganda?",
+  "systemPrompt": "You are a business advisor",
+  "conversationHistory": []
+}
+```
+
+**Response:**
+```json
+{
+  "response": "Starting a business in Uganda involves...",
+  "usage": {
+    "prompt_tokens": 25,
+    "completion_tokens": 150,
+    "total_tokens": 175
+  }
+}
+```
+
+#### Text-to-Speech
+```http
+POST /api/edge/text-to-speech
+Content-Type: application/json
+
+{
+  "text": "Welcome to the platform",
+  "voice": "alloy"
+}
+```
+
+**Response:**
+```json
+{
+  "audioContent": "base64-encoded-mp3-audio"
+}
+```
+
+#### Speech-to-Text
+```http
+POST /api/edge/voice-to-text
+Content-Type: application/json
+
+{
+  "audio": "base64-encoded-audio-data"
+}
+```
+
+**Response:**
+```json
+{
+  "text": "Transcribed text from audio"
+}
+```
+
+### USSD Integration
+
+#### USSD Callback (Africa's Talking)
+```http
+POST /api/ussd/callback
+Content-Type: application/x-www-form-urlencoded
+
+sessionId=ATUid_xxxx&serviceCode=*256#&phoneNumber=+256701234567&text=1*2
+```
+
+**Response:**
+```
+CON Select opportunity:
+1. Youth Grant - UGX 5M
+2. Agric Loan - UGX 3M
+3. Tech Training
+0. Back
+```
+
+#### Test USSD (Development)
+```http
+POST /api/ussd/test?sessionId=test123&phoneNumber=256701234567&text=1
+```
+
+## 🔧 Configuration
+
+### application.yml
+
+```yaml
+server:
+  port: 8091
+
+spring:
+  application:
+    name: edge-functions-service
+  
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+
+# OpenAI Configuration
+openai:
+  api:
+    key: ${OPENAI_API_KEY}
+    base-url: https://api.openai.com/v1
+    default-chat-model: gpt-4o-mini
+    default-tts-model: tts-1
+    default-voice: alloy
+    whisper-model: whisper-1
+    request-timeout-ms: 30000
+    max-tokens: 200
+    temperature: 0.7
+    enabled: true
+
+# Resilience4j Circuit Breaker
+resilience4j:
+  circuitbreaker:
+    instances:
+      default:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+  
+  # Retry Configuration
+  retry:
+    instances:
+      default:
+        max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+  
+  # Rate Limiter
+  ratelimiter:
+    instances:
+      default:
+        limit-for-period: 100
+        limit-refresh-period: 1m
+        timeout-duration: 5s
+
+logging:
+  level:
+    com.youthconnect.edge_functions: DEBUG
+    org.springframework.web: INFO
+```
+
+## 🧪 Testing
+
+### Run Tests
+```bash
+# Unit tests
+mvn test
+
+# Integration tests
+mvn verify
+
+# With coverage
+mvn clean test jacoco:report
+```
+
+### Test USSD Flow
+```bash
+# Initial dial
+curl -X POST "http://localhost:8091/api/ussd/test?sessionId=test1&phoneNumber=256701234567&text="
+
+# Select opportunities
+curl -X POST "http://localhost:8091/api/ussd/test?sessionId=test1&phoneNumber=256701234567&text=1"
+
+# Apply to opportunity
+curl -X POST "http://localhost:8091/api/ussd/test?sessionId=test1&phoneNumber=256701234567&text=1*2"
+```
+
+### Test AI Services
+```bash
+# Chat with AI
+curl -X POST http://localhost:8091/api/edge/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "What are the best business opportunities in Uganda?",
+    "systemPrompt": "You are a business advisor for Ugandan youth"
+  }'
+```
+
+## 📊 Monitoring
+
+### Health Checks
+```bash
+# Overall health
+curl http://localhost:8091/actuator/health
+
+# Detailed health
+curl http://localhost:8091/actuator/health/detailed
+```
+
+### Metrics
+```bash
+# Prometheus metrics
+curl http://localhost:8091/actuator/prometheus
+
+# Application metrics
+curl http://localhost:8091/actuator/metrics
+```
+
+### Service Dependencies
+- **Eureka**: http://localhost:8761
+- **MySQL**: localhost:3307
+- **Redis**: localhost:6379
+
+## 🔒 Security
+
+### API Authentication
+All endpoints require JWT token in Authorization header:
+```http
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+### Environment Variables
+Never commit sensitive data. Use environment variables:
+- `OPENAI_API_KEY` - OpenAI API key
+- `DB_PASSWORD` - Database password
+- `AT_API_KEY` - Africa's Talking API key
+- `SMTP_PASSWORD` - Email service password
+
+## 🐛 Troubleshooting
+
+### OpenAI API Key Not Configured
+```
+⚠️ OpenAI API key not configured! AI features will be disabled.
+```
+**Solution**: Set `OPENAI_API_KEY` environment variable
+
+### Service Not Registering with Eureka
+```
+❌ Cannot execute request on any known server
+```
+**Solution**: Ensure Eureka is running at http://localhost:8761
+
+### USSD Session Timeout
+```
+END Service temporarily unavailable
+```
+**Solution**: Check database connection and session storage
+
+### Circuit Breaker Open
+```
+🔴 Circuit Breaker OPEN: Service unavailable
+```
+**Solution**: Downstream service is failing. Check service health.
+
+## 📚 Additional Resources
+
+- [OpenAI API Documentation](https://platform.openai.com/docs)
+- [Africa's Talking USSD Guide](https://developers.africastalking.com/docs/ussd)
+- [Spring Cloud Documentation](https://spring.io/projects/spring-cloud)
+- [Resilience4j Documentation](https://resilience4j.readme.io)
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open Pull Request
+
+## 📄 License
+
+Copyright © 2025 Youth Entrepreneurship Booster Platform  
+Licensed under MIT License
+
+## 👥 Authors
+
+- **Douglas Kings Kato** - Backend Developer
+- **Woord en Daad** - Project Sponsor
+- **EU-YEPPAD** - Funding Partner
+
+## 📞 Support
+
+- **Email**: support@entrepreneurshipbooster.ug
+- **Phone**: +256 700 000 001
+- **Website**: https://entrepreneurshipbooster.ug
+
+---
+
+**Built with ❤️ for Ugandan Youth Empowerment**

@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 /**
  * Global exception handler for the USSD service.
  *
- * @author YouthConnect Uganda Development Team
+ * @author Douglas Kings Kato & Harold
  * @version 2.0.0
  */
 @Slf4j

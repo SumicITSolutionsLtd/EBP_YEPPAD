@@ -1,46 +1,70 @@
 package com.youthconnect.api_gateway.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsWebFilter;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
+
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.List;
 
 /**
- * Global CORS Configuration for the API Gateway.
+ * Global CORS Configuration for API Gateway
  *
- * This is the definitive, "fix it once and for all" solution for CORS issues.
- * It programmatically creates a Spring Bean that intercepts all incoming requests at the earliest stage
- * and applies the correct CORS headers to the response, including for the preflight OPTIONS request.
+ * Handles Cross-Origin Resource Sharing for all incoming requests.
+ * Supports multiple environments (development, staging, production).
+ *
+ * This configuration is critical for allowing frontend applications
+ * from different domains to access the API Gateway.
+ *
+ * Location: api-gateway/src/main/java/com/youthconnect/api_gateway/config/
  */
 @Configuration
 public class CorsConfig {
 
+    @Value("${app.cors.allowed-origins:http://localhost:3000,http://localhost:3001}")
+    private String allowedOriginsString;
+
+    @Value("${app.cors.allowed-methods:GET,POST,PUT,DELETE,OPTIONS,PATCH}")
+    private String allowedMethodsString;
+
+    @Value("${app.cors.max-age:3600}")
+    private Long maxAge;
+
     @Bean
     public CorsWebFilter corsWebFilter() {
-        // 1. Create a new CorsConfiguration object where we will define our rules.
         CorsConfiguration corsConfig = new CorsConfiguration();
 
-        // 2. Specify the allowed origins. We explicitly trust requests from our React dev server.
-        corsConfig.setAllowedOrigins(Collections.singletonList("http://localhost:3000"));
+        // Parse allowed origins from comma-separated string
+        List<String> allowedOrigins = Arrays.asList(allowedOriginsString.split(","));
+        corsConfig.setAllowedOrigins(allowedOrigins);
 
-        // 3. Specify the allowed HTTP headers. "*" allows all headers needed ('Content-Type', 'Authorization', etc.).
-        corsConfig.setAllowedHeaders(Collections.singletonList("*"));
+        // Parse allowed methods from comma-separated string
+        List<String> allowedMethods = Arrays.asList(allowedMethodsString.split(","));
+        corsConfig.setAllowedMethods(allowedMethods);
 
-        // 4. Specify the allowed HTTP methods. It's crucial to include "OPTIONS" for the preflight request to succeed.
-        corsConfig.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // Allow all headers (including Authorization, Content-Type, etc.)
+        corsConfig.addAllowedHeader("*");
 
-        // 5. Allow credentials (like cookies or tokens in headers) to be sent with the request.
+        // Allow credentials (cookies, authorization headers, TLS client certificates)
         corsConfig.setAllowCredentials(true);
 
-        // 6. Create a source for our CORS configuration.
-        // We apply the 'corsConfig' rules to ALL incoming paths ("/**").
+        // Preflight request cache duration (1 hour)
+        corsConfig.setMaxAge(maxAge);
+
+        // Expose headers that client can access
+        corsConfig.setExposedHeaders(Arrays.asList(
+                "Authorization",
+                "X-Rate-Limit-Remaining",
+                "X-Rate-Limit-Retry-After-Seconds"
+        ));
+
+        // Apply CORS configuration to all paths
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", corsConfig);
 
-        // 7. Return a new CorsWebFilter. This filter will be applied to every request.
         return new CorsWebFilter(source);
     }
 }

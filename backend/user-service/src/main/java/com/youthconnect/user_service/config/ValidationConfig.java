@@ -10,7 +10,7 @@ import jakarta.validation.ValidatorFactory;
 import jakarta.validation.Validation;
 
 /**
- * Validation Configuration for Youth Connect Uganda User Service
+ * Validation Configuration for Entrepreneurship Booster Platform Uganda User Service
  *
  * This configuration sets up comprehensive input validation for all user data,
  * with special considerations for Ugandan phone numbers, names, and regional
@@ -25,7 +25,7 @@ public class ValidationConfig {
      */
     @Bean
     public Validator validator() {
-        log.info("Configuring custom validator for Youth Connect Uganda");
+        log.info("Configuring custom validator for Entrepreneurship Booster Platform Uganda");
         ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
         return factory.getValidator();
     }

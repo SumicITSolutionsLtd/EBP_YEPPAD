@@ -1,7 +1,7 @@
 package com.youthconnect.file.service.controller;
 
-import com.youthconnect.file_service.dto.FileUploadResult;
-import com.youthconnect.file_service.service.FileManagementService;
+import com.youthconnect.file.service.dto.FileUploadResult;
+import com.youthconnect.file.service.service.FileManagementService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
@@ -14,6 +14,22 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * REST Controller for file management operations
+ *
+ * Endpoints:
+ * - POST /api/files/profile-picture/{userId} - Upload profile picture
+ * - POST /api/files/audio-module - Upload audio learning module
+ * - POST /api/files/document/{userId} - Upload user document
+ * - GET /api/files/audio-module/{moduleKey} - Get module audio files
+ * - GET /api/files/download/{category}/{fileName} - Download file
+ * - DELETE /api/files/{userId}/{fileName} - Delete file
+ * - GET /api/files/metadata/{category}/{fileName} - Get file metadata
+ * - GET /api/files/health - Health check
+ *
+ * @author Douglas Kings Kato
+ * @version 1.0.0
+ */
 @Slf4j
 @RestController
 @RequestMapping("/api/files")
@@ -24,6 +40,10 @@ public class FileManagementController {
 
     /**
      * Upload profile picture for a user
+     *
+     * @param userId User ID
+     * @param file Profile picture file
+     * @return Upload result with file URLs
      */
     @PostMapping("/profile-picture/{userId}")
     public CompletableFuture<ResponseEntity<Map<String, Object>>> uploadProfilePicture(
@@ -54,6 +74,11 @@ public class FileManagementController {
 
     /**
      * Upload audio file for learning modules
+     *
+     * @param moduleKey Module identifier
+     * @param language Language code (en, lg, lur, lgb)
+     * @param file Audio file
+     * @return Upload result with file URLs
      */
     @PostMapping("/audio-module")
     public CompletableFuture<ResponseEntity<Map<String, Object>>> uploadAudioModule(
@@ -85,6 +110,11 @@ public class FileManagementController {
 
     /**
      * Upload document for user (CV, certificates, etc.)
+     *
+     * @param userId User ID
+     * @param documentType Type of document (CV, CERTIFICATE, etc.)
+     * @param file Document file
+     * @return Upload result
      */
     @PostMapping("/document/{userId}")
     public CompletableFuture<ResponseEntity<Map<String, Object>>> uploadDocument(
@@ -116,6 +146,9 @@ public class FileManagementController {
 
     /**
      * Get audio files for a learning module in all languages
+     *
+     * @param moduleKey Module identifier
+     * @return Map of language codes to audio file URLs
      */
     @GetMapping("/audio-module/{moduleKey}")
     public ResponseEntity<Map<String, Object>> getModuleAudioFiles(@PathVariable String moduleKey) {
@@ -133,6 +166,11 @@ public class FileManagementController {
 
     /**
      * Download/serve file
+     *
+     * @param category File category (users, modules, etc.)
+     * @param fileName File name
+     * @param userId User ID (required for user files)
+     * @return File resource
      */
     @GetMapping("/download/{category}/{fileName}")
     public ResponseEntity<Resource> downloadFile(
@@ -146,7 +184,8 @@ public class FileManagementController {
 
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(contentType))
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"" + fileName + "\"")
                     .body(file);
 
         } catch (Exception e) {
@@ -157,6 +196,11 @@ public class FileManagementController {
 
     /**
      * Delete user file
+     *
+     * @param userId User ID
+     * @param fileName File name
+     * @param category File category
+     * @return Success status
      */
     @DeleteMapping("/{userId}/{fileName}")
     public CompletableFuture<ResponseEntity<Map<String, Object>>> deleteFile(
@@ -164,6 +208,7 @@ public class FileManagementController {
             @PathVariable String fileName,
             @RequestParam String category) {
 
+        // ✅ FIXED: Changed from log.log.info to log.info
         log.info("Delete file request - User: {}, File: {}, Category: {}", userId, fileName, category);
 
         return fileService.deleteUserFile(userId, fileName, category)
@@ -186,6 +231,11 @@ public class FileManagementController {
 
     /**
      * Get file metadata
+     *
+     * @param category File category
+     * @param fileName File name
+     * @param userId User ID (optional)
+     * @return File metadata
      */
     @GetMapping("/metadata/{category}/{fileName}")
     public ResponseEntity<Map<String, Object>> getFileMetadata(
@@ -216,6 +266,8 @@ public class FileManagementController {
 
     /**
      * Health check endpoint
+     *
+     * @return Service health status
      */
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> healthCheck() {

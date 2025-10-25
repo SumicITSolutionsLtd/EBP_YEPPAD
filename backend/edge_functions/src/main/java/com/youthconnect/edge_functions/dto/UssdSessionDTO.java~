@@ -1,0 +1,19 @@
+package com.youthconnect.edge_functions.dto;
+
+/**
+ * USSD Session DTO
+ * Manages stateful USSD interactions
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class UssdSessionDTO {
+    private String sessionId;
+    private String phoneNumber;
+    private String currentMenu;
+    private Map<String, Object> sessionData;
+    private String language;
+    private Integer menuDepth;
+    private LocalDateTime expiresAt;
+}

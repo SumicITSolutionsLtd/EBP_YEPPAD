@@ -1,0 +1,104 @@
+package com.youthconnect.auth_service.client;
+
+import com.youthconnect.auth_service.dto.request.RegisterRequest;
+import com.youthconnect.auth_service.dto.response.ApiResponse;
+import com.youthconnect.auth_service.dto.response.UserInfoResponse;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.*;
+
+/**
+ * Feign Client for User Service Communication
+ *
+ * Handles inter-service communication with the user-service for:
+ * <ul>
+ *     <li>User registration</li>
+ *     <li>User data retrieval (by ID, email, or phone)</li>
+ *     <li>User existence validation</li>
+ * </ul>
+ *
+ * Features:
+ * <ul>
+ *     <li>Service discovery via Eureka</li>
+ *     <li>Load-balanced HTTP calls</li>
+ *     <li>Fallback handling via {@code UserServiceClientFallbackFactory}</li>
+ * </ul>
+ *
+ * Base Path: {@code /api/v1/users/internal}
+ *
+ * @author
+ *     Youth Connect Uganda Development Team
+ * @version
+ *     1.1.0
+ */
+@FeignClient(
+        name = "user-service",
+        path = "/api/v1/users/internal",
+        fallbackFactory = UserServiceClientFallbackFactory.class
+)
+public interface UserServiceClient {
+
+    /**
+     * Retrieve user by identifier (email or phone number).
+     *
+     * Used during authentication to fetch user details
+     * using either email or phone as the lookup key.
+     *
+     * @param identifier Email address or phone number
+     * @return ApiResponse containing {@link UserInfoResponse} or {@code null} if not found
+     */
+    @GetMapping("/by-identifier")
+    ApiResponse<UserInfoResponse> getUserByIdentifier(@RequestParam("identifier") String identifier);
+
+    /**
+     * Retrieve user by phone number.
+     *
+     * Primarily used for USSD or SMS-based authentication where
+     * only a phone number is available.
+     *
+     * @param phoneNumber User’s phone number (in international format)
+     * @return ApiResponse containing {@link UserInfoResponse} or {@code null} if not found
+     */
+    @GetMapping("/by-phone")
+    ApiResponse<UserInfoResponse> getUserByPhone(@RequestParam("phoneNumber") String phoneNumber);
+
+    /**
+     * Retrieve user by unique user ID.
+     *
+     * Used during token refresh or profile retrieval.
+     *
+     * @param userId User’s unique database ID
+     * @return ApiResponse containing {@link UserInfoResponse}
+     */
+    @GetMapping("/{userId}")
+    ApiResponse<UserInfoResponse> getUserById(@PathVariable("userId") Long userId);
+
+    /**
+     * Register a new user.
+     *
+     * Delegates registration to the user-service, which handles
+     * validation, profile creation, and persistence.
+     *
+     * @param request Registration details
+     * @return ApiResponse containing the newly created {@link UserInfoResponse}
+     */
+    @PostMapping("/register")
+    ApiResponse<UserInfoResponse> registerUser(@RequestBody RegisterRequest request);
+
+    /**
+     * Check if an email address already exists in the system.
+     *
+     * @param email User email address
+     * @return ApiResponse containing {@code true} if exists, {@code false} otherwise
+     */
+    @GetMapping("/exists/email")
+    ApiResponse<Boolean> checkEmailExists(@RequestParam("email") String email);
+
+    /**
+     * Check if a phone number already exists in the system.
+     *
+     * @param phoneNumber User phone number
+     * @return ApiResponse containing {@code true} if exists, {@code false} otherwise
+     */
+    @GetMapping("/exists/phone")
+    ApiResponse<Boolean> checkPhoneExists(@RequestParam("phoneNumber") String phoneNumber);
+}

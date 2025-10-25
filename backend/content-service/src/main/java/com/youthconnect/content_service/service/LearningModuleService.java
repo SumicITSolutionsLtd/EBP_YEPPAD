@@ -1,6 +1,6 @@
 package com.youthconnect.content_service.service;
 
-import com.youthconnect.content_service.dto.LearningModuleDTO;
+import com.youthconnect.content_service.dto.response.LearningModuleDTO;
 import com.youthconnect.content_service.entity.LearningModule;
 import com.youthconnect.content_service.repository.LearningModuleRepository;
 import lombok.RequiredArgsConstructor;
@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 

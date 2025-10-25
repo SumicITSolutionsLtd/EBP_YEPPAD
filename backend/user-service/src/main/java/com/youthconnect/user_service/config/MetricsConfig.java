@@ -18,7 +18,7 @@ import java.sql.SQLException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * FIXED: Metrics Configuration for Youth Connect Uganda User Service
+ * FIXED: Metrics Configuration for Entrepreneurship Booster Platform Uganda User Service
  *
  * Provides comprehensive monitoring and metrics collection including:
  * - Business metrics (registrations, logins, applications)
@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * FIXED: Uses direct Counter/Gauge/Timer instantiation instead of builder pattern
  * to avoid builder() method resolution issues in some Micrometer versions
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
  */
 @Slf4j
@@ -75,7 +75,7 @@ public class MetricsConfig {
     @Bean
     public Counter userRegistrationCounter(MeterRegistry registry) {
         return registry.counter(
-                "youthconnect.user.registrations.total",
+                "entrepreneurshipboosterplatform.user.registrations.total",
                 "service", "user-service",
                 "description", "Total user registrations"
         );
@@ -88,7 +88,7 @@ public class MetricsConfig {
     @Bean
     public Counter userLoginCounter(MeterRegistry registry) {
         return registry.counter(
-                "youthconnect.user.logins.total",
+                "entrepreneurshipboosterplatform.user.logins.total",
                 "service", "user-service",
                 "description", "Total user logins"
         );
@@ -101,7 +101,7 @@ public class MetricsConfig {
     @Bean
     public Counter failedLoginCounter(MeterRegistry registry) {
         return registry.counter(
-                "youthconnect.security.failed_logins.total",
+                "entrepreneurshipboosterplatform.security.failed_logins.total",
                 "service", "user-service",
                 "type", "security",
                 "description", "Total failed login attempts"
@@ -114,7 +114,7 @@ public class MetricsConfig {
      */
     @Bean
     public Gauge databaseConnectionGauge(MeterRegistry registry) {
-        return Gauge.builder("youthconnect.database.connections.active",
+        return Gauge.builder("entrepreneurshipboosterplatform.database.connections.active",
                         activeDatabaseConnections, AtomicInteger::get)
                 .description("Active database connections")
                 .tag("service", "user-service")
@@ -128,7 +128,7 @@ public class MetricsConfig {
     @Bean
     public Timer apiResponseTimer(MeterRegistry registry) {
         return registry.timer(
-                "youthconnect.api.response.time",
+                "entrepreneurshipboosterplatform.api.response.time",
                 "service", "user-service",
                 "description", "API response times"
         );

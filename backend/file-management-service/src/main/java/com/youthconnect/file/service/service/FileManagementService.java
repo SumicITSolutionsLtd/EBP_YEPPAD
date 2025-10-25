@@ -1,9 +1,13 @@
 package com.youthconnect.file.service.service;
 
-import com.youthconnect.file_service.config.FileStorageProperties;
-import com.youthconnect.file_service.dto.FileUploadResult;
-import com.youthconnect.file_service.dto.FileMetadata;
-import com.youthconnect.file_service.util.FileValidationUtil;
+import com.youthconnect.file.service.config.FileStorageProperties;
+import com.youthconnect.file.service.dto.FileMetadata;
+import com.youthconnect.file.service.dto.FileUploadResult;
+import com.youthconnect.file.service.entity.FileRecord;
+import com.youthconnect.file.service.exception.FileNotFoundException;
+import com.youthconnect.file.service.exception.FileStorageException;
+import com.youthconnect.file.service.repository.FileRecordRepository;
+import com.youthconnect.file.service.util.FileValidationUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
@@ -11,7 +15,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -19,24 +23,45 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Core service for file management operations
+ *
+ * Handles:
+ * - Profile picture uploads with optimization
+ * - Audio module management for learning content
+ * - Document storage for applications
+ * - File validation and security
+ * - Database record management
+ *
+ * @author Douglas Kings Kato
+ * @version 1.0.0
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class FileManagementService {
 
     private final FileStorageProperties storageProperties;
     private final FileValidationUtil validationUtil;
+    private final FileRecordRepository fileRecordRepository;
     private final Tika tika = new Tika();
 
     /**
      * Upload profile picture for a user
+     *
+     * @param userId User ID
+     * @param file Multipart file
+     * @return CompletableFuture with upload result
      */
-    @Async
+    @Async("fileTaskExecutor")
     public CompletableFuture<FileUploadResult> uploadProfilePicture(Long userId, MultipartFile file) {
         log.info("Uploading profile picture for user: {}", userId);
 
@@ -57,8 +82,13 @@ public class FileManagementService {
             // Generate optimized versions (placeholder - implement actual image processing)
             Map<String, String> optimizedVersions = generateImageVersions(filePath, userId);
 
+            // Save to database
+            FileRecord fileRecord = saveFileRecord(userId, file, filePath, fileName,
+                    FileRecord.FileCategory.PROFILE_PICTURE);
+
             // Create file metadata
-            FileMetadata metadata = createFileMetadata(file, filePath, "PROFILE_PICTURE", userId);
+            FileMetadata metadata = createFileMetadata(file, filePath,
+                    FileRecord.FileCategory.PROFILE_PICTURE.name(), userId);
 
             FileUploadResult result = FileUploadResult.builder()
                     .success(true)
@@ -69,7 +99,7 @@ public class FileManagementService {
                     .optimizedVersions(optimizedVersions)
                     .build();
 
-            log.info("Profile picture uploaded successfully for user: {}", userId);
+            log.info("Profile picture uploaded successfully for user: {} - File: {}", userId, fileName);
             return CompletableFuture.completedFuture(result);
 
         } catch (Exception e) {
@@ -84,9 +114,15 @@ public class FileManagementService {
 
     /**
      * Upload audio file for learning modules
+     *
+     * @param moduleKey Module identifier
+     * @param language Language code (en, lg, lur, lgb)
+     * @param file Audio file
+     * @return CompletableFuture with upload result
      */
-    @Async
-    public CompletableFuture<FileUploadResult> uploadAudioModule(String moduleKey, String language, MultipartFile file) {
+    @Async("fileTaskExecutor")
+    public CompletableFuture<FileUploadResult> uploadAudioModule(String moduleKey, String language,
+                                                                 MultipartFile file) {
         log.info("Uploading audio module: {} for language: {}", moduleKey, language);
 
         try {
@@ -106,7 +142,12 @@ public class FileManagementService {
             // Process audio (placeholder - implement actual audio processing)
             Map<String, String> processedVersions = processAudioFile(filePath, moduleKey, language);
 
-            FileMetadata metadata = createFileMetadata(file, filePath, "AUDIO_MODULE", null);
+            // Save to database (no userId for system modules)
+            FileRecord fileRecord = saveFileRecord(null, file, filePath, fileName,
+                    FileRecord.FileCategory.AUDIO_MODULE);
+
+            FileMetadata metadata = createFileMetadata(file, filePath,
+                    FileRecord.FileCategory.AUDIO_MODULE.name(), null);
 
             FileUploadResult result = FileUploadResult.builder()
                     .success(true)
@@ -117,7 +158,7 @@ public class FileManagementService {
                     .processedVersions(processedVersions)
                     .build();
 
-            log.info("Audio module uploaded successfully: {}", moduleKey);
+            log.info("Audio module uploaded successfully: {} - Language: {}", moduleKey, language);
             return CompletableFuture.completedFuture(result);
 
         } catch (Exception e) {
@@ -131,10 +172,16 @@ public class FileManagementService {
     }
 
     /**
-     * Upload document for user
+     * Upload document for user (CV, certificates, application attachments)
+     *
+     * @param userId User ID
+     * @param documentType Type of document
+     * @param file Document file
+     * @return CompletableFuture with upload result
      */
-    @Async
-    public CompletableFuture<FileUploadResult> uploadUserDocument(Long userId, String documentType, MultipartFile file) {
+    @Async("fileTaskExecutor")
+    public CompletableFuture<FileUploadResult> uploadUserDocument(Long userId, String documentType,
+                                                                  MultipartFile file) {
         log.info("Uploading {} document for user: {}", documentType, userId);
 
         try {
@@ -151,7 +198,12 @@ public class FileManagementService {
             Path filePath = uploadPath.resolve(fileName);
             Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
-            FileMetadata metadata = createFileMetadata(file, filePath, "USER_DOCUMENT", userId);
+            // Save to database
+            FileRecord fileRecord = saveFileRecord(userId, file, filePath, fileName,
+                    FileRecord.FileCategory.DOCUMENT);
+
+            FileMetadata metadata = createFileMetadata(file, filePath,
+                    FileRecord.FileCategory.DOCUMENT.name(), userId);
 
             FileUploadResult result = FileUploadResult.builder()
                     .success(true)
@@ -162,7 +214,7 @@ public class FileManagementService {
                     .documentType(documentType)
                     .build();
 
-            log.info("Document uploaded successfully for user: {}", userId);
+            log.info("Document uploaded successfully for user: {} - Type: {}", userId, documentType);
             return CompletableFuture.completedFuture(result);
 
         } catch (Exception e) {
@@ -177,6 +229,9 @@ public class FileManagementService {
 
     /**
      * Get audio files for a learning module in all available languages
+     *
+     * @param moduleKey Module identifier
+     * @return Map of language code to file URL
      */
     public Map<String, String> getModuleAudioFiles(String moduleKey) {
         log.debug("Retrieving audio files for module: {}", moduleKey);
@@ -192,7 +247,7 @@ public class FileManagementService {
             }
 
             // Scan for audio files by language
-            String[] languages = {"en", "lg", "alur", "lgb"}; // English, Luganda, Alur, Lugbara
+            String[] languages = {"en", "lg", "lur", "lgb"}; // English, Luganda, Alur, Lugbara
 
             for (String lang : languages) {
                 try {
@@ -201,11 +256,13 @@ public class FileManagementService {
                             .filter(path -> validationUtil.isAudioFile(path.getFileName().toString()))
                             .findFirst()
                             .ifPresent(audioFile -> {
-                                String relativePath = buildFileUrl("modules/" + moduleKey, audioFile.getFileName().toString());
+                                String relativePath = buildFileUrl("modules/" + moduleKey,
+                                        audioFile.getFileName().toString());
                                 audioFiles.put(lang, relativePath);
                             });
                 } catch (IOException e) {
-                    log.warn("Error scanning for language {} in module {}: {}", lang, moduleKey, e.getMessage());
+                    log.warn("Error scanning for language {} in module {}: {}", lang, moduleKey,
+                            e.getMessage());
                 }
             }
 
@@ -220,16 +277,35 @@ public class FileManagementService {
 
     /**
      * Delete user file securely
+     *
+     * @param userId User ID
+     * @param fileName File name
+     * @param category File category
+     * @return CompletableFuture<Boolean> success status
      */
-    @Async
+    @Async("fileTaskExecutor")
     public CompletableFuture<Boolean> deleteUserFile(Long userId, String fileName, String category) {
         log.info("Deleting file: {} for user: {} in category: {}", fileName, userId, category);
 
         try {
-            Path filePath = Paths.get(storageProperties.getStoragePath(), "users", userId.toString(), category, fileName);
+            Path filePath = Paths.get(storageProperties.getStoragePath(), "users",
+                    userId.toString(), category, fileName);
 
             if (Files.exists(filePath)) {
+                // Delete physical file
                 Files.delete(filePath);
+
+                // Delete database record
+                fileRecordRepository.findByUserIdAndCategoryAndIsActiveTrue(userId,
+                                FileRecord.FileCategory.valueOf(category.toUpperCase()))
+                        .stream()
+                        .filter(record -> record.getFileName().equals(fileName))
+                        .findFirst()
+                        .ifPresent(record -> {
+                            record.setIsActive(false);
+                            fileRecordRepository.save(record);
+                        });
+
                 log.info("File deleted successfully: {}", fileName);
                 return CompletableFuture.completedFuture(true);
             } else {
@@ -245,35 +321,50 @@ public class FileManagementService {
 
     /**
      * Load file as resource for download
+     *
+     * @param category File category
+     * @param fileName File name
+     * @param userId User ID (optional)
+     * @return Resource object
+     * @throws FileNotFoundException if file not found
      */
     public Resource loadFileAsResource(String category, String fileName, Long userId) {
         try {
             Path filePath;
             if (userId != null) {
-                filePath = Paths.get(storageProperties.getStoragePath(), "users", userId.toString(), category, fileName);
+                filePath = Paths.get(storageProperties.getStoragePath(), "users",
+                        userId.toString(), category, fileName);
             } else {
                 filePath = Paths.get(storageProperties.getStoragePath(), category, fileName);
             }
 
             Resource resource = new UrlResource(filePath.toUri());
             if (resource.exists() && resource.isReadable()) {
+                // Update last accessed timestamp
+                updateLastAccessed(fileName, userId);
                 return resource;
             } else {
-                throw new RuntimeException("File not found or not readable: " + fileName);
+                throw new FileNotFoundException("File not found or not readable: " + fileName);
             }
         } catch (Exception e) {
-            throw new RuntimeException("File not found: " + fileName, e);
+            throw new FileNotFoundException("File not found: " + fileName, e);
         }
     }
 
     /**
      * Get file metadata
+     *
+     * @param category File category
+     * @param fileName File name
+     * @param userId User ID (optional)
+     * @return FileMetadata object
      */
     public FileMetadata getFileMetadata(String category, String fileName, Long userId) {
         try {
             Path filePath;
             if (userId != null) {
-                filePath = Paths.get(storageProperties.getStoragePath(), "users", userId.toString(), category, fileName);
+                filePath = Paths.get(storageProperties.getStoragePath(), "users",
+                        userId.toString(), category, fileName);
             } else {
                 filePath = Paths.get(storageProperties.getStoragePath(), category, fileName);
             }
@@ -285,6 +376,7 @@ public class FileManagementService {
                         .fileSize(Files.size(filePath))
                         .lastModified(Files.getLastModifiedTime(filePath).toInstant())
                         .contentType(getContentType(fileName))
+                        .userId(userId)
                         .build();
             }
         } catch (Exception e) {
@@ -295,6 +387,9 @@ public class FileManagementService {
 
     /**
      * Get content type for file
+     *
+     * @param fileName File name
+     * @return MIME type string
      */
     public String getContentType(String fileName) {
         try {
@@ -302,9 +397,11 @@ public class FileManagementService {
             return switch (extension) {
                 case "jpg", "jpeg" -> "image/jpeg";
                 case "png" -> "image/png";
+                case "gif" -> "image/gif";
                 case "pdf" -> "application/pdf";
                 case "doc" -> "application/msword";
                 case "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+                case "txt" -> "text/plain";
                 case "mp3" -> "audio/mpeg";
                 case "wav" -> "audio/wav";
                 case "m4a" -> "audio/mp4";
@@ -317,10 +414,19 @@ public class FileManagementService {
 
     /**
      * Check storage health
+     *
+     * @return true if storage is accessible and writable
      */
     public boolean checkStorageHealth() {
         try {
             Path storagePath = Paths.get(storageProperties.getStoragePath());
+
+            // Create storage directory if it doesn't exist
+            if (!Files.exists(storagePath)) {
+                Files.createDirectories(storagePath);
+                log.info("Storage directory created: {}", storagePath);
+            }
+
             return Files.exists(storagePath) && Files.isWritable(storagePath);
         } catch (Exception e) {
             log.error("Storage health check failed: {}", e.getMessage());
@@ -328,7 +434,11 @@ public class FileManagementService {
         }
     }
 
-    // Private helper methods
+    // ==================== Private Helper Methods ====================
+
+    /**
+     * Get file extension from filename
+     */
     private String getFileExtension(String fileName) {
         if (fileName == null || !fileName.contains(".")) {
             return "";
@@ -336,40 +446,61 @@ public class FileManagementService {
         return fileName.substring(fileName.lastIndexOf(".") + 1);
     }
 
+    /**
+     * Generate profile picture filename with timestamp
+     */
     private String generateProfilePictureFileName(Long userId, MultipartFile file) {
         String extension = getFileExtension(file.getOriginalFilename());
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
         return "profile_" + userId + "_" + timestamp + "." + extension;
     }
 
+    /**
+     * Generate audio filename with language code
+     */
     private String generateAudioFileName(String moduleKey, String language, MultipartFile file) {
         String extension = getFileExtension(file.getOriginalFilename());
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         return moduleKey + "_" + language + "_" + timestamp + "." + extension;
     }
 
+    /**
+     * Generate document filename with type and timestamp
+     */
     private String generateDocumentFileName(Long userId, String documentType, MultipartFile file) {
         String extension = getFileExtension(file.getOriginalFilename());
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
         return documentType.toLowerCase() + "_" + userId + "_" + timestamp + "." + extension;
     }
 
+    /**
+     * Create user-specific directory
+     */
     private Path createUserDirectory(Long userId, String category) throws IOException {
         Path userDir = Paths.get(storageProperties.getStoragePath(), "users", userId.toString(), category);
         Files.createDirectories(userDir);
         return userDir;
     }
 
+    /**
+     * Create module directory
+     */
     private Path createModuleDirectory(String moduleKey) throws IOException {
         Path moduleDir = Paths.get(storageProperties.getStoragePath(), "modules", moduleKey);
         Files.createDirectories(moduleDir);
         return moduleDir;
     }
 
+    /**
+     * Build file access URL
+     */
     private String buildFileUrl(String path, String fileName) {
         return storageProperties.getBaseUrl() + "/api/files/download/" + path + "/" + fileName;
     }
 
+    /**
+     * Create file metadata object
+     */
     private FileMetadata createFileMetadata(MultipartFile file, Path filePath, String type, Long userId) {
         try {
             return FileMetadata.builder()
@@ -379,7 +510,7 @@ public class FileManagementService {
                     .contentType(file.getContentType())
                     .fileType(type)
                     .userId(userId)
-                    .uploadTime(java.time.Instant.now())
+                    .uploadTime(Instant.now())
                     .build();
         } catch (Exception e) {
             log.error("Failed to create file metadata", e);
@@ -387,19 +518,78 @@ public class FileManagementService {
         }
     }
 
-    // Placeholder methods for advanced features
+    /**
+     * Save file record to database
+     */
+    private FileRecord saveFileRecord(Long userId, MultipartFile file, Path filePath,
+                                      String fileName, FileRecord.FileCategory category) {
+        FileRecord fileRecord = FileRecord.builder()
+                .userId(userId)
+                .fileName(fileName)
+                .originalName(file.getOriginalFilename())
+                .filePath(filePath.toString())
+                .fileSize(file.getSize())
+                .contentType(file.getContentType())
+                .category(category)
+                .isPublic(false)
+                .isActive(true)
+                .uploadTime(LocalDateTime.now())
+                .build();
+
+        return fileRecordRepository.save(fileRecord);
+    }
+
+    /**
+     * Update last accessed timestamp for file record
+     */
+    private void updateLastAccessed(String fileName, Long userId) {
+        try {
+            if (userId != null) {
+                fileRecordRepository.findByUserIdAndCategoryAndIsActiveTrue(userId,
+                                FileRecord.FileCategory.PROFILE_PICTURE)
+                        .stream()
+                        .filter(record -> record.getFileName().equals(fileName))
+                        .findFirst()
+                        .ifPresent(record -> {
+                            record.markAccessed();
+                            fileRecordRepository.save(record);
+                        });
+            }
+        } catch (Exception e) {
+            log.warn("Failed to update last accessed timestamp: {}", e.getMessage());
+        }
+    }
+
+    // ==================== Placeholder Methods (Implement Later) ====================
+
+    /**
+     * Generate optimized image versions (thumbnail, medium, large)
+     * TODO: Implement actual image processing with Thumbnailator or ImageMagick
+     */
     private Map<String, String> generateImageVersions(Path filePath, Long userId) {
-        // Implement actual image processing
         Map<String, String> versions = new HashMap<>();
-        versions.put("thumbnail", buildFileUrl("users/" + userId + "/profile-pictures", "thumb_" + filePath.getFileName()));
-        versions.put("medium", buildFileUrl("users/" + userId + "/profile-pictures", "med_" + filePath.getFileName()));
+        versions.put("thumbnail", buildFileUrl("users/" + userId + "/profile-pictures",
+                "thumb_" + filePath.getFileName()));
+        versions.put("medium", buildFileUrl("users/" + userId + "/profile-pictures",
+                "med_" + filePath.getFileName()));
+        versions.put("original", buildFileUrl("users/" + userId + "/profile-pictures",
+                filePath.getFileName().toString()));
+
+        log.debug("Image optimization placeholder - implement actual processing");
         return versions;
     }
 
+    /**
+     * Process audio file (compression, normalization)
+     * TODO: Implement actual audio processing with FFmpeg
+     */
     private Map<String, String> processAudioFile(Path filePath, String moduleKey, String language) {
-        // Implement actual audio processing
         Map<String, String> versions = new HashMap<>();
-        versions.put("compressed", buildFileUrl("modules/" + moduleKey, "compressed_" + filePath.getFileName()));
+        versions.put("original", buildFileUrl("modules/" + moduleKey, filePath.getFileName().toString()));
+        versions.put("compressed", buildFileUrl("modules/" + moduleKey,
+                "compressed_" + filePath.getFileName()));
+
+        log.debug("Audio processing placeholder - implement actual processing");
         return versions;
     }
 }

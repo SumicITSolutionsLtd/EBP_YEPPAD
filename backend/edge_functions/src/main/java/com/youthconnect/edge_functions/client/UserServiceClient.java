@@ -1,7 +1,7 @@
 package com.youthconnect.edge_functions.client;
 
 import com.youthconnect.edge_functions.dto.UserProfileDTO;
-import com.youthconnect.edge_functions.dto.UssdRegistrationRequestDTO; // Correct import
+import com.youthconnect.edge_functions.dto.request.UssdRegistrationRequestDTO; // Correct import
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 

@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Repository for file management operations
+ * Repository for file record database operations
  */
 @Repository
 public interface FileRecordRepository extends JpaRepository<FileRecord, Long> {
@@ -19,15 +19,13 @@ public interface FileRecordRepository extends JpaRepository<FileRecord, Long> {
     /**
      * Find files by user ID and category
      */
-    List<FileRecord> findByUserIdAndCategoryAndIsActiveTrue(Long userId, FileRecord.FileCategory category);
+    List<FileRecord> findByUserIdAndCategoryAndIsActiveTrue(
+            Long userId,
+            FileRecord.FileCategory category
+    );
 
     /**
-     * Find file by access token for secure downloads
-     */
-    Optional<FileRecord> findByAccessTokenAndIsActiveTrue(String accessToken);
-
-    /**
-     * Find files by filename pattern (for system files)
+     * Find file by filename pattern
      */
     @Query("SELECT f FROM FileRecord f WHERE f.fileName LIKE :pattern AND f.isActive = true")
     List<FileRecord> findByFileNamePattern(@Param("pattern") String pattern);
@@ -49,4 +47,9 @@ public interface FileRecordRepository extends JpaRepository<FileRecord, Long> {
      */
     @Query("SELECT f FROM FileRecord f WHERE f.lastAccessed < :since OR f.lastAccessed IS NULL")
     List<FileRecord> findFilesNotAccessedSince(@Param("since") LocalDateTime since);
+
+    /**
+     * Check if file exists by name and user
+     */
+    boolean existsByFileNameAndUserIdAndIsActiveTrue(String fileName, Long userId);
 }

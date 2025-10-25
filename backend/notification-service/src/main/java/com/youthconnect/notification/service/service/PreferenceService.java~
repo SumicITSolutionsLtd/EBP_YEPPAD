@@ -1,0 +1,4 @@
+package com.youthconnect.notification.service.service;
+
+public class PreferenceService {
+}

@@ -1,0 +1,367 @@
+# ==============================================================================
+# Edge Functions Service - Complete Docker Compose Configuration
+# Version: 1.0.0 - Production Ready
+# ==============================================================================
+
+version: '3.9'
+
+# ==============================================================================
+# NETWORKS - Isolated communication between services
+# ==============================================================================
+networks:
+  youthconnect-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+# ==============================================================================
+# VOLUMES - Persistent data storage
+# ==============================================================================
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+# ==============================================================================
+# SERVICES
+# ==============================================================================
+services:
+  # ============================================================================
+  # INFRASTRUCTURE: Service Registry (Eureka)
+  # ============================================================================
+  service-registry:
+    image: youthconnect/service-registry:latest
+    container_name: service-registry
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_INSTANCE_HOSTNAME=service-registry
+    networks:
+      - youthconnect-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
+  # ============================================================================
+  # DATABASE: MySQL 8.0
+  # ============================================================================
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-db
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root123}
+      MYSQL_DATABASE: epb_db
+      MYSQL_USER: ${DB_USERNAME:-youthconnect}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-youthconnect123}
+      TZ: Africa/Kampala
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    networks:
+      - youthconnect-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-root123}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-time-zone=+03:00
+      --max_connections=200
+
+  # ============================================================================
+  # CACHE: Redis 7.0
+  # ============================================================================
+  redis:
+    image: redis:7.0-alpine
+    container_name: redis-cache
+    ports:
+      - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis123}
+    volumes:
+      - redis-data:/data
+    networks:
+      - youthconnect-network
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-redis123}
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================================
+  # CORE SERVICES: User Service
+  # ============================================================================
+  user-service:
+    image: youthconnect/user-service:latest
+    container_name: user-service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/epb_db?useSSL=false&serverTimezone=Africa/Kampala
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-youthconnect}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-youthconnect123}
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_PASSWORD=${REDIS_PASSWORD:-redis123}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-registry:8761/eureka/
+    networks:
+      - youthconnect-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # ============================================================================
+  # CORE SERVICES: Opportunity Service
+  # ============================================================================
+  opportunity-service:
+    image: youthconnect/opportunity-service:latest
+    container_name: opportunity-service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/epb_db?useSSL=false&serverTimezone=Africa/Kampala
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-youthconnect}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-youthconnect123}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-registry:8761/eureka/
+    networks:
+      - youthconnect-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # ============================================================================
+  # CORE SERVICES: Notification Service
+  # ============================================================================
+  notification-service:
+    image: youthconnect/notification-service:latest
+    container_name: notification-service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+    ports:
+      - "8086:8086"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/epb_db?useSSL=false&serverTimezone=Africa/Kampala
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-youthconnect}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-youthconnect123}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-registry:8761/eureka/
+      - AFRICAS_TALKING_USERNAME=${AT_USERNAME}
+      - AFRICAS_TALKING_API_KEY=${AT_API_KEY}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+    networks:
+      - youthconnect-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # ============================================================================
+  # CORE SERVICES: Mentor Service
+  # ============================================================================
+  mentor-service:
+    image: youthconnect/mentor-service:latest
+    container_name: mentor-service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/epb_db?useSSL=false&serverTimezone=Africa/Kampala
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-youthconnect}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-youthconnect123}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-registry:8761/eureka/
+    networks:
+      - youthconnect-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # ============================================================================
+  # EDGE FUNCTIONS SERVICE (Main Focus)
+  # ============================================================================
+  edge-functions:
+    build:
+      context: ./edge_functions
+      dockerfile: Dockerfile
+      args:
+        - JAR_FILE=target/*.jar
+    image: youthconnect/edge-functions:latest
+    container_name: edge-functions
+    depends_on:
+      service-registry:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      opportunity-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    ports:
+      - "8091:8091"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-registry:8761/eureka/
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_BASE_URL=https://api.openai.com/v1
+      - LOGGING_LEVEL_COM_YOUTHCONNECT=DEBUG
+    networks:
+      - youthconnect-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8091/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ============================================================================
+  # API GATEWAY
+  # ============================================================================
+  api-gateway:
+    image: youthconnect/api-gateway:latest
+    container_name: api-gateway
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-registry:8761/eureka/
+    networks:
+      - youthconnect-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # ============================================================================
+  # MONITORING: Prometheus
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - youthconnect-network
+    restart: unless-stopped
+
+  # ============================================================================
+  # MONITORING: Grafana
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - youthconnect-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+# ==============================================================================
+# USAGE INSTRUCTIONS
+# ==============================================================================
+# Development:
+#   docker-compose up -d
+#   docker-compose logs -f edge-functions
+#
+# Production:
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Stop:
+#   docker-compose down
+#
+# Clean (removes volumes):
+#   docker-compose down -v
+# ==============================================================================

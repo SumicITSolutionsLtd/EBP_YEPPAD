@@ -1,101 +1,211 @@
-# Youth Connect Uganda - User Service Docker Compose
+# ============================================================================
+# Entrepreneurship Booster Platform - User Service Docker Compose
+# ============================================================================
 # For local development and testing
+#
+# FIXED: Removed non-existent springcloud/eureka image
+# Use service-registry project or run Eureka separately
+#
+# Services:
+# - user-service: Main application
+# - mysql-db: Database with initialization scripts
+# - redis-cache: Optional caching layer
+#
+# Usage:
+#   Development: docker-compose up -d
+#   Production: Use docker-compose.prod.yml
+#   Stop: docker-compose down
+#   Logs: docker-compose logs -f user-service
+# ============================================================================
 
 version: '3.8'
 
 services:
-  # User Service
+  # ==========================================================================
+  # USER SERVICE - Main Application
+  # ==========================================================================
   user-service:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: youthconnect-user-service
+    container_name: entrepreneurshipboosterplatform-user-service
     ports:
       - "8081:8081"
     environment:
+      # Spring Profile
       - SPRING_PROFILES_ACTIVE=docker
+
+      # Database Configuration
       - DB_HOST=mysql-db
-      - DB_PORT=3306
-      - DB_NAME=youth_connect_db
+      - DB_PORT=3307
+      - DB_NAME=epb_db
       - DB_USERNAME=root
       - DB_PASSWORD=Douglas20!
-      - EUREKA_URL=http://eureka-server:8761/eureka/
+
+      # Service Discovery (OPTIONAL - Only if Eureka is running)
+      # Comment out if not using Eureka
+      # - EUREKA_URL=http://localhost:8761/eureka/
+
+      # Security
       - INTERNAL_API_KEY=internal-secret-key-2024
+
+      # Application Settings
+      - APP_ENVIRONMENT=docker
+      - APP_UPLOAD_DIR=/app/uploads
+
     depends_on:
       mysql-db:
         condition: service_healthy
     networks:
-      - youthconnect-network
+      - entrepreneurshipboosterplatform-network
     volumes:
+      # Persistent storage for logs and uploads
       - user-service-logs:/app/logs
       - user-service-uploads:/app/uploads
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    restart: unless-stopped
 
-  # MySQL Database
+  # ==========================================================================
+  # MYSQL DATABASE - Primary Data Store
+  # ==========================================================================
   mysql-db:
     image: mysql:8.0
-    container_name: youthconnect-mysql
+    container_name: entrepreneurshipboosterplatform-mysql
     environment:
       - MYSQL_ROOT_PASSWORD=Douglas20!
-      - MYSQL_DATABASE=youth_connect_db
-      - MYSQL_USER=youthconnect
-      - MYSQL_PASSWORD=user123
+      - MYSQL_DATABASE=epb_db
+      - MYSQL_USER=entrepreneurshipboosterplatform
+      - MYSQL_PASSWORD=Douglas20!
     ports:
-      - "3307:3306"
+      - "3307:3306"  # External:Internal (avoid conflict with local MySQL)
     networks:
-      - youthconnect-network
+      - entrepreneurshipboosterplatform-network
     volumes:
+      # Persistent database storage
       - mysql-data:/var/lib/mysql
+
+      # Auto-run initialization scripts on first start
       - ../src/main/resources/db/migration:/docker-entrypoint-initdb.d
+
     command:
       - --default-authentication-plugin=mysql_native_password
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       - --innodb_buffer_pool_size=256M
+      - --max_connections=200
+      - --slow_query_log=1
+      - --long_query_time=2
+
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pDouglas20!"]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
-  # Eureka Discovery Server (for service registration)
-  eureka-server:
-    image: springcloud/eureka
-    container_name: youthconnect-eureka
-    ports:
-      - "8761:8761"
-    networks:
-      - youthconnect-network
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-
-  # Redis for caching (optional)
+  # ==========================================================================
+  # REDIS CACHE - Optional Performance Layer
+  # ==========================================================================
   redis-cache:
     image: redis:7.2-alpine
-    container_name: youthconnect-redis
+    container_name: entrepreneurshipboosterplatform-redis
     ports:
       - "6379:6379"
     networks:
-      - youthconnect-network
-    command: redis-server --appendonly yes
+      - entrepreneurshipboosterplatform-network
+    command: redis-server --appendonly yes --requirepass redis123
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
 
+  # ==========================================================================
+  # OPTIONAL: Uncomment this section if you have service-registry project
+  # ==========================================================================
+  # eureka-server:
+  #   build:
+  #     context: ../service-registry
+  #     dockerfile: Dockerfile
+  #   container_name: entrepreneurshipboosterplatform-eureka
+  #   ports:
+  #     - "8761:8761"
+  #   networks:
+  #     - entrepreneurshipboosterplatform-network
+  #   environment:
+  #     - SPRING_PROFILES_ACTIVE=docker
+  #     - EUREKA_CLIENT_REGISTER_WITH_EUREKA=false
+  #     - EUREKA_CLIENT_FETCH_REGISTRY=false
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #   restart: unless-stopped
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
 networks:
-  youthconnect-network:
+  entrepreneurshipboosterplatform-network:
     driver: bridge
+    name: entrepreneurshipboosterplatform-network
 
+# ============================================================================
+# PERSISTENT VOLUMES
+# ============================================================================
 volumes:
   mysql-data:
     driver: local
+    name: entrepreneurshipboosterplatform-mysql-data
+
   redis-data:
     driver: local
+    name: entrepreneurshipboosterplatform-redis-data
+
   user-service-logs:
     driver: local
+    name: entrepreneurshipboosterplatform-user-logs
+
   user-service-uploads:
     driver: local
+    name: entrepreneurshipboosterplatform-user-uploads
+
+# ============================================================================
+# USAGE INSTRUCTIONS
+# ============================================================================
+#
+# Start services:
+#   docker-compose up -d
+#
+# View logs:
+#   docker-compose logs -f user-service
+#   docker-compose logs -f mysql-db
+#
+# Stop services:
+#   docker-compose down
+#
+# Stop and remove volumes:
+#   docker-compose down -v
+#
+# Rebuild images:
+#   docker-compose up -d --build
+#
+# Access services:
+#   User Service: http://localhost:8081
+#   MySQL: localhost:3307 (root/Douglas20!)
+#   Redis: localhost:6379
+#   Swagger UI: http://localhost:8081/swagger-ui.html
+#
+# Database connection from host:
+#   mysql -h 127.0.0.1 -P 3307 -u root -pDouglas20!
+# ============================================================================

@@ -1,0 +1,535 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+		 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<!-- ============================================= -->
+	<!-- Parent Project Configuration                  -->
+	<!-- OPTION 1: Keep parent project reference      -->
+	<!-- OPTION 2: Use Spring Boot parent directly    -->
+	<!-- ============================================= -->
+
+	<!-- OPTION 2 (RECOMMENDED): Direct Spring Boot Parent -->
+	<!-- Uncomment this block and comment out the parent-project block above -->
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>3.2.11</version>
+		<relativePath/>
+	</parent>
+
+	<!-- OPTION 1: Use custom parent (keep if you want centralized management) -->
+	<!--
+	<parent>
+		<groupId>com.youthconnect</groupId>
+		<artifactId>parent-project</artifactId>
+		<version>1.0.0-SNAPSHOT</version>
+		<relativePath>../pom.xml</relativePath>
+	</parent>
+	-->
+
+	<!-- ============================================= -->
+	<!-- Project Coordinates                           -->
+	<!-- ============================================= -->
+	<groupId>com.youthconnect</groupId>
+	<artifactId>service-registry</artifactId>
+	<name>Service Registry - Eureka Server</name>
+	<description>Eureka Service Registry for YouthConnect Uganda Platform</description>
+	<version>2.0.0</version>
+	<packaging>jar</packaging>
+
+	<!-- ============================================= -->
+	<!-- Project Properties                            -->
+	<!-- ============================================= -->
+	<properties>
+		<!-- Java Version (matching your JDK 21) -->
+		<java.version>21</java.version>
+
+		<!-- CRITICAL: Spring Cloud version compatible with Spring Boot 3.2.x -->
+		<spring-cloud.version>2023.0.0</spring-cloud.version>
+
+		<!-- Encoding -->
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+		<!-- Compiler Configuration -->
+		<maven.compiler.source>21</maven.compiler.source>
+		<maven.compiler.target>21</maven.compiler.target>
+		<maven.compiler.release>21</maven.compiler.release>
+
+		<!-- Lombok Version -->
+		<lombok.version>1.18.30</lombok.version>
+
+		<!-- Docker Configuration -->
+		<docker.image.name>youthconnect/service-registry</docker.image.name>
+		<docker.image.tag>${project.version}</docker.image.tag>
+	</properties>
+
+	<!-- ============================================= -->
+	<!-- Dependencies                                  -->
+	<!-- ============================================= -->
+	<dependencies>
+
+		<!-- ========================================== -->
+		<!-- SPRING BOOT STARTERS                       -->
+		<!-- ========================================== -->
+
+		<!-- Web Support for Eureka Dashboard -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+
+		<!-- Security for Eureka Dashboard Protection (Optional) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<!-- Actuator for Health Checks & Monitoring -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
+		<!-- ========================================== -->
+		<!-- SPRING CLOUD NETFLIX EUREKA                -->
+		<!-- ========================================== -->
+
+		<!-- Eureka Server - Main Dependency -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-netflix-eureka-server</artifactId>
+		</dependency>
+
+		<!-- Load Balancer Support (included with Eureka) -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
+		</dependency>
+
+		<!-- Caching Support for Eureka -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-cache</artifactId>
+		</dependency>
+
+		<!-- ========================================== -->
+		<!-- MONITORING & METRICS                       -->
+		<!-- ========================================== -->
+
+		<!-- Micrometer Core for Metrics -->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-core</artifactId>
+		</dependency>
+
+		<!-- Prometheus Metrics Export -->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+		<!-- ========================================== -->
+		<!-- DEVELOPMENT TOOLS                          -->
+		<!-- ========================================== -->
+
+		<!-- Spring Boot DevTools for Hot Reload -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+
+		<!-- Lombok for Reducing Boilerplate Code -->
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<version>${lombok.version}</version>
+			<optional>true</optional>
+		</dependency>
+
+		<!-- Configuration Metadata Processor -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-configuration-processor</artifactId>
+			<optional>true</optional>
+		</dependency>
+
+		<!-- ========================================== -->
+		<!-- TESTING DEPENDENCIES                       -->
+		<!-- ========================================== -->
+
+		<!-- Spring Boot Test Starter -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+			<exclusions>
+				<exclusion>
+					<groupId>org.junit.vintage</groupId>
+					<artifactId>junit-vintage-engine</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+		<!-- Spring Security Test Support -->
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+	</dependencies>
+
+	<!-- ============================================= -->
+	<!-- Dependency Management                         -->
+	<!-- Ensures Spring Cloud versions are compatible -->
+	<!-- ============================================= -->
+	<dependencyManagement>
+		<dependencies>
+			<!-- Spring Cloud BOM (Bill of Materials) -->
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<!-- ============================================= -->
+	<!-- Build Configuration                           -->
+	<!-- ============================================= -->
+	<build>
+		<finalName>service-registry</finalName>
+
+		<!-- Resource Filtering Configuration -->
+		<resources>
+			<!-- Enable filtering for configuration files -->
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>true</filtering>
+				<includes>
+					<include>**/*.yml</include>
+					<include>**/*.yaml</include>
+					<include>**/*.properties</include>
+					<include>**/*.txt</include>
+					<include>**/*.html</include>
+					<include>**/*.css</include>
+					<include>**/*.js</include>
+				</includes>
+			</resource>
+
+			<!-- Disable filtering for binary files -->
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>false</filtering>
+				<excludes>
+					<exclude>**/*.yml</exclude>
+					<exclude>**/*.yaml</exclude>
+					<exclude>**/*.properties</exclude>
+					<exclude>**/*.txt</exclude>
+					<exclude>**/*.html</exclude>
+					<exclude>**/*.css</exclude>
+					<exclude>**/*.js</exclude>
+				</excludes>
+			</resource>
+		</resources>
+
+		<plugins>
+
+			<!-- ====================================== -->
+			<!-- Spring Boot Maven Plugin               -->
+			<!-- ====================================== -->
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<!-- Exclude Lombok from final JAR -->
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+
+					<!-- Docker Image Configuration -->
+					<image>
+						<name>${docker.image.name}:${docker.image.tag}</name>
+						<env>
+							<BP_JVM_VERSION>21</BP_JVM_VERSION>
+						</env>
+					</image>
+
+					<!-- Enable layer extraction for Docker -->
+					<layers>
+						<enabled>true</enabled>
+					</layers>
+				</configuration>
+
+				<executions>
+					<execution>
+						<goals>
+							<goal>repackage</goal>
+							<goal>build-info</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- ====================================== -->
+			<!-- Maven Compiler Plugin (Java 21)        -->
+			<!-- ====================================== -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.12.1</version>
+				<configuration>
+					<source>21</source>
+					<target>21</target>
+					<release>21</release>
+					<encoding>UTF-8</encoding>
+
+					<!-- Lombok Annotation Processing -->
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+							<version>${lombok.version}</version>
+						</path>
+						<path>
+							<groupId>org.springframework.boot</groupId>
+							<artifactId>spring-boot-configuration-processor</artifactId>
+							<version>3.2.11</version>
+						</path>
+					</annotationProcessorPaths>
+
+					<!-- Compiler Arguments -->
+					<compilerArgs>
+						<arg>-parameters</arg>
+					</compilerArgs>
+				</configuration>
+			</plugin>
+
+			<!-- ====================================== -->
+			<!-- Maven Surefire Plugin (Testing)        -->
+			<!-- ====================================== -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>3.2.5</version>
+				<configuration>
+					<!-- Test Configuration -->
+					<argLine>
+						-Djava.security.egd=file:/dev/./urandom
+						-Dspring.profiles.active=test
+					</argLine>
+
+					<!-- Parallel Execution for Faster Tests -->
+					<parallel>methods</parallel>
+					<threadCount>2</threadCount>
+
+					<!-- Exclude Integration Tests from Unit Test Phase -->
+					<excludes>
+						<exclude>**/*IntegrationTest.java</exclude>
+						<exclude>**/*IT.java</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+
+			<!-- ====================================== -->
+			<!-- Maven Failsafe Plugin (Integration Tests) -->
+			<!-- ====================================== -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<version>3.2.5</version>
+				<executions>
+					<execution>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<includes>
+						<include>**/*IntegrationTest.java</include>
+						<include>**/*IT.java</include>
+					</includes>
+				</configuration>
+			</plugin>
+
+			<!-- ====================================== -->
+			<!-- Maven Resources Plugin                 -->
+			<!-- ====================================== -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-resources-plugin</artifactId>
+				<version>3.3.1</version>
+				<configuration>
+					<encoding>UTF-8</encoding>
+					<nonFilteredFileExtensions>
+						<nonFilteredFileExtension>jks</nonFilteredFileExtension>
+						<nonFilteredFileExtension>p12</nonFilteredFileExtension>
+					</nonFilteredFileExtensions>
+				</configuration>
+			</plugin>
+
+			<!-- ====================================== -->
+			<!-- Maven JAR Plugin                       -->
+			<!-- ====================================== -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<version>3.3.0</version>
+				<configuration>
+					<archive>
+						<manifest>
+							<addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+							<addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+						</manifest>
+						<manifestEntries>
+							<Implementation-Title>${project.name}</Implementation-Title>
+							<Implementation-Version>${project.version}</Implementation-Version>
+							<Built-By>Youth Connect Uganda Team</Built-By>
+						</manifestEntries>
+					</archive>
+				</configuration>
+			</plugin>
+
+		</plugins>
+	</build>
+
+	<!-- ============================================= -->
+	<!-- Build Profiles                                -->
+	<!-- ============================================= -->
+	<profiles>
+
+		<!-- ====================================== -->
+		<!-- Development Profile (Default)          -->
+		<!-- ====================================== -->
+		<profile>
+			<id>dev</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+			<properties>
+				<spring.profiles.active>dev</spring.profiles.active>
+				<log.level>DEBUG</log.level>
+			</properties>
+		</profile>
+
+		<!-- ====================================== -->
+		<!-- Production Profile                     -->
+		<!-- ====================================== -->
+		<profile>
+			<id>prod</id>
+			<properties>
+				<spring.profiles.active>prod</spring.profiles.active>
+				<log.level>INFO</log.level>
+			</properties>
+			<build>
+				<plugins>
+					<!-- Enable JAR compression for production -->
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-jar-plugin</artifactId>
+						<configuration>
+							<archive>
+								<compress>true</compress>
+							</archive>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
+		<!-- ====================================== -->
+		<!-- Docker Profile                         -->
+		<!-- ====================================== -->
+		<profile>
+			<id>docker</id>
+			<properties>
+				<spring.profiles.active>docker</spring.profiles.active>
+				<log.level>INFO</log.level>
+			</properties>
+			<build>
+				<plugins>
+					<!-- Docker build with Spring Boot -->
+					<plugin>
+						<groupId>org.springframework.boot</groupId>
+						<artifactId>spring-boot-maven-plugin</artifactId>
+						<executions>
+							<execution>
+								<goals>
+									<goal>build-image</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
+		<!-- ====================================== -->
+		<!-- Testing Profile                        -->
+		<!-- ====================================== -->
+		<profile>
+			<id>test</id>
+			<properties>
+				<spring.profiles.active>test</spring.profiles.active>
+				<log.level>DEBUG</log.level>
+			</properties>
+		</profile>
+
+	</profiles>
+
+	<!-- ============================================= -->
+	<!-- Repository Configuration (if needed)          -->
+	<!-- ============================================= -->
+	<repositories>
+		<repository>
+			<id>spring-milestones</id>
+			<name>Spring Milestones</name>
+			<url>https://repo.spring.io/milestone</url>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</repository>
+		<repository>
+			<id>spring-snapshots</id>
+			<name>Spring Snapshots</name>
+			<url>https://repo.spring.io/snapshot</url>
+			<releases>
+				<enabled>false</enabled>
+			</releases>
+		</repository>
+	</repositories>
+
+	<pluginRepositories>
+		<pluginRepository>
+			<id>spring-milestones</id>
+			<name>Spring Milestones</name>
+			<url>https://repo.spring.io/milestone</url>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</pluginRepository>
+		<pluginRepository>
+			<id>spring-snapshots</id>
+			<name>Spring Snapshots</name>
+			<url>https://repo.spring.io/snapshot</url>
+			<releases>
+				<enabled>false</enabled>
+			</releases>
+		</pluginRepository>
+	</pluginRepositories>
+
+</project>

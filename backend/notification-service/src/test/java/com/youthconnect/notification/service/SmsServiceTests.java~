@@ -1,0 +1,73 @@
+package com.youthconnect.notification.service;
+
+import com.youthconnect.notification.service.dto.SmsRequest;
+import com.youthconnect.notification.service.service.SmsService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.*;
+
+/**
+ * Unit tests for SmsService.
+ */
+public class SmsServiceTests {
+
+    @Mock
+    private SomeSmsProviderClient smsProviderClient; // Replace with actual client class
+
+    @InjectMocks
+    private SmsService smsService;
+
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
+    }
+
+    @Test
+    void testSendSms_Success() throws Exception {
+        // Arrange
+        SmsRequest request = SmsRequest.builder()
+                .recipient("+256701234567")
+                .message("Test message")
+                .messageType("TRANSACTIONAL")
+                .build();
+
+        when(smsProviderClient.sendSms(any(SmsRequest.class))).thenReturn(true);
+
+        // Act
+        CompletableFuture<Map<String, Object>> resultFuture = smsService.sendSms(request);
+        Map<String, Object> result = resultFuture.get();
+
+        // Assert
+        assertThat(result.get("success")).isEqualTo(true);
+        verify(smsProviderClient, times(1)).sendSms(any(SmsRequest.class));
+    }
+
+    @Test
+    void testSendSms_Failure() throws Exception {
+        // Arrange
+        SmsRequest request = SmsRequest.builder()
+                .recipient("+256701234567")
+                .message("Failure case")
+                .messageType("ALERT")
+                .build();
+
+        when(smsProviderClient.sendSms(any(SmsRequest.class))).thenThrow(new RuntimeException("Network error"));
+
+        // Act
+        CompletableFuture<Map<String, Object>> resultFuture = smsService.sendSms(request);
+        Map<String, Object> result = resultFuture.get();
+
+        // Assert
+        assertThat(result.get("success")).isEqualTo(false);
+        assertThat(result.get("error")).isEqualTo("Network error");
+        verify(smsProviderClient, times(1)).sendSms(any(SmsRequest.class));
+    }
+}

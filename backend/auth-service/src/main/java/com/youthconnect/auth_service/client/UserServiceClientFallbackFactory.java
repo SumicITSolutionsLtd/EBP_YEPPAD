@@ -8,8 +8,20 @@ import org.springframework.cloud.openfeign.FallbackFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * Fallback factory for UserServiceClient
- * Provides graceful degradation when user-service is unavailable
+ * Fallback Factory for UserServiceClient
+ *
+ * Provides a graceful degradation strategy when the user-service
+ * is unavailable or encounters network/timeout issues.
+ * <p>
+ * Critical operations (e.g., login, registration) will return
+ * descriptive error responses while ensuring sensitive data
+ * is not exposed in logs.
+ * </p>
+ *
+ * @author
+ *     Youth Connect Uganda Development Team
+ * @version
+ *     1.1.0
  */
 @Slf4j
 @Component
@@ -17,37 +29,67 @@ public class UserServiceClientFallbackFactory implements FallbackFactory<UserSer
 
     @Override
     public UserServiceClient create(Throwable cause) {
-        log.error("User service unavailable: {}", cause.getMessage());
+        log.error("User-service communication failure: {}", cause.getMessage(), cause);
 
         return new UserServiceClient() {
+
             @Override
             public ApiResponse<UserInfoResponse> getUserByIdentifier(String identifier) {
-                log.error("Fallback: getUserByIdentifier called for {}", identifier);
-                throw new RuntimeException("User service unavailable. Please try again later.");
+                log.error("Fallback triggered: getUserByIdentifier for [{}]. Cause: {}",
+                        maskIdentifier(identifier), cause.getMessage());
+                return ApiResponse.error("User service temporarily unavailable. Please try again later.");
             }
 
             @Override
             public ApiResponse<UserInfoResponse> getUserByPhone(String phoneNumber) {
-                log.error("Fallback: getUserByPhone called");
-                throw new RuntimeException("User service unavailable. Please try again later.");
+                log.error("Fallback triggered: getUserByPhone for [{}]. Cause: {}",
+                        maskPhone(phoneNumber), cause.getMessage());
+                return ApiResponse.error("User service temporarily unavailable. Please try again later.");
+            }
+
+            @Override
+            public ApiResponse<UserInfoResponse> getUserById(Long userId) {
+                log.error("Fallback triggered: getUserById for [{}]. Cause: {}", userId, cause.getMessage());
+                return ApiResponse.error("Unable to retrieve user details at the moment. Please try again later.");
             }
 
             @Override
             public ApiResponse<UserInfoResponse> registerUser(RegisterRequest request) {
-                log.error("Fallback: registerUser called for {}", request.getEmail());
-                throw new RuntimeException("User service unavailable. Please try again later.");
+                log.error("Fallback triggered: registerUser for [{}]. Cause: {}",
+                        request != null ? request.getEmail() : "unknown", cause.getMessage());
+                return ApiResponse.error("Registration service temporarily unavailable. Please try again later.");
             }
 
             @Override
             public ApiResponse<Boolean> checkEmailExists(String email) {
-                log.error("Fallback: checkEmailExists called for {}", email);
-                return ApiResponse.error("User service unavailable");
+                log.warn("Fallback triggered: checkEmailExists for [{}]. Cause: {}", email, cause.getMessage());
+                return ApiResponse.error("Unable to verify email existence. Please try again later.");
             }
 
             @Override
             public ApiResponse<Boolean> checkPhoneExists(String phoneNumber) {
-                log.error("Fallback: checkPhoneExists called");
-                return ApiResponse.error("User service unavailable");
+                log.warn("Fallback triggered: checkPhoneExists for [{}]. Cause: {}", maskPhone(phoneNumber), cause.getMessage());
+                return ApiResponse.error("Unable to verify phone number existence. Please try again later.");
+            }
+
+            /**
+             * Mask identifier (email or phone) for privacy in logs.
+             */
+            private String maskIdentifier(String identifier) {
+                if (identifier == null || identifier.length() < 6) return "***";
+                return identifier.substring(0, 3) + "***" + identifier.substring(identifier.length() - 3);
+            }
+
+            /**
+             * Mask phone number for privacy in logs.
+             */
+            private String maskPhone(String phone) {
+                if (phone == null) return "***";
+                String cleaned = phone.replaceAll("[\\s\\-\\(\\)\\.]", "");
+                if (cleaned.length() >= 7) {
+                    return cleaned.substring(0, 3) + "****" + cleaned.substring(cleaned.length() - 3);
+                }
+                return "***";
             }
         };
     }

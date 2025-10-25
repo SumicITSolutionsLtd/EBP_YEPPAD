@@ -23,7 +23,7 @@ import jakarta.validation.constraints.Size;
 /**
  * Secure USSD Controller with comprehensive security measures.
  *
- * @author YouthConnect Uganda Development Team
+ * @author Douglas Kings Kato & Harold
  * @version 2.0.0
  */
 @Slf4j

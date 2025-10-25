@@ -31,7 +31,7 @@ import org.springframework.cache.annotation.EnableCaching;
  * - Resilience4j for fault tolerance
  * - Micrometer for observability
  *
- * @author YouthConnect Uganda Development Team
+ * @author Douglas Kings Kato & Harold
  * @version 1.0.0
  * @since 2025-01-29
  */

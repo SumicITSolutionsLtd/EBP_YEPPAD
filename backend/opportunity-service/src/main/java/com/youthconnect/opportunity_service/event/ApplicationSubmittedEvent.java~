@@ -1,0 +1,4 @@
+package com.youthconnect.opportunity_service.event;
+
+public class ApplicationSubmittedEvent {
+}

@@ -1,0 +1,26 @@
+package com.youthconnect.edge_functions.dto.response;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+import java.util.Map;
+
+/**
+ * Standard Error Response DTO
+ * Provides consistent error structure across endpoints
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class ErrorResponse {
+    private String error;
+    private String message;
+    private Integer status;
+    private LocalDateTime timestamp;
+    private String path;
+    private Map<String, Object> details;
+}

@@ -1,0 +1,4 @@
+package com.youthconnect.file.service.config;
+
+public class AsyncConfiguration {
+}

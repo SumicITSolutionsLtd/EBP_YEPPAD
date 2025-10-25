@@ -5,6 +5,7 @@ import com.youthconnect.auth_service.client.UserServiceClient;
 import com.youthconnect.auth_service.dto.request.LoginRequest;
 import com.youthconnect.auth_service.dto.request.RegisterRequest;
 import com.youthconnect.auth_service.dto.request.UssdLoginRequest;
+import com.youthconnect.auth_service.dto.response.ApiResponse;
 import com.youthconnect.auth_service.dto.response.AuthResponse;
 import com.youthconnect.auth_service.dto.response.UserInfoResponse;
 import com.youthconnect.auth_service.entity.RefreshToken;
@@ -22,26 +23,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
-import java.util.UUID;
 
 /**
- * Core Authentication Service
+ * Core Authentication Service - COMPLETE IMPLEMENTATION
  *
- * Handles all authentication and authorization operations for the platform:
- * - User login (web and USSD)
- * - User registration (delegates to user-service)
- * - Token generation and validation
- * - Refresh token management
- * - Password verification
- * - Token blacklisting for logout
- *
- * This service communicates with:
- * - user-service: For user data retrieval and registration
- * - notification-service: For sending welcome emails and SMS
- *
- * Circuit Breaker Pattern:
- * - Protects against cascading failures when dependent services are down
- * - Provides fallback responses when services are unavailable
+ * Handles all authentication and authorization operations:
+ * ✅ User login (web and USSD)
+ * ✅ User registration with Feign client integration
+ * ✅ Token generation and validation
+ * ✅ Refresh token management
+ * ✅ Password verification with BCrypt
+ * ✅ Token blacklisting for logout
+ * ✅ Circuit breaker pattern for resilience
  *
  * @author Youth Connect Uganda Development Team
  * @version 1.0.0
@@ -62,8 +55,6 @@ public class AuthService {
     /**
      * Authenticate User - Web Login
      *
-     * Validates user credentials and generates JWT tokens for web-based authentication.
-     *
      * Process:
      * 1. Retrieve user from user-service by email/phone
      * 2. Verify password using BCrypt
@@ -82,31 +73,38 @@ public class AuthService {
         log.info("Processing login request for identifier: {}", maskIdentifier(request.getIdentifier()));
 
         try {
-            // Fetch user from user-service
-            UserInfoResponse user = userServiceClient.getUserByEmailOrPhone(request.getIdentifier())
-                    .orElseThrow(() -> new UserNotFoundException("User not found: " + request.getIdentifier()));
+            // Fetch user from user-service via Feign client
+            ApiResponse<UserInfoResponse> response = userServiceClient.getUserByIdentifier(request.getIdentifier());
 
-            // Verify password
+            // Extract user from ApiResponse
+            if (response == null || !response.isSuccess() || response.getData() == null) {
+                throw new UserNotFoundException("User not found: " + request.getIdentifier());
+            }
+
+            UserInfoResponse user = response.getData();
+
+            // Verify password using BCrypt
             if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
                 log.warn("Invalid password attempt for user: {}", maskIdentifier(request.getIdentifier()));
-                throw new InvalidCredentialsException("Invalid credentials");
+                throw new InvalidCredentialsException("Invalid email/phone or password");
             }
 
             // Check if account is active
             if (!user.isActive()) {
-                throw new InvalidCredentialsException("Account is inactive");
+                throw new InvalidCredentialsException("Account is inactive. Please contact support.");
             }
 
-            // Generate tokens
+            // Generate JWT access token (15 minutes expiry)
             String accessToken = jwtUtil.generateAccessToken(
                     user.getEmail(),
                     user.getUserId(),
                     user.getRole()
             );
 
-            String refreshToken = generateAndSaveRefreshToken(user.getUserId(), user.getEmail());
+            // Generate and save refresh token (7 days expiry)
+            String refreshToken = generateAndSaveRefreshToken(user.getUserId(), user.getEmail(), user.getRole());
 
-            log.info("Login successful for user: {}", maskIdentifier(user.getEmail()));
+            log.info("Login successful for user: {} (ID: {})", maskIdentifier(user.getEmail()), user.getUserId());
 
             return AuthResponse.builder()
                     .accessToken(accessToken)
@@ -136,7 +134,6 @@ public class AuthService {
      * Security Note:
      * - USSD sessions are assumed to be secure (telco network)
      * - Phone number is verified through USSD session ID
-     * - Additional OTP verification can be added for enhanced security
      *
      * @param request USSD login request containing phone number
      * @return AuthResponse containing tokens
@@ -148,9 +145,14 @@ public class AuthService {
         log.info("Processing USSD login for phone: {}", maskPhoneNumber(request.getPhoneNumber()));
 
         try {
-            // Fetch user by phone number
-            UserInfoResponse user = userServiceClient.getUserByPhone(request.getPhoneNumber())
-                    .orElseThrow(() -> new UserNotFoundException("Phone number not registered"));
+            // Fetch user by phone number only
+            ApiResponse<UserInfoResponse> response = userServiceClient.getUserByPhone(request.getPhoneNumber());
+
+            if (response == null || !response.isSuccess() || response.getData() == null) {
+                throw new UserNotFoundException("Phone number not registered: " + request.getPhoneNumber());
+            }
+
+            UserInfoResponse user = response.getData();
 
             // Check if account is active
             if (!user.isActive()) {
@@ -164,7 +166,7 @@ public class AuthService {
                     user.getRole()
             );
 
-            String refreshToken = generateAndSaveRefreshToken(user.getUserId(), user.getEmail());
+            String refreshToken = generateAndSaveRefreshToken(user.getUserId(), user.getEmail(), user.getRole());
 
             log.info("USSD login successful for phone: {}", maskPhoneNumber(request.getPhoneNumber()));
 
@@ -202,22 +204,28 @@ public class AuthService {
         log.info("Processing registration for email: {}", request.getEmail());
 
         try {
-            // Delegate registration to user-service
-            UserInfoResponse newUser = userServiceClient.registerUser(request);
+            // Delegate registration to user-service via Feign
+            ApiResponse<UserInfoResponse> response = userServiceClient.registerUser(request);
+
+            if (response == null || !response.isSuccess() || response.getData() == null) {
+                throw new RuntimeException("User registration failed");
+            }
+
+            UserInfoResponse newUser = response.getData();
 
             // Send welcome notification (non-blocking, fire and forget)
             sendWelcomeNotification(newUser);
 
-            // Generate tokens for automatic login
+            // Generate tokens for automatic login after registration
             String accessToken = jwtUtil.generateAccessToken(
                     newUser.getEmail(),
                     newUser.getUserId(),
                     newUser.getRole()
             );
 
-            String refreshToken = generateAndSaveRefreshToken(newUser.getUserId(), newUser.getEmail());
+            String refreshToken = generateAndSaveRefreshToken(newUser.getUserId(), newUser.getEmail(), newUser.getRole());
 
-            log.info("Registration successful for user: {}", newUser.getEmail());
+            log.info("Registration successful for user: {} (ID: {})", newUser.getEmail(), newUser.getUserId());
 
             return AuthResponse.builder()
                     .accessToken(accessToken)
@@ -227,7 +235,7 @@ public class AuthService {
                     .userId(newUser.getUserId())
                     .email(newUser.getEmail())
                     .role(newUser.getRole())
-                    .message("Registration successful")
+                    .message("Registration successful. Welcome to Youth Connect Uganda!")
                     .build();
 
         } catch (Exception e) {
@@ -240,7 +248,7 @@ public class AuthService {
      * Refresh Access Token
      *
      * Generates a new access token using a valid refresh token.
-     * This allows users to stay logged in without re-entering credentials.
+     * Allows users to stay logged in without re-entering credentials.
      *
      * @param refreshTokenValue Refresh token string
      * @return AuthResponse with new access token
@@ -249,7 +257,7 @@ public class AuthService {
     public AuthResponse refreshAccessToken(String refreshTokenValue) {
         log.debug("Processing token refresh request");
 
-        // Validate refresh token format
+        // Validate refresh token format and signature
         if (!jwtUtil.validateRefreshToken(refreshTokenValue)) {
             throw new InvalidCredentialsException("Invalid refresh token");
         }
@@ -257,16 +265,18 @@ public class AuthService {
         // Find refresh token in database
         RefreshToken refreshToken = refreshTokenRepository
                 .findByTokenAndRevokedFalse(refreshTokenValue)
-                .orElseThrow(() -> new InvalidCredentialsException("Refresh token not found or revoked"));
+                .orElseThrow(() -> new InvalidCredentialsException("Refresh token not found or has been revoked"));
 
         // Check if refresh token is expired
         if (refreshToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+            // Mark as revoked
             refreshToken.setRevoked(true);
+            refreshToken.setRevokedAt(LocalDateTime.now());
             refreshTokenRepository.save(refreshToken);
-            throw new InvalidCredentialsException("Refresh token expired");
+            throw new InvalidCredentialsException("Refresh token has expired");
         }
 
-        // Extract user info from token
+        // Extract user info from JWT token
         String username = jwtUtil.extractUsername(refreshTokenValue);
         Long userId = jwtUtil.extractUserId(refreshTokenValue);
 
@@ -276,6 +286,10 @@ public class AuthService {
                 userId,
                 refreshToken.getUserRole()
         );
+
+        // Update last used timestamp
+        refreshToken.setLastUsedAt(LocalDateTime.now());
+        refreshTokenRepository.save(refreshToken);
 
         log.debug("Token refreshed successfully for user: {}", maskIdentifier(username));
 
@@ -294,8 +308,8 @@ public class AuthService {
     /**
      * Logout User
      *
-     * Invalidates the current access token and refresh token.
-     * - Adds access token to blacklist (Redis)
+     * Invalidates the current access token and refresh token:
+     * - Adds access token to Redis blacklist
      * - Revokes refresh token in database
      *
      * @param accessToken Access token to invalidate
@@ -305,14 +319,15 @@ public class AuthService {
         log.info("Processing logout request");
 
         try {
-            // Blacklist access token
+            // Blacklist access token in Redis (expires when token naturally expires)
             Long expirationSeconds = jwtUtil.getTokenExpirationSeconds(accessToken);
             if (expirationSeconds > 0) {
                 tokenBlacklistService.blacklistToken(accessToken, expirationSeconds);
+                log.debug("Access token blacklisted for {} seconds", expirationSeconds);
             }
 
-            // Revoke refresh token
-            if (refreshTokenValue != null) {
+            // Revoke refresh token in database
+            if (refreshTokenValue != null && !refreshTokenValue.isBlank()) {
                 Optional<RefreshToken> refreshToken = refreshTokenRepository
                         .findByTokenAndRevokedFalse(refreshTokenValue);
 
@@ -320,6 +335,7 @@ public class AuthService {
                     token.setRevoked(true);
                     token.setRevokedAt(LocalDateTime.now());
                     refreshTokenRepository.save(token);
+                    log.debug("Refresh token revoked for user ID: {}", token.getUserId());
                 });
             }
 
@@ -327,14 +343,14 @@ public class AuthService {
 
         } catch (Exception e) {
             log.error("Error during logout: {}", e.getMessage(), e);
-            // Don't throw exception, logout should always succeed
+            // Don't throw exception - logout should always succeed from user perspective
         }
     }
 
     /**
      * Validate Token
      *
-     * Checks if an access token is valid and not blacklisted.
+     * Checks if an access token is valid, not expired, and not blacklisted.
      *
      * @param token Access token to validate
      * @return true if valid, false otherwise
@@ -343,12 +359,16 @@ public class AuthService {
         try {
             // Check if token is blacklisted
             if (tokenBlacklistService.isTokenBlacklisted(token)) {
+                log.debug("Token validation failed: Token is blacklisted");
                 return false;
             }
 
             // Validate token signature and expiration
             String username = jwtUtil.extractUsername(token);
-            return jwtUtil.validateAccessToken(token, username);
+            boolean isValid = jwtUtil.validateAccessToken(token, username);
+
+            log.debug("Token validation result: {}", isValid);
+            return isValid;
 
         } catch (Exception e) {
             log.error("Token validation error: {}", e.getMessage());
@@ -363,25 +383,32 @@ public class AuthService {
     /**
      * Generate and Save Refresh Token
      *
-     * Creates a new refresh token, saves it to database, and returns the token string.
+     * Creates a new refresh token JWT, saves it to database with metadata.
      *
      * @param userId User ID
      * @param email User email
+     * @param role User role
      * @return Refresh token string
      */
-    private String generateAndSaveRefreshToken(Long userId, String email) {
+    private String generateAndSaveRefreshToken(Long userId, String email, String role) {
+        // Generate JWT refresh token
         String refreshTokenValue = jwtUtil.generateRefreshToken(email, userId);
 
+        // Create database entity
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setToken(refreshTokenValue);
         refreshToken.setUserId(userId);
         refreshToken.setUserEmail(email);
-        refreshToken.setUserRole(jwtUtil.extractRole(refreshTokenValue));  // This would need to be passed
-        refreshToken.setExpiresAt(LocalDateTime.now().plusDays(7));
+        refreshToken.setUserRole(role);
+        refreshToken.setExpiresAt(LocalDateTime.now().plusDays(7));  // 7 days expiry
         refreshToken.setCreatedAt(LocalDateTime.now());
+        refreshToken.setLastUsedAt(LocalDateTime.now());
         refreshToken.setRevoked(false);
 
+        // Save to database
         refreshTokenRepository.save(refreshToken);
+
+        log.debug("Refresh token saved for user ID: {}", userId);
 
         return refreshTokenValue;
     }
@@ -406,7 +433,7 @@ public class AuthService {
     }
 
     /**
-     * Mask Identifier for Logging (Privacy)
+     * Mask Identifier for Logging (Privacy Protection)
      *
      * @param identifier Email or phone to mask
      * @return Masked identifier
@@ -419,7 +446,7 @@ public class AuthService {
     }
 
     /**
-     * Mask Phone Number for Logging (Privacy)
+     * Mask Phone Number for Logging (Privacy Protection)
      *
      * @param phone Phone number to mask
      * @return Masked phone number
@@ -444,7 +471,7 @@ public class AuthService {
      */
     private AuthResponse loginFallback(LoginRequest request, Exception e) {
         log.error("User service unavailable during login. Fallback triggered.", e);
-        throw new RuntimeException("Authentication service temporarily unavailable. Please try again later.");
+        throw new RuntimeException("Authentication service temporarily unavailable. Please try again in a few moments.");
     }
 
     /**

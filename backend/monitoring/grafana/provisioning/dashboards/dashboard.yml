@@ -1,0 +1,121 @@
+# =================================================================================
+# Grafana Dashboard Provisioning Configuration
+# Purpose: Auto-provision dashboards for Entrepreneurship Booster Platform
+# Location: monitoring/grafana/provisioning/dashboards/dashboard.yml
+# =================================================================================
+
+apiVersion: 1
+
+providers:
+  # =============================================================================
+  # Main Application Dashboards
+  # =============================================================================
+  - name: 'EPB Platform Dashboards'
+    orgId: 1
+    folder: 'Entrepreneurship Booster Platform'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/platform
+      foldersFromFilesStructure: true
+
+  # =============================================================================
+  # Infrastructure Monitoring Dashboards
+  # =============================================================================
+  - name: 'Infrastructure Monitoring'
+    orgId: 1
+    folder: 'Infrastructure'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/infrastructure
+      foldersFromFilesStructure: true
+
+  # =============================================================================
+  # Service-Specific Dashboards
+  # =============================================================================
+  - name: 'Microservices Health'
+    orgId: 1
+    folder: 'Services'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/services
+      foldersFromFilesStructure: true
+
+  # =============================================================================
+  # Business Metrics Dashboards
+  # =============================================================================
+  - name: 'Business Metrics'
+    orgId: 1
+    folder: 'Business'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/business
+      foldersFromFilesStructure: true
+
+  # =============================================================================
+  # Database Performance Dashboards
+  # =============================================================================
+  - name: 'Database Monitoring'
+    orgId: 1
+    folder: 'Database'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/database
+      foldersFromFilesStructure: true
+
+# =================================================================================
+# Dashboard Organization Structure:
+#
+# /etc/grafana/provisioning/dashboards/
+# ├── platform/
+# │   ├── overview.json                 # Platform-wide overview
+# │   ├── user-analytics.json           # User engagement metrics
+# │   ├── opportunities.json            # Opportunity tracking
+# │   └── applications.json             # Application funnel
+# ├── infrastructure/
+# │   ├── system-resources.json         # CPU, Memory, Disk
+# │   ├── nginx.json                    # Nginx metrics
+# │   └── network.json                  # Network performance
+# ├── services/
+# │   ├── api-gateway.json              # API Gateway metrics
+# │   ├── auth-service.json             # Authentication service
+# │   ├── user-service.json             # User service
+# │   ├── opportunity-service.json      # Opportunity service
+# │   ├── notification-service.json     # Notification service
+# │   ├── ussd-service.json             # USSD service
+# │   └── all-services.json             # All services overview
+# ├── business/
+# │   ├── user-registrations.json       # Registration metrics
+# │   ├── application-funnel.json       # Application conversion
+# │   ├── mentorship.json               # Mentorship metrics
+# │   └── impact-metrics.json           # Platform impact
+# └── database/
+#     ├── mysql-overview.json           # MySQL performance
+#     ├── query-performance.json        # Slow queries
+#     └── redis-cache.json              # Redis cache metrics
+#
+# =================================================================================
+
+# Dashboard Features:
+# - Auto-refresh every 30 seconds
+# - Editable through UI
+# - Organized by functional area
+# - Time range selector: Last 15m, 1h, 6h, 24h, 7d, 30d
+# - Template variables for dynamic filtering
+# - Alert annotations visible on all dashboards
+# - Export/Import capability enabled
+# =================================================================================

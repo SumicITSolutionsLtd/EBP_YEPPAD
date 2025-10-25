@@ -1,0 +1,104 @@
+package com.youthconnect.mentor_service.entity;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+/**
+ * ============================================================================
+ * SESSION REMINDER ENTITY
+ * ============================================================================
+ *
+ * Represents automated reminder notifications for mentorship sessions.
+ * Tracks reminder delivery status for both mentor and mentee.
+ *
+ * KEY FEATURES:
+ * - Multiple reminder types (24h, 1h, 15min before session)
+ * - Separate tracking for mentor and mentee delivery
+ * - Automatic scheduling based on session datetime
+ * - Delivery status tracking
+ *
+ * DATABASE TABLE: session_reminders
+ *
+ * WORKFLOW:
+ * 1. Session created → Reminders automatically scheduled
+ * 2. Scheduled time reached → Notification service triggered
+ * 3. Delivery status tracked → Sent flags updated
+ * 4. Session completed → Reminders archived
+ *
+ * @author Douglas Kings Kato
+ * @version 1.0.0
+ * @since 2025-01-21
+ * ============================================================================
+ */
+@Entity
+@Table(name = "session_reminders")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class SessionReminder {
+
+    /**
+     * Unique reminder identifier (Primary Key)
+     * Auto-generated using MySQL AUTO_INCREMENT strategy
+     */
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "reminder_id")
+    private Long reminderId;
+
+    /**
+     * Related session ID (Foreign Key to mentorship_sessions)
+     * The session this reminder is for
+     *
+     * NOT NULL constraint ensures reminder is always linked to session
+     * ON DELETE CASCADE: If session deleted, reminders also deleted
+     */
+    @Column(name = "session_id", nullable = false)
+    private Long sessionId;
+
+    /**
+     * Type of reminder based on timing
+     * Determines when reminder should be sent relative to session time
+     *
+     * REMINDER TYPES:
+     * - 24_HOURS: Sent 24 hours before session (advance notice)
+     * - 1_HOUR: Sent 1 hour before session (immediate reminder)
+     * - 15_MINUTES: Sent 15 minutes before session (final reminder)
+     *
+     * Multiple reminders created per session (one of each type)
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reminder_type", nullable = false)
+    private ReminderType reminderType;
+
+    /**
+     * Scheduled datetime for sending this reminder
+     * Calculated as: session_datetime - reminder_offset
+     *
+     * EXAMPLES:
+     * - Session at 2025-01-25 10:00
+     * - 24_HOURS reminder scheduled at 2025-01-24 10:00
+     * - 1_HOUR reminder scheduled at 2025-01-25 09:00
+     * - 15_MINUTES reminder scheduled at 2025-01-25 09:45
+     *
+     * Used by scheduled job to trigger notifications
+     */
+    @Column(name = "scheduled_time", nullable = false)
+    private LocalDateTime scheduledTime;
+
+    /**
+     * Delivery status flag for mentor notification
+     * Tracks whether reminder was sent to mentor
+     *
+     * DEFAULT FALSE: Not sent initially
+     * Set TRUE after successful notification delivery
+     */
+    @Column(name = "sent_to_mentor")
+    @Builder.Default
+    private Boolean sentToMentor = false;

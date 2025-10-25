@@ -1,0 +1,165 @@
+package com.youthconnect.api_gateway;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.contract.wiremock.AutoConfigureWireMock;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.web.reactive.server.WebTestClient;
+
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
+
+/**
+ * Integration Tests for API Gateway
+ *
+ * Tests the complete gateway functionality including:
+ * - Routing to backend services
+ * - Rate limiting
+ * - CORS headers
+ * - Security headers
+ * - Error handling
+ *
+ * Uses WireMock to mock backend services
+ *
+ * Location: api-gateway/src/test/java/com/youthconnect/api_gateway/
+ */
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWireMock(port = 0)
+@TestPropertySource(properties = {
+		"eureka.client.enabled=false", // Disable Eureka for tests
+		"app.security.rate-limit.enabled=false" // Disable rate limiting for tests
+})
+class ApiGatewayApplicationTests {
+
+	@Autowired
+	private WebTestClient webTestClient;
+
+	/**
+	 * Test that application context loads successfully
+	 */
+	@Test
+	void contextLoads() {
+		// If this test passes, Spring Boot context loaded successfully
+	}
+
+	/**
+	 * Test health check endpoint
+	 */
+	@Test
+	void testHealthEndpoint() {
+		webTestClient
+				.get()
+				.uri("/health")
+				.exchange()
+				.expectStatus().isOk()
+				.expectBody()
+				.jsonPath("$.status").isEqualTo("UP")
+				.jsonPath("$.service").isEqualTo("api-gateway");
+	}
+
+	/**
+	 * Test CORS headers are present
+	 */
+	@Test
+	void testCorsHeaders() {
+		webTestClient
+				.options()
+				.uri("/api/users")
+				.header("Origin", "http://localhost:3000")
+				.header("Access-Control-Request-Method", "POST")
+				.exchange()
+				.expectStatus().isOk()
+				.expectHeader().valueEquals("Access-Control-Allow-Origin", "http://localhost:3000")
+				.expectHeader().exists("Access-Control-Allow-Methods");
+	}
+
+	/**
+	 * Test security headers are added to responses
+	 */
+	@Test
+	void testSecurityHeaders() {
+		// Mock backend service response
+		stubFor(get(urlEqualTo("/users"))
+				.willReturn(aResponse()
+						.withStatus(200)
+						.withBody("{\"message\":\"success\"}")));
+
+		webTestClient
+				.get()
+				.uri("/api/users")
+				.exchange()
+				.expectStatus().isOk()
+				.expectHeader().valueEquals("X-Content-Type-Options", "nosniff")
+				.expectHeader().valueEquals("X-Frame-Options", "DENY")
+				.expectHeader().valueEquals("X-XSS-Protection", "1; mode=block");
+	}
+
+	/**
+	 * Test request logging adds request ID
+	 */
+	@Test
+	void testRequestIdHeader() {
+		// Mock backend service
+		stubFor(get(urlEqualTo("/users"))
+				.willReturn(aResponse()
+						.withStatus(200)
+						.withBody("{\"message\":\"success\"}")));
+
+		webTestClient
+				.get()
+				.uri("/api/users")
+				.exchange()
+				.expectStatus().isOk()
+				.expectHeader().exists("X-Request-ID");
+	}
+
+	/**
+	 * Test error handling for 404
+	 */
+	@Test
+	void testNotFoundError() {
+		webTestClient
+				.get()
+				.uri("/api/nonexistent/endpoint")
+				.exchange()
+				.expectStatus().isNotFound()
+				.expectBody()
+				.jsonPath("$.status").isEqualTo(404)
+				.jsonPath("$.error").exists()
+				.jsonPath("$.message").exists()
+				.jsonPath("$.timestamp").exists();
+	}
+
+	/**
+	 * Test fallback endpoint when service is down
+	 */
+	@Test
+	void testFallbackEndpoint() {
+		webTestClient
+				.get()
+				.uri("/fallback/auth")
+				.exchange()
+				.expectStatus().is5xxServerError()
+				.expectBody()
+				.jsonPath("$.status").isEqualTo(503)
+				.jsonPath("$.message").value(message ->
+						message.toString().contains("temporarily unavailable"))
+				.jsonPath("$.service").isEqualTo("auth-service");
+	}
+
+	/**
+	 * Test rate limiting (when enabled)
+	 * Note: Rate limiting is disabled in test properties
+	 */
+	@Test
+	void testRateLimitingDisabledInTests() {
+		// When rate limiting is disabled, all requests should succeed
+		for (int i = 0; i < 30; i++) {
+			webTestClient
+					.get()
+					.uri("/health")
+					.exchange()
+					.expectStatus().isOk();
+		}
+	}
+}

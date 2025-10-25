@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
  * Fallback implementation for NotificationServiceClient
  * Provides graceful degradation when notification service is unavailable
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
  */
 @Slf4j

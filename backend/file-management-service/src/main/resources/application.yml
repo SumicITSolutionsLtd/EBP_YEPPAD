@@ -4,56 +4,116 @@
 
 server:
   port: 8089
+  servlet:
+    context-path: /
 
 spring:
   application:
     name: file-management-service
 
+  # Database Configuration
+  datasource:
+    url: jdbc:mysql://localhost:3307/epb_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: root
+    password: your_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # JPA Configuration
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        format_sql: true
+        use_sql_comments: true
+
+  # Multipart File Upload Configuration
   servlet:
     multipart:
+      enabled: true
       max-file-size: 50MB
       max-request-size: 100MB
-      enabled: true
+      file-size-threshold: 2MB
 
-# Eureka Configuration
+# Eureka Client Configuration
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
   instance:
     prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
 
-# File Management Configuration
+# File Storage Configuration
 app:
   file:
     storage:
-      type: LOCAL # LOCAL, S3, MINIO
+      type: LOCAL  # LOCAL, S3, MINIO
       path: uploads/
       base-url: http://localhost:8089
+
     upload:
-      max-file-size: 50MB
-      allowed-types:
+      max-file-size: 52428800  # 50MB in bytes
+      max-request-size: 104857600  # 100MB in bytes
+      allowed-image-types:
         - jpg
         - jpeg
         - png
+        - gif
+      allowed-document-types:
         - pdf
         - doc
         - docx
+        - txt
+      allowed-audio-types:
         - mp3
         - wav
         - m4a
-        - txt
+        - mp4
+
     audio:
       processing-enabled: true
-      formats:
-        - mp3
-        - wav
-        - m4a
+      max-size: 104857600  # 100MB
+
     security:
-      virus-scan-enabled: false
+      virus-scan-enabled: false  # Enable in production with ClamAV
       encryption-enabled: false
 
-# Logging
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Logging Configuration
 logging:
   level:
-    com.youthconnect.file_service: DEBUGspring.application.name=file-management-service
+    root: INFO
+    com.youthconnect.file.service: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/file-service.log

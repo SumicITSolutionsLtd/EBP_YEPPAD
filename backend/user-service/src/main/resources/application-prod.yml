@@ -1,3 +1,6 @@
+# ============================================================================
+# PRODUCTION ENVIRONMENT CONFIGURATION
+# ============================================================================
 spring:
   config:
     activate:
@@ -10,7 +13,24 @@ spring:
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5
+      leak-detection-threshold: 30000
 
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: validate  # Never auto-update in production
+
+# Production settings
+app:
+  environment: production
+  upload:
+    upload-dir: ${APP_UPLOAD_DIR:/var/youthconnect/uploads}
+    virus-scan-enabled: true  # Enable virus scanning in production
+  cache:
+    ttl: 7200  # 2 hours
+    max-entries: 5000
+
+# Minimal logging in production
 logging:
   level:
     root: WARN
@@ -18,11 +38,20 @@ logging:
     org.springframework.web: WARN
     org.hibernate.SQL: WARN
 
+# Eureka enabled in production
+eureka:
+  client:
+    enabled: true
+    service-url:
+      defaultZone: ${EUREKA_SERVER:http://eureka-server:8761/eureka/}
+
+# Circuit Breaker for resilience
 resilience4j:
   circuitbreaker:
     instances:
       notificationService:
-        slidingWindowSize: 50
-        minimumNumberOfCalls: 20
-        failureRateThreshold: 25
-        waitDurationInOpenState: 30s
+        sliding-window-size: 50
+        minimum-number-of-calls: 20
+        failure-rate-threshold: 25
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 10

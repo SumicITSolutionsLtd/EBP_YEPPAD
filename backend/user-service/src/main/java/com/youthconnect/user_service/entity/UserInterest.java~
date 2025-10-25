@@ -1,0 +1,4 @@
+package com.youthconnect.user_service.entity;
+
+public class UserInterest {
+}

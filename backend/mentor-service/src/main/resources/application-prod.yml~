@@ -1,0 +1,23 @@
+# application-prod.yml
+# =============================================================================
+# MENTOR SERVICE - PRODUCTION CONFIGURATION
+# =============================================================================
+
+spring:
+  application:
+    name: mentor-service
+
+  profiles:
+    active: prod
+
+  # Database Configuration (Production)
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-

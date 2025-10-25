@@ -11,7 +11,7 @@ import org.springframework.util.StopWatch;
 import java.util.Arrays;
 
 /**
- * Comprehensive Logging Aspect for Youth Connect Uganda User Service
+ * Comprehensive Logging Aspect for Entrepreneurship Booster Platform Uganda User Service
  *
  * Features:
  * - Method entry/exit logging with parameters
@@ -20,7 +20,7 @@ import java.util.Arrays;
  * - Sensitive data masking for security
  * - Performance threshold alerts
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
  */
 @Slf4j
@@ -31,19 +31,19 @@ public class LoggingAspect {
     /**
      * Pointcut for all service layer methods
      */
-    @Pointcut("execution(* com.youthconnect.user_service.service..*(..))")
+    @Pointcut("execution(* com.entrepreneurshipboosterplatform.user_service.service..*(..))")
     public void serviceLayer() {}
 
     /**
      * Pointcut for all repository layer methods
      */
-    @Pointcut("execution(* com.youthconnect.user_service.repository..*(..))")
+    @Pointcut("execution(* com.entrepreneurshipboosterplatform.user_service.repository..*(..))")
     public void repositoryLayer() {}
 
     /**
      * Pointcut for all controller layer methods
      */
-    @Pointcut("execution(* com.youthconnect.user_service.controller..*(..))")
+    @Pointcut("execution(* com.entrepreneurshipboosterplatform.user_service.controller..*(..))")
     public void controllerLayer() {}
 
     /**

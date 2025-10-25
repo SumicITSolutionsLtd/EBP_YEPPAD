@@ -1,16 +1,32 @@
 package com.youthconnect.edge_functions.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
 
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class UserProfileDTO {
-    private Long userId;
-    private String firstName;
-    private String lastName;
+    // Core identification
+    private Long userId;  // FIXED: Was missing
+    private String email;
     private String phoneNumber;
 
-    // Add fields that match your user-service DTO
-    private String email;
-    private String userType;
+    // Profile information
+    private String firstName;
+    private String lastName;
+
+    // Role and status
+    private String userType;  // Maps to role enum
     private Boolean verified;
+    private Boolean active;
+
+    // Timestamps
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

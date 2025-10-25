@@ -1,5 +1,6 @@
 package com.youthconnect.file.service.util;
 
+import com.youthconnect.file.service.exception.InvalidFileException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -9,13 +10,15 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Utility class for file validation
+ * Utility class for comprehensive file validation
+ * Validates file types, sizes, names, and content
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class FileValidationUtil {
 
+    // Allowed MIME types
     private static final List<String> ALLOWED_IMAGE_TYPES = Arrays.asList(
             "image/jpeg", "image/jpg", "image/png", "image/gif"
     );
@@ -31,6 +34,7 @@ public class FileValidationUtil {
             "audio/mpeg", "audio/mp3", "audio/wav", "audio/m4a", "audio/mp4"
     );
 
+    // Allowed file extensions
     private static final List<String> ALLOWED_IMAGE_EXTENSIONS = Arrays.asList(
             "jpg", "jpeg", "png", "gif"
     );
@@ -45,6 +49,7 @@ public class FileValidationUtil {
 
     /**
      * Validate image file
+     * @throws InvalidFileException if validation fails
      */
     public void validateImageFile(MultipartFile file) {
         validateFileNotEmpty(file);
@@ -53,14 +58,24 @@ public class FileValidationUtil {
         String contentType = file.getContentType();
         String extension = getFileExtension(file.getOriginalFilename());
 
-        if (!ALLOWED_IMAGE_TYPES.contains(contentType) ||
-                !ALLOWED_IMAGE_EXTENSIONS.contains(extension.toLowerCase())) {
-            throw new IllegalArgumentException("Invalid image file type. Allowed: " + ALLOWED_IMAGE_EXTENSIONS);
+        if (contentType == null || !ALLOWED_IMAGE_TYPES.contains(contentType.toLowerCase())) {
+            throw new InvalidFileException(
+                    "Invalid image file type. Allowed types: " + ALLOWED_IMAGE_EXTENSIONS
+            );
         }
+
+        if (!ALLOWED_IMAGE_EXTENSIONS.contains(extension.toLowerCase())) {
+            throw new InvalidFileException(
+                    "Invalid image file extension. Allowed: " + ALLOWED_IMAGE_EXTENSIONS
+            );
+        }
+
+        log.debug("Image file validated: {} ({})", file.getOriginalFilename(), contentType);
     }
 
     /**
      * Validate document file
+     * @throws InvalidFileException if validation fails
      */
     public void validateDocumentFile(MultipartFile file) {
         validateFileNotEmpty(file);
@@ -69,14 +84,24 @@ public class FileValidationUtil {
         String contentType = file.getContentType();
         String extension = getFileExtension(file.getOriginalFilename());
 
-        if (!ALLOWED_DOCUMENT_TYPES.contains(contentType) ||
-                !ALLOWED_DOCUMENT_EXTENSIONS.contains(extension.toLowerCase())) {
-            throw new IllegalArgumentException("Invalid document file type. Allowed: " + ALLOWED_DOCUMENT_EXTENSIONS);
+        if (contentType == null || !ALLOWED_DOCUMENT_TYPES.contains(contentType.toLowerCase())) {
+            throw new InvalidFileException(
+                    "Invalid document file type. Allowed types: " + ALLOWED_DOCUMENT_EXTENSIONS
+            );
         }
+
+        if (!ALLOWED_DOCUMENT_EXTENSIONS.contains(extension.toLowerCase())) {
+            throw new InvalidFileException(
+                    "Invalid document file extension. Allowed: " + ALLOWED_DOCUMENT_EXTENSIONS
+            );
+        }
+
+        log.debug("Document file validated: {} ({})", file.getOriginalFilename(), contentType);
     }
 
     /**
      * Validate audio file
+     * @throws InvalidFileException if validation fails
      */
     public void validateAudioFile(MultipartFile file) {
         validateFileNotEmpty(file);
@@ -85,10 +110,19 @@ public class FileValidationUtil {
         String contentType = file.getContentType();
         String extension = getFileExtension(file.getOriginalFilename());
 
-        if (!ALLOWED_AUDIO_TYPES.contains(contentType) ||
-                !ALLOWED_AUDIO_EXTENSIONS.contains(extension.toLowerCase())) {
-            throw new IllegalArgumentException("Invalid audio file type. Allowed: " + ALLOWED_AUDIO_EXTENSIONS);
+        if (contentType == null || !ALLOWED_AUDIO_TYPES.contains(contentType.toLowerCase())) {
+            throw new InvalidFileException(
+                    "Invalid audio file type. Allowed types: " + ALLOWED_AUDIO_EXTENSIONS
+            );
         }
+
+        if (!ALLOWED_AUDIO_EXTENSIONS.contains(extension.toLowerCase())) {
+            throw new InvalidFileException(
+                    "Invalid audio file extension. Allowed: " + ALLOWED_AUDIO_EXTENSIONS
+            );
+        }
+
+        log.debug("Audio file validated: {} ({})", file.getOriginalFilename(), contentType);
     }
 
     /**
@@ -104,11 +138,11 @@ public class FileValidationUtil {
      */
     private void validateFileNotEmpty(MultipartFile file) {
         if (file.isEmpty()) {
-            throw new IllegalArgumentException("File is empty");
+            throw new InvalidFileException("File is empty");
         }
 
         if (file.getOriginalFilename() == null || file.getOriginalFilename().trim().isEmpty()) {
-            throw new IllegalArgumentException("File name is required");
+            throw new InvalidFileException("File name is required");
         }
     }
 
@@ -117,9 +151,10 @@ public class FileValidationUtil {
      */
     private void validateFileSize(MultipartFile file, long maxSizeBytes) {
         if (file.getSize() > maxSizeBytes) {
-            throw new IllegalArgumentException(
-                    String.format("File size exceeds limit. Max allowed: %d bytes, actual: %d bytes",
-                            maxSizeBytes, file.getSize())
+            throw new InvalidFileException(
+                    String.format("File size exceeds limit. Max allowed: %d MB, actual: %.2f MB",
+                            maxSizeBytes / (1024 * 1024),
+                            file.getSize() / (1024.0 * 1024.0))
             );
         }
     }
@@ -136,28 +171,32 @@ public class FileValidationUtil {
 
     /**
      * Validate filename for security
+     * Prevents path traversal and invalid characters
      */
     public void validateFilename(String filename) {
         if (filename == null || filename.trim().isEmpty()) {
-            throw new IllegalArgumentException("Filename is required");
+            throw new InvalidFileException("Filename is required");
         }
 
         // Check for path traversal attempts
         if (filename.contains("..") || filename.contains("/") || filename.contains("\\")) {
-            throw new IllegalArgumentException("Invalid filename: path traversal detected");
+            throw new InvalidFileException("Invalid filename: path traversal detected");
         }
 
         // Check for reserved names (Windows)
-        String[] reservedNames = {"CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4",
-                "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2",
-                "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"};
+        String[] reservedNames = {
+                "CON", "PRN", "AUX", "NUL",
+                "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+                "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+        };
 
-        String nameWithoutExt = filename.contains(".") ?
-                filename.substring(0, filename.lastIndexOf(".")) : filename;
+        String nameWithoutExt = filename.contains(".")
+                ? filename.substring(0, filename.lastIndexOf("."))
+                : filename;
 
         for (String reserved : reservedNames) {
             if (reserved.equalsIgnoreCase(nameWithoutExt)) {
-                throw new IllegalArgumentException("Invalid filename: reserved name");
+                throw new InvalidFileException("Invalid filename: reserved name");
             }
         }
     }

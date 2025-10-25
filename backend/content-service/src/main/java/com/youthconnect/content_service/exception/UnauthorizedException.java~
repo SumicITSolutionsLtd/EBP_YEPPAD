@@ -1,0 +1,4 @@
+package com.youthconnect.content_service.exception;
+
+public class UnauthorizedException {
+}

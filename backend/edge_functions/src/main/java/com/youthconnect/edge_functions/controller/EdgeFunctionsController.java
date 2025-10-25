@@ -1,6 +1,7 @@
 package com.youthconnect.edge_functions.controller;
 
 import com.youthconnect.edge_functions.dto.*;
+import com.youthconnect.edge_functions.dto.response.ChatResponse;
 import com.youthconnect.edge_functions.service.OpenAIService;
 import com.youthconnect.edge_functions.service.USSDService;
 import lombok.RequiredArgsConstructor;

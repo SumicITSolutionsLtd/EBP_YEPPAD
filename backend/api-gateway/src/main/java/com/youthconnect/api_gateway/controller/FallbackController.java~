@@ -1,0 +1,4 @@
+package com.youthconnect.api_gateway.controller;
+
+public class FallbackController {
+}

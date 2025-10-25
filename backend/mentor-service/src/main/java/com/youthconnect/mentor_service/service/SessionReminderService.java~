@@ -1,0 +1,251 @@
+package com.youthconnect.mentor_service.service;
+
+import com.youthconnect.mentor_service.client.NotificationServiceClient;
+import com.youthconnect.mentor_service.entity.MentorshipSession;
+import com.youthconnect.mentor_service.entity.SessionReminder;
+import com.youthconnect.mentor_service.repository.MentorshipSessionRepository;
+import com.youthconnect.mentor_service.repository.SessionReminderRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+/**
+ * ============================================================================
+ * SESSION REMINDER SERVICE
+ * ============================================================================
+ *
+ * Manages automated session reminders for mentors and mentees.
+ * Runs scheduled jobs to check for upcoming sessions and send notifications.
+ *
+ * REMINDER SCHEDULE:
+ * - 24 hours before session
+ * - 1 hour before session
+ * - 15 minutes before session (optional)
+ *
+ * IMPLEMENTATION:
+ * - Scheduled task runs every 5 minutes
+ * - Checks for sessions requiring reminders
+ * - Sends notifications via NotificationServiceClient
+ * - Tracks delivery status
+ *
+ * @author Douglas Kings Kato
+ * @version 1.0.0
+ * @since 2025-01-22
+ * ============================================================================
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class SessionReminderService {
+
+    private final MentorshipSessionRepository sessionRepository;
+    private final SessionReminderRepository reminderRepository;
+    private final NotificationServiceClient notificationClient;
+
+    /**
+     * Scheduled job to process session reminders
+     * Runs every 5 minutes to check for upcoming sessions
+     */
+    @Scheduled(cron = "0 */5 * * * *") // Every 5 minutes
+    @Transactional
+    public void processReminders() {
+        log.info("Starting session reminder processing...");
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime checkWindow = now.plusHours(25); // Check 25 hours ahead
+
+        // Find sessions that need reminders
+        List<MentorshipSession> upcomingSessions = sessionRepository
+                .findByStatusAndSessionDatetimeBetween(
+                        MentorshipSession.SessionStatus.SCHEDULED,
+                        now,
+                        checkWindow
+                );
+
+        log.info("Found {} upcoming sessions", upcomingSessions.size());
+
+        for (MentorshipSession session : upcomingSessions) {
+            processSessionReminders(session);
+        }
+
+        log.info("Completed session reminder processing");
+    }
+
+    /**
+     * Process reminders for a specific session
+     * Creates and sends reminders based on timing
+     *
+     * @param session The mentorship session
+     */
+    private void processSessionReminders(MentorshipSession session) {
+        LocalDateTime sessionTime = session.getSessionDatetime();
+        LocalDateTime now = LocalDateTime.now();
+
+        // Calculate time until session
+        long hoursUntilSession = java.time.Duration
+                .between(now, sessionTime)
+                .toHours();
+
+        long minutesUntilSession = java.time.Duration
+                .between(now, sessionTime)
+                .toMinutes();
+
+        // 24-hour reminder
+        if (hoursUntilSession <= 24 && hoursUntilSession > 23) {
+            sendReminder(
+                    session,
+                    SessionReminder.ReminderType._24_HOURS
+            );
+        }
+
+        // 1-hour reminder
+        if (hoursUntilSession <= 1 && minutesUntilSession > 45) {
+            sendReminder(
+                    session,
+                    SessionReminder.ReminderType._1_HOUR
+            );
+        }
+
+        // 15-minute reminder
+        if (minutesUntilSession <= 15 && minutesUntilSession > 10) {
+            sendReminder(
+                    session,
+                    SessionReminder.ReminderType._15_MINUTES
+            );
+        }
+    }
+
+    /**
+     * Send reminder notification for a session
+     *
+     * @param session The mentorship session
+     * @param reminderType The type of reminder
+     */
+    private void sendReminder(
+            MentorshipSession session,
+            SessionReminder.ReminderType reminderType
+    ) {
+        // Check if reminder already sent
+        boolean reminderExists = reminderRepository.existsBySessionIdAndReminderType(
+                session.getSessionId(),
+                reminderType
+        );
+
+        if (reminderExists) {
+            log.debug("Reminder already sent for session {} ({})",
+                    session.getSessionId(), reminderType);
+            return;
+        }
+
+        try {
+            // Create reminder record
+            LocalDateTime scheduledTime = reminderType.calculateScheduledTime(
+                    session.getSessionDatetime()
+            );
+
+            SessionReminder reminder = SessionReminder.builder()
+                    .sessionId(session.getSessionId())
+                    .reminderType(reminderType)
+                    .scheduledTime(scheduledTime)
+                    .sentToMentor(false)
+                    .sentToMentee(false)
+                    .build();
+
+            SessionReminder savedReminder = reminderRepository.save(reminder);
+
+            // Send notifications via Feign client
+            try {
+                notificationClient.sendSessionReminder(
+                        session.getSessionId(),
+                        session.getMentorId(),
+                        reminderType.name(),
+                        session.getSessionDatetime()
+                );
+
+                savedReminder.markAsDeliveredToMentor();
+                log.info("Sent {} reminder to mentor for session {}",
+                        reminderType, session.getSessionId());
+            } catch (Exception e) {
+                log.error("Failed to send reminder to mentor", e);
+            }
+
+            try {
+                notificationClient.sendSessionReminder(
+                        session.getSessionId(),
+                        session.getMenteeId(),
+                        reminderType.name(),
+                        session.getSessionDatetime()
+                );
+
+                savedReminder.markAsDeliveredToMentee();
+                log.info("Sent {} reminder to mentee for session {}",
+                        reminderType, session.getSessionId());
+            } catch (Exception e) {
+                log.error("Failed to send reminder to mentee", e);
+            }
+
+            // Update delivery status
+            reminderRepository.save(savedReminder);
+
+        } catch (Exception e) {
+            log.error("Error processing reminder for session {}",
+                    session.getSessionId(), e);
+        }
+    }
+
+    /**
+     * Create reminders for a newly booked session
+     * Called when session is initially created
+     *
+     * @param sessionId The session ID
+     */
+    @Transactional
+    public void createRemindersForSession(Long sessionId) {
+        MentorshipSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Session not found: " + sessionId));
+
+        // Create reminder records for all types
+        for (SessionReminder.ReminderType type : SessionReminder.ReminderType.values()) {
+            LocalDateTime scheduledTime = type.calculateScheduledTime(
+                    session.getSessionDatetime()
+            );
+
+            // Only create if scheduled time is in the future
+            if (scheduledTime.isAfter(LocalDateTime.now())) {
+                SessionReminder reminder = SessionReminder.builder()
+                        .sessionId(sessionId)
+                        .reminderType(type)
+                        .scheduledTime(scheduledTime)
+                        .sentToMentor(false)
+                        .sentToMentee(false)
+                        .build();
+
+                reminderRepository.save(reminder);
+                log.info("Created {} reminder for session {} at {}",
+                        type, sessionId, scheduledTime);
+            }
+        }
+    }
+
+    /**
+     * Delete reminders when session is cancelled
+     *
+     * @param sessionId The session ID
+     */
+    @Transactional
+    public void deleteRemindersForSession(Long sessionId) {
+        List<SessionReminder> reminders = reminderRepository
+                .findBySessionId(sessionId);
+
+        reminderRepository.deleteAll(reminders);
+
+        log.info("Deleted {} reminders for cancelled session {}",
+                reminders.size(), sessionId);
+    }
+}

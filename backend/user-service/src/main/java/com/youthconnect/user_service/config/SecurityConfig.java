@@ -32,7 +32,7 @@ import org.springframework.security.web.SecurityFilterChain;
  * - Sessions are stateless (no cookies)
  * - CSRF and CORS are disabled (handled externally)
  *
- * @author Youth Connect Uganda
+ * @author Douglas Kings Kato
  * @version 1.1.0
  */
 @Configuration

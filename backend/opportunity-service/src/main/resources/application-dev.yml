@@ -1,0 +1,35 @@
+# ============================================================
+# Development Environment Configuration
+# ============================================================
+
+# Development Profile
+spring:
+  profiles:
+    active: dev
+
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
+
+# Logging Configuration for Development
+logging:
+  level:
+    com.youthconnect.opportunity_service: TRACE
+    org.springframework.cloud.openfeign: DEBUG
+    feign: DEBUG
+
+# Relaxed validation for development
+youthconnect:
+  opportunity:
+    opportunity:
+      maxOpportunitiesPerMonth: 999
+    application:
+      maxApplicationsPerDay: 999

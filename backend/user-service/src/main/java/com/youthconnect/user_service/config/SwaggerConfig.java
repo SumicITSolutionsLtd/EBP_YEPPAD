@@ -17,12 +17,12 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Swagger/OpenAPI Configuration for Youth Connect Uganda User Service
+ * Swagger/OpenAPI Configuration for Entrepreneurship Booster Platform Uganda User Service
  *
  * Provides comprehensive API documentation using OpenAPI 3.0 specification
  * Access documentation at: http://localhost:8081/swagger-ui.html
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
  */
 @Configuration
@@ -31,7 +31,7 @@ public class SwaggerConfig {
     @Value("${app.version:1.0.0}")
     private String appVersion;
 
-    @Value("${app.name:Youth Connect Uganda User Service}")
+    @Value("${app.name:Entrepreneurship Booster Platform Uganda User Service}")
     private String appName;
 
     @Value("${server.port:8081}")
@@ -70,7 +70,7 @@ public class SwaggerConfig {
      */
     private String createApiDescription() {
         return """
-                ## Youth Connect Uganda User Service API
+                ## Entrepreneurship Booster Platform Uganda User Service API
                 
                 ### Core Features:
                 - Multi-role User Registration (Youth, Mentors, NGOs, Funders, Service Providers, Admins)
@@ -87,9 +87,9 @@ public class SwaggerConfig {
      */
     private Contact createContactInfo() {
         return new Contact()
-                .name("Youth Connect Uganda Development Team")
-                .email("dev@youthconnect.ug")
-                .url("https://youthconnect.ug");
+                .name("Entrepreneurship Booster Platform Uganda Development Team")
+                .email("dev@entrepreneurshipboosterplatform.ug")
+                .url("https://entrepreneurshipboosterplatform.ug");
     }
 
     /**
@@ -110,7 +110,7 @@ public class SwaggerConfig {
                         .url("http://localhost:" + serverPort)
                         .description("Local Development"),
                 new Server()
-                        .url("https://api.youthconnect.ug")
+                        .url("https://api.entrepreneurshipboosterplatform.ug")
                         .description("Production")
         );
     }

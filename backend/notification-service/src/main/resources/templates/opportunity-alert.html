@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Opportunity Alert</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #1565C0 0%, #42A5F5 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        .content {
+            padding: 30px;
+        }
+        .alert-badge {
+            display: inline-block;
+            background: #ff5722;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .opportunity-card {
+            border: 2px solid #1565C0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            background: #E3F2FD;
+        }
+        .opportunity-title {
+            font-size: 22px;
+            color: #1565C0;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        .opportunity-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .meta-item strong {
+            color: #1565C0;
+        }
+        .description {
+            margin: 15px 0;
+            line-height: 1.6;
+            color: #555;
+        }
+        .match-score {
+            background: #4CAF50;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .match-score h3 {
+            font-size: 32px;
+            margin-bottom: 5px;
+        }
+        .cta-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .btn {
+            flex: 1;
+            min-width: 150px;
+            padding: 14px 20px;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+            display: inline-block;
+        }
+        .btn-primary {
+            background: #1565C0;
+            color: white;
+        }
+        .btn-secondary {
+            background: white;
+            color: #1565C0;
+            border: 2px solid #1565C0;
+        }
+        .deadline-warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .footer {
+            background: #f4f4f4;
+            padding: 20px;
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+        @media only screen and (max-width: 600px) {
+            .cta-buttons {
+                flex-direction: column;
+            }
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="email-container">
+    <!-- Header -->
+    <div class="header">
+        <h1>🎯 New Opportunity Alert!</h1>
+        <p>Personalized just for you</p>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+        <div class="alert-badge">🔔 NEW MATCH</div>
+
+        <p>Hi <strong>{{FIRST_NAME}}</strong>,</p>
+        <p style="margin: 15px 0;">
+            We found an exciting opportunity that matches your profile and interests!
+        </p>
+
+        <!-- Opportunity Card -->
+        <div class="opportunity-card">
+            <div class="opportunity-title">{{OPPORTUNITY_TITLE}}</div>
+
+            <div class="opportunity-meta">
+                <div class="meta-item">
+                    <strong>Type:</strong> {{OPPORTUNITY_TYPE}}
+                </div>
+                <div class="meta-item">
+                    <strong>Location:</strong> {{LOCATION}}
+                </div>
+                <div class="meta-item">
+                    <strong>Funding:</strong> UGX {{FUNDING_AMOUNT}}
+                </div>
+            </div>
+
+            <div class="description">
+                {{DESCRIPTION}}
+            </div>
+
+            <div class="opportunity-meta">
+                <div class="meta-item">
+                    <strong>Posted by:</strong> {{POSTED_BY}}
+                </div>
+                <div class="meta-item">
+                    <strong>Deadline:</strong> {{DEADLINE}}
+                </div>
+            </div>
+        </div>
+
+        <!-- Match Score -->
+        <div class="match-score">
+            <h3>{{MATCH_SCORE}}% Match</h3>
+            <p>Based on your profile and interests</p>
+        </div>
+
+        <!-- Deadline Warning -->
+        <div class="deadline-warning">
+            <strong>⏰ Application Deadline:</strong> {{DEADLINE}}<br>
+            Don't miss this opportunity - apply now!
+        </div>
+
+        <!-- Call to Action Buttons -->
+        <div class="cta-buttons">
+            <a href="{{WEB_URL}}/opportunities/{{OPPORTUNITY_ID}}" class="btn btn-primary">
+                📝 Apply Now
+            </a>
+            <a href="{{WEB_URL}}/opportunities/{{OPPORTUNITY_ID}}" class="btn btn-secondary">
+                👁️ View Details
+            </a>
+        </div>
+
+        <p style="margin-top: 30px; font-size: 14px; color: #666;">
+            💡 <strong>Tip:</strong> You can also apply via USSD by dialing <strong>*256#</strong>
+            and selecting "Find Opportunities".
+        </p>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>{{APP_NAME}} - Connecting Youth to Opportunities</p>
+        <p style="margin-top: 10px;">
+            <a href="{{WEB_URL}}/notifications/preferences" style="color: #1565C0;">Notification Preferences</a> |
+            <a href="{{WEB_URL}}/unsubscribe" style="color: #1565C0;">Unsubscribe</a>
+        </p>
+        <p style="margin-top: 15px; font-size: 12px; color: #999;">
+            © 2025 {{APP_NAME}}. All rights reserved.
+        </p>
+    </div>
+</div>
+</body>
+</html>

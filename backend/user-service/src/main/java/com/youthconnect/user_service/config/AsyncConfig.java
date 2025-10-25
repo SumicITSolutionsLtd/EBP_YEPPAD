@@ -15,7 +15,7 @@ import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
- * Asynchronous Processing Configuration for Youth Connect Uganda User Service
+ * Asynchronous Processing Configuration for Entrepreneurship Booster Platform Uganda User Service
  *
  * This configuration class sets up multiple thread pools for handling different
  * types of background tasks including:
@@ -36,7 +36,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  * - Thread naming for easier debugging
  * - Configurable pool sizes based on environment
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
  */
 @Slf4j

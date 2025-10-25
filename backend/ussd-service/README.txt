@@ -1,8 +1,8 @@
-# USSD Service - YouthConnect Uganda
+# USSD Service - Entreprenuership Booster Platform Uganda
 
 ## 📱 Overview
 
-The USSD Service is a critical microservice in the YouthConnect Uganda platform, enabling feature phone users to access entrepreneurship opportunities, training programs, and mentorship services via USSD (*256#).
+The USSD Service is a critical microservice in the Entreprenuership Booster Platform, enabling feature phone users to access entrepreneurship opportunities, training programs, and mentorship services via USSD (*256#).
 
 ### Key Features
 - ✅ **Registration via USSD** - Complete user onboarding without internet
@@ -23,7 +23,7 @@ The USSD Service is a critical microservice in the YouthConnect Uganda platform,
 - **HTTP Client**: OpenFeign
 - **Circuit Breaker**: Resilience4j
 - **Caching**: Redis + Caffeine
-- **Database**: PostgreSQL (Production), H2 (Development)
+- **Database**: MySQL (Production), H2 (Development)
 - **Monitoring**: Micrometer + Prometheus
 - **Testing**: JUnit 5, MockMVC, TestContainers
 
@@ -56,7 +56,7 @@ The USSD Service is a critical microservice in the YouthConnect Uganda platform,
 - Java 17+
 - Maven 3.8+
 - Redis Server (Production)
-- PostgreSQL 15+ (Production)
+- MySQL (Production)
 
 ### Local Development Setup
 
@@ -205,7 +205,7 @@ The USSD Service is a critical microservice in the YouthConnect Uganda platform,
 - **HTTP Client**: OpenFeign
 - **Circuit Breaker**: Resilience4j
 - **Caching**: Redis + Caffeine
-- **Database**: PostgreSQL (Production), H2 (Development)
+- **Database**: MySQL (Production), H2 (Development)
 - **Monitoring**: Micrometer + Prometheus
 - **Testing**: JUnit 5, MockMVC, TestContainers
 

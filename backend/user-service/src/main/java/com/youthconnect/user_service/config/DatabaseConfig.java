@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Profile;
 import javax.sql.DataSource;
 
 /**
- * Database Configuration with optimized connection pooling for Youth Connect Uganda
+ * Database Configuration with optimized connection pooling for Entrepreneurship Booster Platform Uganda
  *
  * This configuration class sets up HikariCP connection pool with optimized settings
  * for MySQL database. It includes environment-specific configurations and

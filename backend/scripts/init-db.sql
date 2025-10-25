@@ -1,768 +1,570 @@
 -- =================================================================================
--- Youth Connect Uganda Platform - Complete Production Database Schema
--- Version: 1.0 (Unified & Production-Ready)
--- Date: 2025-09-29
--- Description: Comprehensive database schema supporting web, USSD, AI services,
---              notifications, file management, and analytics
+-- Entrepreneurship Booster Platform - Production Database Schema
+-- Version: 1.0
+-- Date: 2025-10-22
+-- Description: Complete production schema with all essential features
 -- =================================================================================
 
--- =================================================================================
--- DATABASE INITIALIZATION
--- =================================================================================
-
-DROP DATABASE IF EXISTS youth_connect_db;
-CREATE DATABASE youth_connect_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE youth_connect_db;
+DROP DATABASE IF EXISTS epb_db;
+CREATE DATABASE epb_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE epb_db;
 
 -- =================================================================================
 -- SECTION 1: CORE AUTHENTICATION & USER MANAGEMENT
 -- =================================================================================
 
--- ---------------------------------------------------------------------------------
--- Users Table: Central authentication and authorization
--- ---------------------------------------------------------------------------------
+-- Users Table: Central authentication for all platforms (Web + USSD)
 CREATE TABLE users (
     user_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    email VARCHAR(100) UNIQUE NOT NULL COMMENT 'Primary web login identifier',
-    phone_number VARCHAR(20) UNIQUE COMMENT 'USSD login identifier (Uganda format)',
+    email VARCHAR(100) UNIQUE NOT NULL COMMENT 'Web login identifier',
+    phone_number VARCHAR(20) UNIQUE COMMENT 'USSD login identifier',
     password_hash VARCHAR(255) NOT NULL COMMENT 'BCrypt hashed password',
-    role ENUM('YOUTH', 'NGO', 'FUNDER', 'SERVICE_PROVIDER', 'MENTOR', 'ADMIN') NOT NULL COMMENT 'User type determines dashboard access',
-    
-    -- Account Security & Status
-    is_active BOOLEAN DEFAULT TRUE COMMENT 'Account activation status',
-    email_verified BOOLEAN DEFAULT FALSE COMMENT 'Email verification status',
-    phone_verified BOOLEAN DEFAULT FALSE COMMENT 'Phone verification status',
-    
-    -- Security Audit Fields
-    last_login TIMESTAMP NULL COMMENT 'Last successful login timestamp',
-    failed_login_attempts INT DEFAULT 0 COMMENT 'Failed login counter for security',
-    account_locked_until TIMESTAMP NULL COMMENT 'Account lockout expiry time',
-    
+    role ENUM('YOUTH', 'NGO', 'FUNDER', 'SERVICE_PROVIDER', 'MENTOR', 'ADMIN') NOT NULL,
+
+    -- Account Security
+    is_active BOOLEAN DEFAULT TRUE,
+    email_verified BOOLEAN DEFAULT FALSE,
+    phone_verified BOOLEAN DEFAULT FALSE,
+
+    -- Security Audit
+    last_login TIMESTAMP NULL,
+    failed_login_attempts INT DEFAULT 0,
+    account_locked_until TIMESTAMP NULL,
+
     -- Timestamps
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
-    -- Constraints
-    CONSTRAINT chk_phone_format CHECK (phone_number IS NULL OR phone_number REGEXP '^\+?256[0-9]{9}$|^0[0-9]{9}$'),
-    CONSTRAINT chk_email_format CHECK (email REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
-) COMMENT 'Central user authentication and authorization table';
 
--- User Authentication & Security Indexes
+    -- Uganda phone validation
+    CONSTRAINT chk_phone_format CHECK (phone_number IS NULL OR phone_number REGEXP '^\+?256[0-9]{9}$|^0[0-9]{9}$')
+) ENGINE=InnoDB COMMENT 'Central user authentication for web and USSD';
+
 CREATE INDEX idx_users_phone_active ON users(phone_number, is_active);
 CREATE INDEX idx_users_email_active ON users(email, is_active);
-CREATE INDEX idx_users_role_active ON users(role, is_active);
-CREATE INDEX idx_user_phone_role ON users(phone_number, role);
-CREATE INDEX idx_users_login_attempts ON users(failed_login_attempts, account_locked_until);
+CREATE INDEX idx_users_role ON users(role, is_active);
+
+-- Refresh Tokens: JWT management
+CREATE TABLE refresh_tokens (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    token VARCHAR(500) NOT NULL UNIQUE,
+    user_id BIGINT NOT NULL,
+    user_email VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    revoked BOOLEAN DEFAULT FALSE,
+
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    INDEX idx_token (token),
+    INDEX idx_user_active (user_id, revoked, expires_at)
+) ENGINE=InnoDB COMMENT 'JWT refresh token management';
+
+-- Password Reset Tokens
+CREATE TABLE password_reset_tokens (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    token VARCHAR(255) NOT NULL UNIQUE,
+    user_id BIGINT NOT NULL,
+    user_email VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    used BOOLEAN DEFAULT FALSE,
+
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    INDEX idx_token (token),
+    INDEX idx_user_unused (user_id, used, expires_at)
+) ENGINE=InnoDB COMMENT 'Password reset functionality';
 
 -- =================================================================================
--- SECTION 2: USER PROFILE TABLES (Role-Specific)
+-- SECTION 2: USER PROFILES (Role-Specific)
 -- =================================================================================
 
--- ---------------------------------------------------------------------------------
--- Youth Profiles: Detailed profiles for youth users
--- ---------------------------------------------------------------------------------
+-- Youth Profiles
 CREATE TABLE youth_profiles (
     profile_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNIQUE NOT NULL,
-    
+
     -- Personal Information
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
-    gender ENUM('MALE', 'FEMALE', 'OTHER') NULL,
-    date_of_birth DATE NULL,
-    national_id VARCHAR(50) NULL COMMENT 'Ugandan National ID',
-    
-    -- Geographic & Demographic
-    district VARCHAR(50) NULL COMMENT 'Ugandan district',
-    age_group VARCHAR(20) NULL COMMENT 'Age range for demographics',
-    
+    gender ENUM('MALE', 'FEMALE', 'OTHER'),
+    date_of_birth DATE,
+
+    -- Location & Demographics
+    district VARCHAR(50) COMMENT 'Ugandan districts',
+    age_group VARCHAR(20),
+
     -- Professional Information
-    profession VARCHAR(100) NULL,
-    academic_qualification VARCHAR(100) NULL,
-    business_stage VARCHAR(50) NULL COMMENT 'Startup/business development stage',
-    description TEXT NULL,
-    
-    -- Accessibility Support
+    profession VARCHAR(100),
+    business_stage VARCHAR(50) COMMENT 'Idea Phase, Early Stage, Growth Stage',
+    description TEXT,
+
+    -- Accessibility
     has_disability BOOLEAN DEFAULT FALSE,
-    disability_details TEXT NULL COMMENT 'Specific accessibility needs',
-    
+
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    CONSTRAINT chk_age_realistic CHECK (date_of_birth IS NULL OR date_of_birth >= '1950-01-01')
-) COMMENT 'Detailed profiles for youth users';
+    INDEX idx_district (district),
+    INDEX idx_business_stage (business_stage)
+) ENGINE=InnoDB COMMENT 'Youth user profiles';
 
-CREATE INDEX idx_youth_profiles_user ON youth_profiles(user_id);
-CREATE INDEX idx_youth_profiles_district ON youth_profiles(district);
-
--- ---------------------------------------------------------------------------------
--- NGO Profiles: Organization profiles and verification
--- ---------------------------------------------------------------------------------
+-- NGO Profiles
 CREATE TABLE ngo_profiles (
     ngo_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNIQUE NOT NULL,
-    
-    -- Organization Details
-    organisation_name VARCHAR(150) NOT NULL,
-    location VARCHAR(100) NULL,
-    description TEXT NULL,
-    
-    -- Verification & Trust
-    is_verified BOOLEAN DEFAULT FALSE COMMENT 'Admin verification for credibility',
-    verification_date TIMESTAMP NULL,
-    verified_by BIGINT NULL COMMENT 'Admin user who verified',
-    
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    FOREIGN KEY (verified_by) REFERENCES users(user_id) ON DELETE SET NULL
-) COMMENT 'NGO organization profiles and verification';
 
--- ---------------------------------------------------------------------------------
--- Service Provider Profiles: Provider capabilities and verification
--- ---------------------------------------------------------------------------------
+    organisation_name VARCHAR(150) NOT NULL,
+    location VARCHAR(100),
+    description TEXT,
+
+    -- Verification
+    is_verified BOOLEAN DEFAULT FALSE,
+    verification_date TIMESTAMP NULL,
+    verified_by BIGINT NULL,
+
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (verified_by) REFERENCES users(user_id) ON DELETE SET NULL,
+    INDEX idx_verified (is_verified)
+) ENGINE=InnoDB COMMENT 'NGO profiles with verification';
+
+-- Service Provider Profiles
 CREATE TABLE service_provider_profiles (
     provider_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNIQUE NOT NULL,
-    
-    -- Provider Information
-    provider_name VARCHAR(150) NOT NULL COMMENT 'Individual or company name',
-    location VARCHAR(100) NULL,
-    area_of_expertise TEXT NOT NULL COMMENT 'Skills and services offered',
-    
-    -- Verification Status
-    is_verified BOOLEAN DEFAULT FALSE COMMENT 'Verification by NGOs/Admins',
+
+    provider_name VARCHAR(150) NOT NULL,
+    location VARCHAR(100),
+    area_of_expertise TEXT NOT NULL,
+
+    -- Verification
+    is_verified BOOLEAN DEFAULT FALSE,
     verification_date TIMESTAMP NULL,
     verified_by BIGINT NULL,
-    
+
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (verified_by) REFERENCES users(user_id) ON DELETE SET NULL
-) COMMENT 'Service provider profiles and capabilities';
+) ENGINE=InnoDB COMMENT 'Service providers with NGO verification';
 
--- ---------------------------------------------------------------------------------
--- Funder Profiles: Funding organization details
--- ---------------------------------------------------------------------------------
+-- Funder Profiles
 CREATE TABLE funder_profiles (
     funder_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNIQUE NOT NULL,
-    
-    -- Funder Information
-    funder_name VARCHAR(150) NOT NULL,
-    funding_focus TEXT NULL COMMENT 'Areas of interest and funding criteria',
-    
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
-) COMMENT 'Funder organization profiles and focus areas';
 
--- ---------------------------------------------------------------------------------
--- Mentor Profiles: Mentoring specialists and availability
--- ---------------------------------------------------------------------------------
+    funder_name VARCHAR(150) NOT NULL,
+    funding_focus TEXT COMMENT 'Funding interests and criteria',
+
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT 'Funder organization profiles';
+
+-- Mentor Profiles
 CREATE TABLE mentor_profiles (
     mentor_profile_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNIQUE NOT NULL,
-    
-    -- Personal Information
+
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
-    bio TEXT NULL,
-    
-    -- Professional Information
-    area_of_expertise TEXT NOT NULL COMMENT 'Mentoring specializations',
-    experience_years INT NULL COMMENT 'Years of relevant experience',
-    
-    -- Availability Management
+    bio TEXT,
+    area_of_expertise TEXT NOT NULL,
+    experience_years INT,
+
+    -- Availability
     availability_status ENUM('AVAILABLE', 'BUSY', 'ON_LEAVE') DEFAULT 'AVAILABLE',
-    
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
-) COMMENT 'Mentor profiles and availability tracking';
+
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    INDEX idx_availability (availability_status)
+) ENGINE=InnoDB COMMENT 'Mentor profiles';
 
 -- =================================================================================
--- SECTION 3: CONTENT MANAGEMENT SYSTEM
+-- SECTION 3: OPPORTUNITIES & APPLICATIONS
 -- =================================================================================
 
--- ---------------------------------------------------------------------------------
--- Posts: Community posts and content sharing
--- ---------------------------------------------------------------------------------
-CREATE TABLE posts (
-    post_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    author_id BIGINT NOT NULL,
-    
-    -- Content Classification
-    post_type ENUM('FORUM_QUESTION', 'SUCCESS_STORY', 'ARTICLE', 'AUDIO_QUESTION') NOT NULL,
-    title VARCHAR(255) NULL,
-    content TEXT NULL COMMENT 'Text content or media URL',
-    
-    -- Moderation & Status
-    is_approved BOOLEAN DEFAULT TRUE,
-    is_active BOOLEAN DEFAULT TRUE,
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (author_id) REFERENCES users(user_id) ON DELETE CASCADE
-) COMMENT 'Community posts and content sharing';
-
--- ---------------------------------------------------------------------------------
--- Comments: Threaded discussion support
--- ---------------------------------------------------------------------------------
-CREATE TABLE comments (
-    comment_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    post_id BIGINT NOT NULL,
-    author_id BIGINT NOT NULL,
-    
-    comment_text TEXT NOT NULL,
-    
-    -- Nested Comments Support
-    parent_comment_id BIGINT NULL COMMENT 'For threaded discussions',
-    
-    -- Moderation
-    is_approved BOOLEAN DEFAULT TRUE,
-    is_active BOOLEAN DEFAULT TRUE,
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (post_id) REFERENCES posts(post_id) ON DELETE CASCADE,
-    FOREIGN KEY (author_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    FOREIGN KEY (parent_comment_id) REFERENCES comments(comment_id) ON DELETE CASCADE
-) COMMENT 'Post comments with threading support';
-
--- ---------------------------------------------------------------------------------
--- Learning Modules: Multi-language educational content
--- ---------------------------------------------------------------------------------
-CREATE TABLE learning_modules (
-    module_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    
-    -- Internationalization Keys
-    title_key VARCHAR(100) UNIQUE NOT NULL COMMENT 'Translation key for module title',
-    description_key VARCHAR(100) UNIQUE NOT NULL COMMENT 'Translation key for description',
-    
-    -- Content Configuration
-    content_type ENUM('AUDIO', 'VIDEO', 'TEXT', 'MIXED') DEFAULT 'AUDIO',
-    
-    -- Multi-language Audio Support (Uganda Languages)
-    audio_url_en VARCHAR(255) NULL COMMENT 'English audio file URL',
-    audio_url_lg VARCHAR(255) NULL COMMENT 'Luganda audio file URL',
-    audio_url_lur VARCHAR(255) NULL COMMENT 'Alur audio file URL',
-    audio_url_lgb VARCHAR(255) NULL COMMENT 'Lugbara audio file URL',
-    
-    -- Module Management
-    is_active BOOLEAN DEFAULT TRUE,
-    sort_order INT DEFAULT 0 COMMENT 'Display order',
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) COMMENT 'Educational content modules with multi-language support';
-
--- =================================================================================
--- SECTION 4: OPPORTUNITIES & APPLICATIONS SYSTEM
--- =================================================================================
-
--- ---------------------------------------------------------------------------------
--- Opportunities: Grants, loans, jobs, training, and skill market
--- ---------------------------------------------------------------------------------
+-- Opportunities
 CREATE TABLE opportunities (
     opportunity_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     posted_by_id BIGINT NOT NULL,
-    
-    -- Opportunity Classification
+
+    -- Classification
     opportunity_type ENUM('GRANT', 'LOAN', 'JOB', 'TRAINING', 'SKILL_MARKET') NOT NULL,
-    
-    -- Opportunity Details
     title VARCHAR(255) NOT NULL,
-    description TEXT NULL,
-    requirements TEXT NULL COMMENT 'Application requirements',
-    
-    -- Application Management
+    description TEXT,
+    requirements TEXT,
+
+    -- Management
     status ENUM('DRAFT', 'OPEN', 'CLOSED', 'IN_REVIEW', 'COMPLETED') DEFAULT 'DRAFT',
     application_deadline TIMESTAMP NULL,
-    max_applicants INT NULL COMMENT 'Maximum number of applications',
-    
-    -- Financial Information (for grants/loans)
-    funding_amount DECIMAL(15,2) NULL COMMENT 'Available funding amount',
+
+    -- Financial details
+    funding_amount DECIMAL(15,2),
     currency VARCHAR(3) DEFAULT 'UGX',
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (posted_by_id) REFERENCES users(user_id) ON DELETE CASCADE
-) COMMENT 'Opportunities posted by NGOs, funders, and service providers';
 
--- Opportunity Indexes
-CREATE INDEX idx_opportunities_type_status ON opportunities(opportunity_type, status);
-CREATE INDEX idx_opportunities_deadline ON opportunities(application_deadline);
-CREATE INDEX idx_opportunities_posted_by ON opportunities(posted_by_id);
-CREATE INDEX idx_opportunities_type_deadline ON opportunities(opportunity_type, application_deadline);
+    FOREIGN KEY (posted_by_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    INDEX idx_type_status (opportunity_type, status),
+    INDEX idx_deadline (application_deadline),
+    INDEX idx_posted_by (posted_by_id)
+) ENGINE=InnoDB COMMENT 'Opportunities posted by NGOs, funders, and partners';
 
--- ---------------------------------------------------------------------------------
--- Applications: User applications to opportunities
--- ---------------------------------------------------------------------------------
+-- Applications
 CREATE TABLE applications (
     application_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     opportunity_id BIGINT NOT NULL,
     applicant_id BIGINT NOT NULL,
-    
-    -- Application Status Tracking
+
     status ENUM('PENDING', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'WITHDRAWN') DEFAULT 'PENDING',
-    
-    -- Review Information
-    reviewed_by_id BIGINT NULL COMMENT 'User who reviewed the application',
-    review_notes TEXT NULL COMMENT 'Reviewer feedback',
+
+    -- Review process
+    reviewed_by_id BIGINT NULL,
+    review_notes TEXT,
     reviewed_at TIMESTAMP NULL,
-    
-    -- Application Content
-    application_content TEXT NULL COMMENT 'Application details or cover letter',
-    
+    application_content TEXT,
+
     submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
+
     FOREIGN KEY (opportunity_id) REFERENCES opportunities(opportunity_id) ON DELETE CASCADE,
     FOREIGN KEY (applicant_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (reviewed_by_id) REFERENCES users(user_id) ON DELETE SET NULL,
-    
-    -- Prevent duplicate applications
-    UNIQUE KEY unique_application (opportunity_id, applicant_id)
-) COMMENT 'User applications to opportunities';
 
--- Application Indexes
-CREATE INDEX idx_applications_user_status ON applications(applicant_id, status);
-CREATE INDEX idx_applications_opportunity_status ON applications(opportunity_id, status);
-CREATE INDEX idx_applications_review_date ON applications(reviewed_at);
-CREATE INDEX idx_applications_status_date ON applications(status, submitted_at);
+    UNIQUE KEY unique_application (opportunity_id, applicant_id),
+    INDEX idx_user_status (applicant_id, status),
+    INDEX idx_opp_status (opportunity_id, status)
+) ENGINE=InnoDB COMMENT 'User applications with review tracking';
 
 -- =================================================================================
--- SECTION 5: MENTORSHIP SYSTEM
+-- SECTION 4: MENTORSHIP SYSTEM
 -- =================================================================================
 
--- ---------------------------------------------------------------------------------
--- Mentorship Sessions: Session scheduling and tracking
--- ---------------------------------------------------------------------------------
+-- Mentorship Sessions
 CREATE TABLE mentorship_sessions (
     session_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     mentor_id BIGINT NOT NULL,
     mentee_id BIGINT NOT NULL,
-    
-    -- Session Details
+
     session_datetime TIMESTAMP NOT NULL,
-    duration_minutes INT DEFAULT 60 COMMENT 'Planned session duration',
-    topic VARCHAR(255) NULL COMMENT 'Session focus area',
-    
-    -- Session Management
+    duration_minutes INT DEFAULT 60,
+    topic VARCHAR(255),
+
     status ENUM('SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW') DEFAULT 'SCHEDULED',
-    
-    -- Session Notes
-    mentor_notes TEXT NULL COMMENT 'Mentor session notes',
-    mentee_notes TEXT NULL COMMENT 'Mentee session notes',
-    
-    -- Scheduling
+
+    -- Session notes
+    mentor_notes TEXT,
+    mentee_notes TEXT,
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
+
     FOREIGN KEY (mentor_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    FOREIGN KEY (mentee_id) REFERENCES users(user_id) ON DELETE CASCADE
-) COMMENT 'Mentorship session scheduling and tracking';
+    FOREIGN KEY (mentee_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    INDEX idx_mentor_status_datetime (mentor_id, status, session_datetime),
+    INDEX idx_mentee_status_datetime (mentee_id, status, session_datetime),
+    INDEX idx_datetime (session_datetime)
+) ENGINE=InnoDB COMMENT 'Mentorship session scheduling and tracking';
 
--- Mentorship Indexes
-CREATE INDEX idx_mentorship_mentor_status ON mentorship_sessions(mentor_id, status);
-CREATE INDEX idx_mentorship_mentee_status ON mentorship_sessions(mentee_id, status);
-CREATE INDEX idx_mentorship_datetime ON mentorship_sessions(session_datetime);
-CREATE INDEX idx_mentorship_sessions_status ON mentorship_sessions(status, session_datetime);
+-- Mentor Availability
+CREATE TABLE mentor_availability (
+    availability_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    mentor_id BIGINT NOT NULL,
 
--- ---------------------------------------------------------------------------------
--- Reviews: Rating system for mentors and services
--- ---------------------------------------------------------------------------------
+    -- Weekly schedule
+    day_of_week ENUM('MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY') NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+
+    is_active BOOLEAN DEFAULT TRUE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (mentor_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    INDEX idx_mentor_day (mentor_id, day_of_week, is_active),
+
+    CONSTRAINT chk_time_order CHECK (start_time < end_time)
+) ENGINE=InnoDB COMMENT 'Mentor weekly availability schedule';
+
+-- Session Reminders
+CREATE TABLE session_reminders (
+    reminder_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    session_id BIGINT NOT NULL,
+
+    reminder_type ENUM('24_HOURS', '1_HOUR', '15_MINUTES') NOT NULL,
+    scheduled_time TIMESTAMP NOT NULL,
+
+    -- Delivery status
+    sent_to_mentor BOOLEAN DEFAULT FALSE,
+    sent_to_mentee BOOLEAN DEFAULT FALSE,
+    sent_at TIMESTAMP NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (session_id) REFERENCES mentorship_sessions(session_id) ON DELETE CASCADE,
+    INDEX idx_session_scheduled (session_id, scheduled_time),
+    INDEX idx_scheduled_pending (scheduled_time, sent_to_mentor, sent_to_mentee)
+) ENGINE=InnoDB COMMENT 'Automated session reminder tracking';
+
+-- Reviews
 CREATE TABLE reviews (
     review_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    reviewer_id BIGINT NOT NULL COMMENT 'User giving the review',
-    reviewee_id BIGINT NOT NULL COMMENT 'User being reviewed',
-    
-    -- Review Content
-    rating TINYINT NOT NULL COMMENT 'Rating from 1 to 5',
-    comment TEXT NULL,
-    
-    -- Review Context
+    reviewer_id BIGINT NOT NULL,
+    reviewee_id BIGINT NOT NULL,
+
+    rating TINYINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment TEXT,
     review_type ENUM('MENTOR_SESSION', 'SERVICE_DELIVERY', 'GENERAL') DEFAULT 'GENERAL',
-    session_id BIGINT NULL COMMENT 'Related session if applicable',
-    
-    -- Review Status
-    is_approved BOOLEAN DEFAULT TRUE COMMENT 'Moderation status',
-    
+    session_id BIGINT NULL,
+
+    -- Moderation
+    is_approved BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
+
     FOREIGN KEY (reviewer_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (reviewee_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (session_id) REFERENCES mentorship_sessions(session_id) ON DELETE SET NULL,
-    
-    -- Validation constraints
-    CONSTRAINT chk_rating_range CHECK (rating BETWEEN 1 AND 5),
+    INDEX idx_reviewee_type_approved (reviewee_id, review_type, is_approved),
+    INDEX idx_session_id (session_id),
+    INDEX idx_rating (rating),
+
     CONSTRAINT chk_different_users CHECK (reviewer_id != reviewee_id)
-) COMMENT 'Review and rating system for mentors and services';
-
--- Review Indexes
-CREATE INDEX idx_reviews_reviewee_type ON reviews(reviewee_id, review_type);
-CREATE INDEX idx_reviews_rating ON reviews(rating, is_approved);
+) ENGINE=InnoDB COMMENT 'Review system for mentors and services';
 
 -- =================================================================================
--- SECTION 6: AI & ANALYTICS SYSTEM
+-- SECTION 5: CONTENT & COMMUNITY
 -- =================================================================================
 
--- ---------------------------------------------------------------------------------
--- User Activity Logs: Activity tracking for AI and analytics
--- ---------------------------------------------------------------------------------
-CREATE TABLE user_activity_logs (
-    log_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    
-    -- Activity Classification
-    activity_type VARCHAR(50) NOT NULL COMMENT 'e.g., VIEW_OPPORTUNITY, LISTEN_AUDIO, APPLY_JOB',
-    target_id BIGINT NULL COMMENT 'ID of interacted item',
-    target_type VARCHAR(50) NULL COMMENT 'Type of target (opportunity, module, mentor)',
-    
-    -- Session Context
-    session_id VARCHAR(255) NULL COMMENT 'Session identifier for tracking',
-    user_agent TEXT NULL COMMENT 'Browser/device information',
-    ip_address VARCHAR(45) NULL COMMENT 'User IP address for security',
-    
-    -- Metadata
-    metadata JSON NULL COMMENT 'Additional activity context',
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
-) COMMENT 'User activity tracking for AI recommendations and analytics';
+-- Posts
+CREATE TABLE posts (
+    post_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    author_id BIGINT NOT NULL,
 
--- Activity Log Indexes
-CREATE INDEX idx_activity_user_type_time ON user_activity_logs(user_id, activity_type, created_at);
-CREATE INDEX idx_activity_target ON user_activity_logs(target_type, target_id);
-CREATE INDEX idx_activity_logs_user_time ON user_activity_logs(user_id, created_at);
-CREATE INDEX idx_activity_session ON user_activity_logs(session_id);
-CREATE INDEX idx_activity_user_session ON user_activity_logs(user_id, session_id);
+    post_type ENUM('FORUM_QUESTION', 'SUCCESS_STORY', 'ARTICLE', 'AUDIO_QUESTION') NOT NULL,
+    title VARCHAR(255),
+    content TEXT,
 
--- ---------------------------------------------------------------------------------
--- User Interests: Interest tracking for personalization
--- ---------------------------------------------------------------------------------
-CREATE TABLE user_interests (
-    user_interest_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    
-    -- Interest Classification
-    interest_tag VARCHAR(50) NOT NULL COMMENT 'e.g., Agriculture, Fintech, Renewable Energy',
-    interest_level ENUM('LOW', 'MEDIUM', 'HIGH') DEFAULT 'MEDIUM',
-    
-    -- Interest Source
-    source ENUM('USER_SELECTED', 'AI_INFERRED', 'ACTIVITY_BASED') DEFAULT 'USER_SELECTED',
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    
-    -- Prevent duplicate interests
-    UNIQUE KEY unique_user_interest (user_id, interest_tag)
-) COMMENT 'User interests for personalized recommendations';
-
--- ---------------------------------------------------------------------------------
--- Recommendation History: AI recommendation tracking
--- ---------------------------------------------------------------------------------
-CREATE TABLE recommendation_history (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    
-    -- Recommendation Details
-    recommendation_type VARCHAR(50) NOT NULL COMMENT 'OPPORTUNITY, MENTOR, MODULE, CONTENT',
-    recommended_item_id BIGINT NOT NULL COMMENT 'ID of recommended item',
-    
-    -- Algorithm Information
-    score DOUBLE NOT NULL COMMENT 'Recommendation confidence score (0.0 - 1.0)',
-    algorithm_version VARCHAR(50) NULL COMMENT 'AI algorithm version for tracking',
-    algorithm_name VARCHAR(100) NULL COMMENT 'Algorithm used: COLLABORATIVE, CONTENT_BASED, HYBRID',
-    
-    -- User Interaction Tracking
-    was_viewed BOOLEAN DEFAULT FALSE,
-    was_clicked BOOLEAN DEFAULT FALSE,
-    was_applied BOOLEAN DEFAULT FALSE,
-    time_spent_seconds INT NULL COMMENT 'Time user spent on recommended item',
-    
-    -- User Feedback
-    feedback_rating TINYINT NULL COMMENT 'User feedback on recommendation (1-5)',
-    feedback_comment TEXT NULL,
-    
-    -- Timestamps
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    viewed_at TIMESTAMP NULL,
-    clicked_at TIMESTAMP NULL,
-    applied_at TIMESTAMP NULL,
-    feedback_at TIMESTAMP NULL,
-    
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    CONSTRAINT chk_feedback_rating CHECK (feedback_rating IS NULL OR feedback_rating BETWEEN 1 AND 5),
-    CONSTRAINT chk_recommendation_score CHECK (score BETWEEN 0.0 AND 1.0)
-) COMMENT 'AI recommendation tracking and effectiveness measurement';
-
--- Recommendation History Indexes
-CREATE INDEX idx_recommendation_history_user ON recommendation_history(user_id, recommendation_type);
-CREATE INDEX idx_recommendation_history_score ON recommendation_history(score DESC);
-CREATE INDEX idx_recommendation_history_user_date ON recommendation_history(user_id, created_at);
-CREATE INDEX idx_recommendation_history_effectiveness ON recommendation_history(recommendation_type, was_clicked, was_applied);
-
--- ---------------------------------------------------------------------------------
--- Analytics Cache: Performance cache for analytics
--- ---------------------------------------------------------------------------------
-CREATE TABLE analytics_cache (
-    cache_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    
-    -- Cache Identification
-    cache_key VARCHAR(255) UNIQUE NOT NULL COMMENT 'Unique identifier for cached data',
-    cache_type VARCHAR(50) NOT NULL COMMENT 'NGO_DASHBOARD, FUNDER_REPORT, USER_STATS',
-    
-    -- Cached Data
-    data JSON NOT NULL COMMENT 'Cached analytics data in JSON format',
-    
-    -- Cache Metadata
-    entity_id BIGINT NULL COMMENT 'ID of entity (NGO, Funder, User) if applicable',
-    date_range_start DATE NULL,
-    date_range_end DATE NULL,
-    
-    -- Cache Management
-    expires_at TIMESTAMP NOT NULL COMMENT 'When cache should be invalidated',
-    is_valid BOOLEAN DEFAULT TRUE,
-    hit_count INT DEFAULT 0 COMMENT 'Number of times cache was used',
-    
-    -- Timestamps
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_accessed TIMESTAMP NULL
-) COMMENT 'Performance cache for analytics service';
-
--- Analytics Cache Indexes
-CREATE INDEX idx_analytics_cache_key_valid ON analytics_cache(cache_key, is_valid);
-CREATE INDEX idx_analytics_cache_expires ON analytics_cache(expires_at, is_valid);
-CREATE INDEX idx_analytics_cache_entity ON analytics_cache(cache_type, entity_id);
-
--- ---------------------------------------------------------------------------------
--- AI Model Metadata: Model tracking and versioning
--- ---------------------------------------------------------------------------------
-CREATE TABLE ai_model_metadata (
-    model_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    
-    -- Model Information
-    model_name VARCHAR(100) UNIQUE NOT NULL COMMENT 'Name/identifier of AI model',
-    model_type VARCHAR(50) NOT NULL COMMENT 'COLLABORATIVE_FILTERING, CONTENT_BASED, etc.',
-    model_version VARCHAR(50) NOT NULL,
-    
-    -- Model Performance Metrics
-    accuracy DOUBLE NULL COMMENT 'Model accuracy score',
-    precision_score DOUBLE NULL,
-    recall_score DOUBLE NULL,
-    f1_score DOUBLE NULL,
-    
-    -- Model Configuration
-    hyperparameters JSON NULL COMMENT 'Model hyperparameters',
-    training_data_size INT NULL,
-    
-    -- Model Status
-    status ENUM('TRAINING', 'ACTIVE', 'DEPRECATED', 'FAILED') DEFAULT 'TRAINING',
-    is_default BOOLEAN DEFAULT FALSE COMMENT 'Is this the default model for its type',
-    
-    -- Timestamps
-    trained_at TIMESTAMP NULL,
-    deployed_at TIMESTAMP NULL,
-    deprecated_at TIMESTAMP NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) COMMENT 'AI model tracking and versioning';
-
--- AI Model Indexes
-CREATE INDEX idx_ai_model_status ON ai_model_metadata(status, is_default);
-CREATE INDEX idx_ai_model_type_version ON ai_model_metadata(model_type, model_version);
-
--- =================================================================================
--- SECTION 7: FILE MANAGEMENT SYSTEM
--- =================================================================================
-
--- ---------------------------------------------------------------------------------
--- File Records: Enhanced file management with access control
--- ---------------------------------------------------------------------------------
-CREATE TABLE file_records (
-    file_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT NULL,
-    
-    -- File Information
-    file_name VARCHAR(255) NOT NULL COMMENT 'System generated filename',
-    original_name VARCHAR(255) NULL COMMENT 'User uploaded filename',
-    file_path VARCHAR(500) NOT NULL COMMENT 'Storage path or URL',
-    file_size BIGINT NULL COMMENT 'File size in bytes',
-    content_type VARCHAR(100) NULL COMMENT 'MIME type',
-    
-    -- File Classification
-    file_category ENUM('PROFILE_PICTURE', 'DOCUMENT', 'AUDIO_MODULE', 'VIDEO_CONTENT', 'APPLICATION_ATTACHMENT', 'SYSTEM') NOT NULL,
-    
-    -- File Status and Access Control
+    -- Moderation
+    is_approved BOOLEAN DEFAULT TRUE,
     is_active BOOLEAN DEFAULT TRUE,
-    is_public BOOLEAN DEFAULT FALSE COMMENT 'Public access flag',
-    access_token VARCHAR(255) NULL COMMENT 'Secure access token for private files',
-    
-    -- Download Tracking
-    download_count INT DEFAULT 0 COMMENT 'Number of times file was downloaded',
-    last_accessed TIMESTAMP NULL COMMENT 'Last file access timestamp',
-    
-    -- Storage Information
-    storage_provider VARCHAR(50) DEFAULT 'LOCAL' COMMENT 'LOCAL, S3, CLOUDINARY, etc.',
-    storage_region VARCHAR(50) NULL,
-    
-    -- Timestamps
-    upload_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    CONSTRAINT chk_file_size CHECK (file_size IS NULL OR file_size <= 52428800)
-) COMMENT 'Enhanced file management with access control and tracking';
 
--- File Records Indexes
-CREATE INDEX idx_file_records_user_category ON file_records(user_id, file_category);
-CREATE INDEX idx_file_records_access_token ON file_records(access_token);
-CREATE INDEX idx_file_records_active ON file_records(is_active);
-CREATE INDEX idx_file_records_category_public ON file_records(file_category, is_public);
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
--- =================================================================================
--- SECTION 8: NOTIFICATION SYSTEM
--- =================================================================================
+    FOREIGN KEY (author_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    INDEX idx_type_approved (post_type, is_approved),
+    INDEX idx_author (author_id)
+) ENGINE=InnoDB COMMENT 'Community posts and content sharing';
 
--- ---------------------------------------------------------------------------------
--- Notification Logs: Notification delivery tracking
--- ---------------------------------------------------------------------------------
-CREATE TABLE notification_logs (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    
-    -- Notification Details
-    notification_type ENUM('SMS', 'EMAIL', 'PUSH') NOT NULL,
-    recipient VARCHAR(255) NOT NULL COMMENT 'Phone number, email, or device token',
-    
-    -- Content
-    subject VARCHAR(255) NULL,
-    content TEXT NOT NULL,
-    
-    -- Delivery Tracking
-    status ENUM('PENDING', 'SENT', 'DELIVERED', 'FAILED', 'BOUNCED') DEFAULT 'PENDING',
-    sent_at TIMESTAMP NULL,
-    delivered_at TIMESTAMP NULL,
-    
-    -- Retry Logic
-    retry_count INT DEFAULT 0,
-    max_retries INT DEFAULT 3,
-    next_retry_at TIMESTAMP NULL,
-    error_message TEXT NULL,
-    
-    -- Provider Information
-    provider VARCHAR(50) NULL COMMENT 'SMS/Email provider used',
-    provider_message_id VARCHAR(255) NULL COMMENT 'External provider message ID',
-    
-    -- Metadata
+-- Comments
+CREATE TABLE comments (
+    comment_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    post_id BIGINT NOT NULL,
+    author_id BIGINT NOT NULL,
+
+    comment_text TEXT NOT NULL,
+    parent_comment_id BIGINT NULL,
+
+    -- Moderation
+    is_approved BOOLEAN DEFAULT TRUE,
+    is_active BOOLEAN DEFAULT TRUE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (post_id) REFERENCES posts(post_id) ON DELETE CASCADE,
+    FOREIGN KEY (author_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_comment_id) REFERENCES comments(comment_id) ON DELETE CASCADE,
+    INDEX idx_post (post_id, is_approved)
+) ENGINE=InnoDB COMMENT 'Post comments with threading support';
+
+-- Learning Modules
+CREATE TABLE learning_modules (
+    module_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    content_type ENUM('AUDIO', 'VIDEO', 'TEXT', 'MIXED') DEFAULT 'AUDIO',
+
+    -- Multi-language audio support
+    audio_url_en VARCHAR(255) COMMENT 'English audio',
+    audio_url_lg VARCHAR(255) COMMENT 'Luganda audio',
+    audio_url_lur VARCHAR(255) COMMENT 'Alur audio',
+    audio_url_lgb VARCHAR(255) COMMENT 'Lugbara audio',
+
+    is_active BOOLEAN DEFAULT TRUE,
+    sort_order INT DEFAULT 0,
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    CONSTRAINT chk_notification_retry CHECK (retry_count <= max_retries)
-) COMMENT 'Notification delivery tracking and status';
 
--- Notification Logs Indexes
-CREATE INDEX idx_notification_logs_user_status ON notification_logs(user_id, status);
-CREATE INDEX idx_notification_logs_type_status ON notification_logs(notification_type, status);
-CREATE INDEX idx_notification_logs_retry ON notification_logs(next_retry_at, retry_count);
-CREATE INDEX idx_notification_logs_provider_id ON notification_logs(provider_message_id);
+    INDEX idx_active_order (is_active, sort_order)
+) ENGINE=InnoDB COMMENT 'Educational content with multi-language audio';
 
 -- =================================================================================
--- SECTION 9: USSD INTEGRATION SYSTEM
+-- SECTION 6: USSD INTEGRATION
 -- =================================================================================
 
--- ---------------------------------------------------------------------------------
--- USSD Sessions: Session state management
--- ---------------------------------------------------------------------------------
+-- USSD Sessions
 CREATE TABLE ussd_sessions (
     session_id VARCHAR(255) PRIMARY KEY,
     phone_number VARCHAR(20) NOT NULL,
-    
-    -- Session State
-    current_menu VARCHAR(50) NOT NULL COMMENT 'Current USSD menu position',
-    session_data JSON NULL COMMENT 'Session context and variables',
-    
-    -- User Registration Data (Temporary)
-    user_name VARCHAR(100) NULL,
-    user_gender VARCHAR(10) NULL,
-    user_age_group VARCHAR(10) NULL,
-    user_district VARCHAR(50) NULL,
-    user_business_stage VARCHAR(50) NULL,
-    
-    -- Session Management
+
+    current_menu VARCHAR(50) NOT NULL,
+    session_data JSON COMMENT 'Temporary session storage',
+
+    -- Registration data
+    user_name VARCHAR(100),
+    user_gender VARCHAR(10),
+    user_age_group VARCHAR(10),
+    user_district VARCHAR(50),
+    user_business_stage VARCHAR(50),
+
     is_active BOOLEAN DEFAULT TRUE,
-    expires_at TIMESTAMP NULL COMMENT 'Session expiry time',
-    
+    expires_at TIMESTAMP NULL,
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) COMMENT 'USSD session state management';
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
--- USSD Session Indexes
-CREATE INDEX idx_ussd_phone_active ON ussd_sessions(phone_number, is_active);
-CREATE INDEX idx_ussd_expires ON ussd_sessions(expires_at);
-CREATE INDEX idx_ussd_phone_menu ON ussd_sessions(phone_number, current_menu);
+    INDEX idx_phone_active (phone_number, is_active),
+    INDEX idx_expires (expires_at)
+) ENGINE=InnoDB COMMENT 'USSD session state management';
 
 -- =================================================================================
--- SECTION 10: AUDIT & COMPLIANCE
+-- SECTION 7: AI & ANALYTICS
 -- =================================================================================
 
--- ---------------------------------------------------------------------------------
--- Audit Trail: Cross-service audit logging
--- ---------------------------------------------------------------------------------
+-- User Activity Logs
+CREATE TABLE user_activity_logs (
+    log_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+
+    activity_type VARCHAR(50) NOT NULL,
+    target_id BIGINT NULL,
+    target_type VARCHAR(50) NULL,
+
+    session_id VARCHAR(255) NULL,
+    metadata JSON,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    INDEX idx_user_activity (user_id, activity_type, created_at),
+    INDEX idx_target (target_type, target_id)
+) ENGINE=InnoDB COMMENT 'User activity tracking for AI recommendations';
+
+-- User Interests
+CREATE TABLE user_interests (
+    user_interest_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+
+    interest_tag VARCHAR(50) NOT NULL,
+    interest_level ENUM('LOW', 'MEDIUM', 'HIGH') DEFAULT 'MEDIUM',
+    source ENUM('USER_SELECTED', 'AI_INFERRED', 'ACTIVITY_BASED') DEFAULT 'USER_SELECTED',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_interest (user_id, interest_tag),
+    INDEX idx_user_interests (user_id, interest_level)
+) ENGINE=InnoDB COMMENT 'User interests for personalized recommendations';
+
+-- =================================================================================
+-- SECTION 8: FILE MANAGEMENT
+-- =================================================================================
+
+-- File Records
+CREATE TABLE file_records (
+    file_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NULL,
+
+    file_name VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255),
+    file_path VARCHAR(500) NOT NULL,
+    file_size BIGINT,
+    content_type VARCHAR(100),
+
+    file_category ENUM('PROFILE_PICTURE', 'DOCUMENT', 'AUDIO_MODULE', 'APPLICATION_ATTACHMENT') NOT NULL,
+
+    is_active BOOLEAN DEFAULT TRUE,
+    is_public BOOLEAN DEFAULT FALSE,
+
+    upload_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    INDEX idx_user_category (user_id, file_category),
+    INDEX idx_active (is_active)
+) ENGINE=InnoDB COMMENT 'File management with access control';
+
+-- =================================================================================
+-- SECTION 9: NOTIFICATION SYSTEM
+-- =================================================================================
+
+-- Notification Logs
+CREATE TABLE notification_logs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+
+    notification_type ENUM('SMS', 'EMAIL', 'PUSH') NOT NULL,
+    recipient VARCHAR(255) NOT NULL,
+
+    subject VARCHAR(255),
+    content TEXT NOT NULL,
+
+    status ENUM('PENDING', 'SENT', 'DELIVERED', 'FAILED') DEFAULT 'PENDING',
+    sent_at TIMESTAMP NULL,
+
+    retry_count INT DEFAULT 0,
+    error_message TEXT,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    INDEX idx_user_status (user_id, status),
+    INDEX idx_retry (retry_count, status)
+) ENGINE=InnoDB COMMENT 'Notification delivery tracking';
+
+-- =================================================================================
+-- SECTION 10: AUDIT TRAIL
+-- =================================================================================
+
+-- Audit Trail
 CREATE TABLE audit_trail (
     audit_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    
-    -- Actor Information
-    user_id BIGINT NULL COMMENT 'User who performed the action',
-    service_name VARCHAR(100) NOT NULL COMMENT 'Service that generated the audit log',
-    
-    -- Action Details
-    action_type VARCHAR(100) NOT NULL COMMENT 'Type of action performed',
-    entity_type VARCHAR(100) NULL COMMENT 'Type of entity affected',
-    entity_id BIGINT NULL COMMENT 'ID of affected entity',
-    
-    -- Action Context
-    description TEXT NULL,
-    old_values JSON NULL COMMENT 'Previous state before action',
-    new_values JSON NULL COMMENT 'New state after action',
-    
-    -- Request Context
-    ip_address VARCHAR(45) NULL,
-    user_agent TEXT NULL,
-    request_id VARCHAR(255) NULL COMMENT 'Trace request across services',
-    
-    -- Result
-    status ENUM('SUCCESS', 'FAILED', 'PARTIAL') NOT NULL,
-    error_message TEXT NULL,
-    
-    -- Timestamp
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
-) COMMENT 'Cross-service audit trail for compliance and debugging';
 
--- Audit Trail Indexes
-CREATE INDEX idx_audit_trail_user ON audit_trail(user_id, created_at);
-CREATE INDEX idx_audit_trail_service ON audit_trail(service_name, created_at);
-CREATE INDEX idx_audit_trail_entity ON audit_trail(entity_type, entity_id);
-CREATE INDEX idx_audit_trail_request ON audit_trail(request_id);
+    user_id BIGINT NULL,
+    service_name VARCHAR(100) NOT NULL,
+
+    action_type VARCHAR(100) NOT NULL,
+    entity_type VARCHAR(100) NULL,
+    entity_id BIGINT NULL,
+
+    description TEXT,
+    old_values JSON,
+    new_values JSON,
+
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+
+    status ENUM('SUCCESS', 'FAILED', 'PARTIAL') NOT NULL,
+    error_message TEXT,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+    INDEX idx_user_action (user_id, action_type, created_at),
+    INDEX idx_entity (entity_type, entity_id),
+    INDEX idx_service (service_name, created_at)
+) ENGINE=InnoDB COMMENT 'Audit trail for security and compliance';
 
 -- =================================================================================
 -- SECTION 11: ANALYTICS VIEWS
 -- =================================================================================
 
--- ---------------------------------------------------------------------------------
--- User Complete Profiles: Unified view across all profile types
--- ---------------------------------------------------------------------------------
+-- User Complete Profiles View
 CREATE VIEW user_complete_profiles AS
-SELECT 
+SELECT
     u.user_id,
     u.email,
     u.phone_number,
     u.role,
     u.is_active,
-    u.email_verified,
-    u.phone_verified,
-    u.last_login,
     u.created_at as registration_date,
-    CASE 
+
+    CASE
         WHEN u.role = 'YOUTH' THEN CONCAT(yp.first_name, ' ', yp.last_name)
         WHEN u.role = 'MENTOR' THEN CONCAT(mp.first_name, ' ', mp.last_name)
         WHEN u.role = 'NGO' THEN ngp.organisation_name
@@ -770,13 +572,13 @@ SELECT
         WHEN u.role = 'FUNDER' THEN fp.funder_name
         ELSE u.email
     END as display_name,
-    -- Role-specific details
+
     yp.district,
     yp.profession,
     yp.business_stage,
-    yp.has_disability,
     ngp.is_verified as ngo_verified,
     spp.is_verified as provider_verified
+
 FROM users u
 LEFT JOIN youth_profiles yp ON u.user_id = yp.user_id
 LEFT JOIN mentor_profiles mp ON u.user_id = mp.user_id
@@ -784,11 +586,9 @@ LEFT JOIN ngo_profiles ngp ON u.user_id = ngp.user_id
 LEFT JOIN service_provider_profiles spp ON u.user_id = spp.user_id
 LEFT JOIN funder_profiles fp ON u.user_id = fp.user_id;
 
--- ---------------------------------------------------------------------------------
--- Active Opportunities View: Currently open opportunities with stats
--- ---------------------------------------------------------------------------------
+-- Active Opportunities View
 CREATE VIEW active_opportunities_view AS
-SELECT 
+SELECT
     o.opportunity_id,
     o.title,
     o.opportunity_type,
@@ -800,222 +600,103 @@ SELECT
     u.role as posted_by_role,
     o.created_at,
     COUNT(a.application_id) as application_count
+
 FROM opportunities o
 JOIN users u ON o.posted_by_id = u.user_id
 JOIN user_complete_profiles ucp ON u.user_id = ucp.user_id
 LEFT JOIN applications a ON o.opportunity_id = a.opportunity_id
 WHERE o.status IN ('OPEN', 'IN_REVIEW')
-GROUP BY o.opportunity_id, o.title, o.opportunity_type, o.description, 
-         o.status, o.application_deadline, o.funding_amount, 
+GROUP BY o.opportunity_id, o.title, o.opportunity_type, o.description,
+         o.status, o.application_deadline, o.funding_amount,
          ucp.display_name, u.role, o.created_at;
-
--- ---------------------------------------------------------------------------------
--- Opportunity Performance Metrics: Detailed opportunity analytics
--- ---------------------------------------------------------------------------------
-CREATE VIEW opportunity_performance_metrics AS
-SELECT 
-    o.opportunity_id,
-    o.title,
-    o.opportunity_type,
-    o.posted_by_id,
-    o.status,
-    o.created_at,
-    COUNT(DISTINCT a.applicant_id) as total_applications,
-    COUNT(DISTINCT CASE WHEN a.status = 'APPROVED' THEN a.applicant_id END) as approved_count,
-    COUNT(DISTINCT CASE WHEN a.status = 'REJECTED' THEN a.applicant_id END) as rejected_count,
-    COUNT(DISTINCT CASE WHEN a.status = 'PENDING' THEN a.applicant_id END) as pending_count,
-    AVG(CASE WHEN a.status = 'APPROVED' THEN 1.0 ELSE 0.0 END) as approval_rate
-FROM opportunities o
-LEFT JOIN applications a ON o.opportunity_id = a.opportunity_id
-GROUP BY o.opportunity_id, o.title, o.opportunity_type, o.posted_by_id, o.status, o.created_at;
 
 -- =================================================================================
 -- SECTION 12: INITIAL SEED DATA
 -- =================================================================================
 
--- ---------------------------------------------------------------------------------
--- Default AI Models
--- ---------------------------------------------------------------------------------
-INSERT INTO ai_model_metadata 
-(model_name, model_type, model_version, status, is_default)
-VALUES 
-('collaborative_filter_v1', 'COLLABORATIVE_FILTERING', '1.0.0', 'ACTIVE', TRUE),
-('content_based_v1', 'CONTENT_BASED', '1.0.0', 'ACTIVE', TRUE),
-('hybrid_recommender_v1', 'HYBRID', '1.0.0', 'ACTIVE', TRUE);
-
--- ---------------------------------------------------------------------------------
--- Admin User (Password: Admin@123 - BCrypt hashed)
--- ---------------------------------------------------------------------------------
-INSERT INTO users (email, phone_number, password_hash, role, is_active, email_verified, phone_verified) 
+-- Default Admin User (CHANGE PASSWORD AFTER DEPLOYMENT!)
+INSERT INTO users (email, phone_number, password_hash, role, is_active, email_verified, phone_verified)
 VALUES (
-    'admin@youthconnect.ug', 
-    '+256700000001', 
+    'admin@youthconnect.ug',
+    '+256700000001',
     '$2a$12$rQOZgIwI6k8QpqZtDlEPUeF5HYD8v4x1z0fXhRtF8gHy7uPjI9QeK',
-    'ADMIN', 
-    TRUE, 
-    TRUE, 
+    'ADMIN',
+    TRUE,
+    TRUE,
     TRUE
 );
 
--- ---------------------------------------------------------------------------------
--- Sample Youth User (Password: Youth@123)
--- ---------------------------------------------------------------------------------
-INSERT INTO users (email, phone_number, password_hash, role, is_active, email_verified) 
+-- Sample Youth User
+INSERT INTO users (email, phone_number, password_hash, role, is_active, email_verified)
 VALUES (
-    'damienpapers3@gmail.com', 
-    '+256701430234', 
+    'damienpapers3@gmail.com',
+    '+256701430234',
     '$2a$12$rQOZgIwI6k8QpqZtDlEPUeF5HYD8v4x1z0fXhRtF8gHy7uPjI9QeK',
-    'YOUTH', 
-    TRUE, 
+    'YOUTH',
+    TRUE,
     TRUE
 );
 
--- Youth Profile
-INSERT INTO youth_profiles (user_id, first_name, last_name, gender, district, profession) 
-VALUES (
-    2, 
-    'Damien', 
-    'Papers', 
-    'MALE', 
-    'Kampala', 
-    'Software Developer'
-);
+INSERT INTO youth_profiles (user_id, first_name, last_name, gender, district, profession)
+VALUES (2, 'Damien', 'Papers', 'MALE', 'Kampala', 'Software Developer');
 
--- ---------------------------------------------------------------------------------
 -- Sample Learning Modules
--- ---------------------------------------------------------------------------------
-INSERT INTO learning_modules (title_key, description_key, content_type, audio_url_en, audio_url_lg) VALUES
-('business_basics_title', 'business_basics_desc', 'AUDIO', 
- 'https://files.youthconnect.ug/audio/business_basics_en.mp3', 
+INSERT INTO learning_modules (title, description, content_type, audio_url_en, audio_url_lg) VALUES
+('Business Basics', 'Fundamentals of starting a business', 'AUDIO',
+ 'https://files.youthconnect.ug/audio/business_basics_en.mp3',
  'https://files.youthconnect.ug/audio/business_basics_lg.mp3'),
-('financial_literacy_title', 'financial_literacy_desc', 'AUDIO', 
- 'https://files.youthconnect.ug/audio/financial_literacy_en.mp3', 
- 'https://files.youthconnect.ug/audio/financial_literacy_lg.mp3'),
-('marketing_essentials_title', 'marketing_essentials_desc', 'AUDIO', 
- 'https://files.youthconnect.ug/audio/marketing_essentials_en.mp3', 
- 'https://files.youthconnect.ug/audio/marketing_essentials_lg.mp3');
+('Financial Literacy', 'Managing your business finances', 'AUDIO',
+ 'https://files.youthconnect.ug/audio/financial_literacy_en.mp3',
+ 'https://files.youthconnect.ug/audio/financial_literacy_lg.mp3');
 
--- ---------------------------------------------------------------------------------
 -- Sample Opportunities
--- ---------------------------------------------------------------------------------
 INSERT INTO opportunities (posted_by_id, opportunity_type, title, description, status, funding_amount) VALUES
-(1, 'GRANT', 'Young Entrepreneurs Grant 2025', 
+(1, 'GRANT', 'Young Entrepreneurs Grant 2025',
  'Funding for innovative business ideas from youth aged 18-30', 'OPEN', 5000000.00),
-(1, 'TRAINING', 'Digital Marketing Bootcamp', 
- 'Comprehensive training in digital marketing strategies', 'OPEN', NULL),
-(1, 'LOAN', 'SME Development Loan', 
- 'Low-interest loans for small and medium enterprises', 'OPEN', 10000000.00);
-
--- ---------------------------------------------------------------------------------
--- Sample Posts
--- ---------------------------------------------------------------------------------
-INSERT INTO posts (author_id, post_type, title, content) VALUES
-(2, 'FORUM_QUESTION', 'How to start a tech business in Uganda?', 
- 'I have an idea for a mobile app but don\'t know where to begin. Any advice?'),
-(2, 'SUCCESS_STORY', 'My Journey from Idea to Profitable Business', 
- 'Sharing my experience of building a successful agricultural supply business...'),
-(2, 'ARTICLE', 'Top 5 Mistakes Young Entrepreneurs Make', 
- 'Based on my experience mentoring young entrepreneurs...');
-
--- ---------------------------------------------------------------------------------
--- Sample User Interests
--- ---------------------------------------------------------------------------------
-INSERT INTO user_interests (user_id, interest_tag, interest_level, source) VALUES
-(2, 'Technology', 'HIGH', 'USER_SELECTED'),
-(2, 'Agriculture', 'MEDIUM', 'USER_SELECTED'),
-(2, 'Fintech', 'HIGH', 'AI_INFERRED');
+(1, 'TRAINING', 'Digital Marketing Bootcamp',
+ 'Comprehensive training in digital marketing strategies', 'OPEN', NULL);
 
 -- =================================================================================
--- SECTION 13: DATABASE VERIFICATION & HEALTH CHECKS
+-- SECTION 13: MAINTENANCE PROCEDURES
 -- =================================================================================
 
--- ---------------------------------------------------------------------------------
--- Verify All Tables Were Created Successfully
--- ---------------------------------------------------------------------------------
-SELECT 
+DELIMITER $$
+
+CREATE PROCEDURE sp_clean_expired_tokens()
+BEGIN
+    DELETE FROM refresh_tokens
+    WHERE expires_at < NOW() AND revoked = TRUE;
+
+    DELETE FROM password_reset_tokens
+    WHERE (used = TRUE OR expires_at < NOW())
+    AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY);
+
+    DELETE FROM ussd_sessions
+    WHERE expires_at < NOW()
+    OR last_updated < DATE_SUB(NOW(), INTERVAL 24 HOUR);
+
+    SELECT 'Cleanup completed' as message,
+           ROW_COUNT() as rows_affected,
+           NOW() as executed_at;
+END$$
+
+DELIMITER ;
+
+-- =================================================================================
+-- DATABASE VERIFICATION
+-- =================================================================================
+
+SELECT 'Database creation completed successfully!' as STATUS;
+
+SELECT
     TABLE_NAME,
-    TABLE_COMMENT,
     TABLE_ROWS,
     ROUND((DATA_LENGTH + INDEX_LENGTH) / 1024 / 1024, 2) AS 'SIZE_MB'
-FROM INFORMATION_SCHEMA.TABLES 
-WHERE TABLE_SCHEMA = 'youth_connect_db'
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'epb_db'
+AND TABLE_TYPE = 'BASE TABLE'
 ORDER BY TABLE_NAME;
 
--- ---------------------------------------------------------------------------------
--- Verify All Foreign Key Relationships
--- ---------------------------------------------------------------------------------
-SELECT 
-    TABLE_NAME,
-    COLUMN_NAME,
-    CONSTRAINT_NAME,
-    REFERENCED_TABLE_NAME,
-    REFERENCED_COLUMN_NAME
-FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-WHERE TABLE_SCHEMA = 'youth_connect_db' 
-    AND REFERENCED_TABLE_NAME IS NOT NULL
-ORDER BY TABLE_NAME, CONSTRAINT_NAME;
-
--- ---------------------------------------------------------------------------------
--- Verify All Indexes
--- ---------------------------------------------------------------------------------
-SELECT 
-    TABLE_NAME,
-    INDEX_NAME,
-    NON_UNIQUE,
-    GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS COLUMNS
-FROM INFORMATION_SCHEMA.STATISTICS 
-WHERE TABLE_SCHEMA = 'youth_connect_db'
-    AND INDEX_NAME != 'PRIMARY'
-GROUP BY TABLE_NAME, INDEX_NAME, NON_UNIQUE
-ORDER BY TABLE_NAME, INDEX_NAME;
-
--- ---------------------------------------------------------------------------------
--- Verify All Views
--- ---------------------------------------------------------------------------------
-SELECT 
-    TABLE_NAME as VIEW_NAME,
-    VIEW_DEFINITION
-FROM INFORMATION_SCHEMA.VIEWS
-WHERE TABLE_SCHEMA = 'youth_connect_db'
-ORDER BY TABLE_NAME;
-
--- ---------------------------------------------------------------------------------
--- Check Database Statistics
--- ---------------------------------------------------------------------------------
-SELECT 
-    COUNT(*) as total_tables
-FROM INFORMATION_SCHEMA.TABLES 
-WHERE TABLE_SCHEMA = 'youth_connect_db' 
-    AND TABLE_TYPE = 'BASE TABLE';
-
-SELECT 
-    COUNT(*) as total_views
-FROM INFORMATION_SCHEMA.VIEWS
-WHERE TABLE_SCHEMA = 'youth_connect_db';
-
-SELECT 
-    COUNT(DISTINCT CONSTRAINT_NAME) as total_foreign_keys
-FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-WHERE TABLE_SCHEMA = 'youth_connect_db' 
-    AND REFERENCED_TABLE_NAME IS NOT NULL;
-
 -- =================================================================================
--- END OF YOUTH CONNECT UGANDA DATABASE SCHEMA
+-- END OF PRODUCTION SCHEMA
 -- =================================================================================
-
--- Schema Summary:
--- - 21 Core Tables (users, profiles, opportunities, applications, etc.)
--- - 6 Support Tables (notifications, files, USSD, AI models, cache, audit)
--- - 3 Analytical Views (complete profiles, opportunities, performance metrics)
--- - 50+ Indexes for optimized query performance
--- - Complete foreign key relationships for referential integrity
--- - Seed data for immediate testing and development
--- 
--- Database is ready for production deployment supporting:
--- ✓ Web Application
--- ✓ USSD Service
--- ✓ AI/ML Recommendation Engine
--- ✓ Notification Service
--- ✓ File Management Service
--- ✓ Analytics & Reporting
--- ✓ Audit & Compliance Tracking

@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logback Configuration for Content Service
+
+  This configuration provides:
+  - Environment-specific logging (dev, prod)
+  - Console and file appenders
+  - Structured JSON logging for production
+  - Log rotation and archival
+  - Performance-optimized async logging
+
+  Author: Douglas Kings Kato
+  Version: 1.0
+  Date: 2025-01-01
+-->
+<configuration>
+
+    <!-- ========================================
+         SPRING BOOT DEFAULTS
+         ======================================== -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- ========================================
+         PROPERTIES
+         ======================================== -->
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="content-service"/>
+    <springProperty scope="context" name="LOG_PATH" source="logging.file.path" defaultValue="logs"/>
+    <springProperty scope="context" name="LOG_FILE" source="logging.file.name" defaultValue="${LOG_PATH}/${APP_NAME}.log"/>
+
+    <!-- ========================================
+         CONSOLE APPENDER (Development)
+         ======================================== -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>
+                %clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([${APP_NAME}]){blue} %clr([%X{traceId:-}]){yellow} %clr([%thread]){magenta} %clr(%5level){highlight} %clr(%logger{36}){cyan} - %msg%n
+            </pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- ========================================
+         FILE APPENDER (All Logs)
+         ======================================== -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE}</file>
+        <encoder>
+            <pattern>
+                %d{yyyy-MM-dd HH:mm:ss.SSS} [${APP_NAME}] [%X{traceId:-}] [%thread] %5level %logger{36} - %msg%n
+            </pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+
+        <!-- Rolling Policy: Daily + Size-based -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/archived/${APP_NAME}-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <!-- Keep 30 days of logs -->
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>3GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- ========================================
+         ERROR FILE APPENDER (Errors Only)
+         ======================================== -->
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/${APP_NAME}-error.log</file>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>ERROR</level>
+        </filter>
+        <encoder>
+            <pattern>
+                %d{yyyy-MM-dd HH:mm:ss.SSS} [${APP_NAME}] [%X{traceId:-}] [%thread] %5level %logger{36} - %msg%n%ex{full}
+            </pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/archived/${APP_NAME}-error-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>90</maxHistory> <!-- Keep errors for 90 days -->
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- ========================================
+         JSON APPENDER (Production Structured Logging)
+         ======================================== -->
+    <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/${APP_NAME}-json.log</file>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdcKeyName>traceId</includeMdcKeyName>
+            <includeMdcKeyName>spanId</includeMdcKeyName>
+            <includeMdcKeyName>userId</includeMdcKeyName>
+            <includeMdcKeyName>requestId</includeMdcKeyName>
+            <customFields>{"service":"${APP_NAME}","environment":"${ENVIRONMENT:-dev}"}</customFields>
+        </encoder>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/archived/${APP_NAME}-json-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>3GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- ========================================
+         ASYNC APPENDERS (Performance Optimization)
+         ======================================== -->
+    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <appender-ref ref="FILE"/>
+    </appender>
+
+    <appender name="ASYNC_ERROR_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>256</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <appender-ref ref="ERROR_FILE"/>
+    </appender>
+
+    <appender name="ASYNC_JSON_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <appender-ref ref="JSON_FILE"/>
+    </appender>
+
+    <!-- ========================================
+         LOGGER CONFIGURATIONS
+         ======================================== -->
+
+    <!-- Application Loggers -->
+    <logger name="com.youthconnect.content_service" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+        <appender-ref ref="ASYNC_ERROR_FILE"/>
+    </logger>
+
+    <!-- Spring Framework Loggers -->
+    <logger name="org.springframework.web" level="INFO"/>
+    <logger name="org.springframework.security" level="DEBUG"/>
+    <logger name="org.springframework.cache" level="DEBUG"/>
+    <logger name="org.springframework.cloud" level="INFO"/>
+
+    <!-- Database Loggers -->
+    <logger name="org.hibernate.SQL" level="DEBUG"/>
+    <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE"/>
+    <logger name="org.hibernate.type.descriptor.sql.BasicExtractor" level="TRACE"/>
+    <logger name="com.zaxxer.hikari" level="INFO"/>
+
+    <!-- Feign Client Loggers -->
+    <logger name="feign" level="DEBUG"/>
+
+    <!-- Third-party Libraries -->
+    <logger name="org.apache" level="WARN"/>
+    <logger name="io.netty" level="WARN"/>
+
+    <!-- ========================================
+         PROFILE-SPECIFIC CONFIGURATIONS
+         ======================================== -->
+
+    <!-- DEVELOPMENT PROFILE -->
+    <springProfile name="dev">
+        <root level="DEBUG">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE"/>
+            <appender-ref ref="ERROR_FILE"/>
+        </root>
+
+        <!-- Verbose logging for development -->
+        <logger name="com.youthconnect.content_service" level="DEBUG"/>
+        <logger name="org.springframework.web" level="DEBUG"/>
+        <logger name="org.hibernate.SQL" level="DEBUG"/>
+        <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE"/>
+    </springProfile>
+
+    <!-- PRODUCTION PROFILE -->
+    <springProfile name="prod">
+        <root level="WARN">
+            <appender-ref ref="ASYNC_FILE"/>
+            <appender-ref ref="ASYNC_ERROR_FILE"/>
+            <appender-ref ref="ASYNC_JSON_FILE"/>
+        </root>
+
+        <!-- Minimal logging for production -->
+        <logger name="com.youthconnect.content_service" level="INFO"/>
+        <logger name="org.springframework.web" level="WARN"/>
+        <logger name="org.hibernate.SQL" level="WARN"/>
+        <logger name="feign" level="WARN"/>
+
+        <!-- Security auditing (always logged) -->
+        <logger name="com.youthconnect.content_service.security" level="INFO"/>
+        <logger name="com.youthconnect.content_service.audit" level="INFO"/>
+    </springProfile>
+
+    <!-- TEST PROFILE -->
+    <springProfile name="test">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+
+        <logger name="com.youthconnect.content_service" level="DEBUG"/>
+        <logger name="org.springframework.test" level="INFO"/>
+    </springProfile>
+
+    <!-- DEFAULT ROOT LOGGER -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="ERROR_FILE"/>
+    </root>
+
+</configuration>

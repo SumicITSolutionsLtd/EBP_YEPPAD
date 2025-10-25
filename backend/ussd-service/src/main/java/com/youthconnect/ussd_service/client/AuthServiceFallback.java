@@ -29,7 +29,7 @@ import java.util.Map;
  * - Metrics should track fallback frequency
  * - Alerts triggered when fallback rate exceeds threshold
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato & Harold
  * @version 1.0.0
  */
 @Slf4j
@@ -182,8 +182,8 @@ public class AuthServiceFallback implements AuthServiceClient {
      * Mask phone number for privacy in logs
      *
      * Formats:
-     * - Input: +256700123456 → Output: +256****456
-     * - Input: 0700123456 → Output: 070****456
+     * - Input: +256701430234 → Output: +256****456
+     * - Input: 0701430234 → Output: 070****456
      *
      * @param phone Phone number to mask
      * @return Masked phone number

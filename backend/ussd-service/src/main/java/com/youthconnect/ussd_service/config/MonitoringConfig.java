@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li>Active session gauges</li>
  * </ul>
  *
- * @author YouthConnect Uganda Development Team
+ * @author Douglas Kings Kato & Harold
  * @version 2.0.0
  */
 @Slf4j

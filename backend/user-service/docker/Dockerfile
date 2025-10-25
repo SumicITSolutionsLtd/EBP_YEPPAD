@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Create application user (security best practice)
-RUN groupadd -r youthconnect && useradd -r -g youthconnect youthconnect
+RUN groupadd -r entrepreneurshipboosterplatform && useradd -r -g entrepreneurshipboosterplatform entrepreneurshipboosterplatform
 
 # Set working directory
 WORKDIR /app
@@ -34,10 +34,10 @@ COPY --from=builder /app/target/user-service-*.jar app.jar
 
 # Create necessary directories and set permissions
 RUN mkdir -p /app/logs /app/uploads && \
-    chown -R youthconnect:youthconnect /app
+    chown -R entrepreneurshipboosterplatform:entrepreneurshipboosterplatform /app
 
 # Switch to non-root user
-USER youthconnect
+USER entrepreneurshipboosterplatform
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
@@ -53,6 +53,6 @@ ENV JAVA_OPTS="-Xmx512m -Xms256m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+Unlo
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar app.jar"]
 
 # Labels for better image management
-LABEL maintainer="dev@youthconnect.ug"
+LABEL maintainer="dev@entrepreneurshipboosterplatform.ug"
 LABEL version="1.0.0"
-LABEL description="Youth Connect Uganda User Service - User management microservice"
+LABEL description="Entrepreneurship Booster Platform User Service - User management microservice"

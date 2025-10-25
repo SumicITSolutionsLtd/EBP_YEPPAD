@@ -25,7 +25,7 @@ import java.util.Map;
  * - Optional fields: May be null during initial registration, but encouraged for better
  *   personalization and support matching.
  *
- * Author: Youth Connect Uganda Development Team
+ * Author: Douglas Kings Kato & Harold
  * Version: 1.0.0
  */
 @Data
@@ -40,12 +40,12 @@ public class UssdRegistrationRequest {
 
     /**
      * Phone number (Uganda format).
-     * Examples: +256700123456, 0700123456, 256700123456.
+     * Examples: +256701430234, 0701430234, 256701430234.
      */
     @NotBlank(message = "Phone number is required")
     @Pattern(
             regexp = "^(\\+?256|0)[0-9]{9}$",
-            message = "Invalid Uganda phone number. Use format: 0700123456 or +256700123456"
+            message = "Invalid Uganda phone number. Use format: 0701430234 or +256701430234"
     )
     private String phoneNumber;
 
@@ -153,7 +153,7 @@ public class UssdRegistrationRequest {
     /**
      * Converts phone number into international display format.
      *
-     * @return Phone number with + prefix (e.g., "+256700123456").
+     * @return Phone number with + prefix (e.g., "+256701430234").
      */
     public String getInternationalPhoneNumber() {
         String cleaned = getCleanPhoneNumber();
@@ -225,13 +225,13 @@ public class UssdRegistrationRequest {
 
     /**
      * Generates synthetic email for USSD users without an email address.
-     * Format: ussd_<phoneNumber>@youthconnect.ug
+     * Format: ussd_<phoneNumber>@entrepreneurshipboosterplatform.ug
      *
      * @return Synthetic email string.
      */
     private String generateSyntheticEmail() {
         String cleanPhone = getCleanPhoneNumber();
-        return "ussd_" + cleanPhone + "@youthconnect.ug";
+        return "ussd_" + cleanPhone + "@entrepreneurshipboosterplatform.ug";
     }
 
     /**
@@ -255,7 +255,7 @@ public class UssdRegistrationRequest {
 
     /**
      * Masks phone number for logging.
-     * Example: 070****456 or 256****456
+     * Example: 070****234 or 256****234
      */
     private String maskPhoneNumber(String phone) {
         if (phone == null || phone.length() < 6) {

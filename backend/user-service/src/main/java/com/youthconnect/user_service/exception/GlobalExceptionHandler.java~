@@ -1,0 +1,284 @@
+package com.youthconnect.user_service.exception;
+
+import com.youthconnect.user_service.dto.response.ApiResponse;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+/**
+ * Global Exception Handler for Youth Connect Uganda User Service
+ *
+ * Provides centralized exception handling across all @RestController classes.
+ * Ensures consistent error response formats and proper HTTP status codes.
+ *
+ * Key Features:
+ * - Consistent error response structure using ApiResponse
+ * - Proper HTTP status codes for different exception types
+ * - Security-conscious error messages (no sensitive data exposure)
+ * - Comprehensive logging for debugging
+ * - Field-level validation error details
+ *
+ * Exception Hierarchy:
+ * - UserAlreadyExistsException (409 CONFLICT)
+ * - UserNotFoundException (404 NOT FOUND) - ADDED
+ * - InvalidCredentialsException (401 UNAUTHORIZED)
+ * - MethodArgumentNotValidException (400 BAD REQUEST)
+ * - Generic Exception (500 INTERNAL SERVER ERROR)
+ *
+ * Security Note: Never expose sensitive information (passwords, tokens,
+ * internal system details) in error responses.
+ *
+ * @author Youth Connect Uganda Development Team
+ * @version 2.0.0
+ * @since 1.0.0
+ */
+@Slf4j
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    // ========================================================================
+    // BUSINESS LOGIC EXCEPTIONS
+    // ========================================================================
+
+    /**
+     * Handle UserAlreadyExistsException
+     *
+     * Thrown when attempting to register with existing email/phone
+     * HTTP Status: 409 CONFLICT
+     *
+     * @param ex The exception
+     * @param request Web request context
+     * @return ResponseEntity with error details
+     */
+    @ExceptionHandler(UserAlreadyExistsException.class)
+    public ResponseEntity<ApiResponse<Object>> handleUserAlreadyExists(
+            UserAlreadyExistsException ex, WebRequest request) {
+
+        log.warn("User already exists: {} | Request URI: {}",
+                ex.getMessage(), request.getDescription(false));
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    /**
+     * Handle UserNotFoundException
+     *
+     * ADDED: This was missing but used throughout the codebase
+     * Thrown when user lookup fails by ID, email, or phone
+     * HTTP Status: 404 NOT FOUND
+     *
+     * @param ex The exception
+     * @param request Web request context
+     * @return ResponseEntity with error details
+     */
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ApiResponse<Object>> handleUserNotFound(
+            UserNotFoundException ex, WebRequest request) {
+
+        log.warn("User not found: {} | Request URI: {}",
+                ex.getMessage(), request.getDescription(false));
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    // ========================================================================
+    // AUTHENTICATION & AUTHORIZATION EXCEPTIONS
+    // ========================================================================
+
+    /**
+     * Handle InvalidCredentialsException (Custom)
+     *
+     * Thrown when login credentials are invalid
+     * HTTP Status: 401 UNAUTHORIZED
+     *
+     * Security Note: Don't specify whether email or password was wrong
+     *
+     * @param ex The exception
+     * @param request Web request context
+     * @return ResponseEntity with generic error message
+     */
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ApiResponse<Object>> handleInvalidCredentials(
+            InvalidCredentialsException ex, WebRequest request) {
+
+        log.warn("Invalid credentials attempt | Request URI: {} | IP: {}",
+                request.getDescription(false),
+                extractIpAddress(request));
+
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error("Invalid username or password"));
+    }
+
+    /**
+     * Handle BadCredentialsException (Spring Security)
+     *
+     * Thrown by Spring Security authentication mechanisms
+     * HTTP Status: 401 UNAUTHORIZED
+     *
+     * @param ex The exception
+     * @param request Web request context
+     * @return ResponseEntity with generic error message
+     */
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiResponse<Object>> handleBadCredentials(
+            BadCredentialsException ex, WebRequest request) {
+
+        log.warn("Bad credentials from Spring Security | Request URI: {} | IP: {}",
+                request.getDescription(false),
+                extractIpAddress(request));
+
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error("Invalid username or password"));
+    }
+
+    // ========================================================================
+    // VALIDATION EXCEPTIONS
+    // ========================================================================
+
+    /**
+     * Handle MethodArgumentNotValidException
+     *
+     * Thrown when @Valid annotation fails on request body
+     * Provides detailed field-level validation errors
+     * HTTP Status: 400 BAD REQUEST
+     *
+     * Example Response:
+     * {
+     *   "success": false,
+     *   "message": "Validation failed",
+     *   "data": {
+     *     "firstName": "First name must not be blank",
+     *     "email": "Email format is invalid"
+     *   }
+     * }
+     *
+     * @param ex The validation exception
+     * @param request Web request context
+     * @return ResponseEntity with field errors
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationErrors(
+            MethodArgumentNotValidException ex, WebRequest request) {
+
+        // Extract field errors into a map
+        Map<String, String> fieldErrors = new HashMap<>();
+        ex.getBindingResult().getFieldErrors().forEach(error ->
+                fieldErrors.put(error.getField(), error.getDefaultMessage())
+        );
+
+        // Create readable error summary
+        String errorSummary = ex.getBindingResult().getFieldErrors()
+                .stream()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .collect(Collectors.joining(", "));
+
+        log.warn("Validation errors: {} | Request URI: {}",
+                errorSummary, request.getDescription(false));
+
+        return ResponseEntity
+                .badRequest()
+                .body(ApiResponse.error(
+                        "Validation failed: " + errorSummary,
+                        fieldErrors
+                ));
+    }
+
+    /**
+     * Handle IllegalArgumentException
+     *
+     * Thrown for invalid method arguments or business logic violations
+     * HTTP Status: 400 BAD REQUEST
+     *
+     * @param ex The exception
+     * @param request Web request context
+     * @return ResponseEntity with error details
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Object>> handleIllegalArgument(
+            IllegalArgumentException ex, WebRequest request) {
+
+        log.warn("Illegal argument: {} | Request URI: {}",
+                ex.getMessage(), request.getDescription(false));
+
+        return ResponseEntity
+                .badRequest()
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    // ========================================================================
+    // GENERIC EXCEPTION HANDLER (CATCH-ALL)
+    // ========================================================================
+
+    /**
+     * Handle all uncaught exceptions
+     *
+     * Final safety net for any unhandled exceptions
+     * HTTP Status: 500 INTERNAL SERVER ERROR
+     *
+     * Security Note: Don't expose stack traces or internal details to clients
+     * Detailed error is logged for developers
+     *
+     * @param ex The exception
+     * @param request Web request context
+     * @return ResponseEntity with generic error message
+     */
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Object>> handleGenericException(
+            Exception ex, WebRequest request) {
+
+        // Log full details for debugging
+        log.error("Unexpected error occurred | Request URI: {} | Exception: {}",
+                request.getDescription(false),
+                ex.getClass().getSimpleName(),
+                ex);
+
+        // Return generic message to client (security best practice)
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error(
+                        "An unexpected error occurred. Please try again later."
+                ));
+    }
+
+    // ========================================================================
+    // HELPER METHODS
+    // ========================================================================
+
+    /**
+     * Extract IP address from web request for logging
+     * Handles proxy headers (X-Forwarded-For)
+     *
+     * @param request Web request
+     * @return IP address string
+     */
+    private String extractIpAddress(WebRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+
+        String remoteAddr = request.getHeader("X-Real-IP");
+        if (remoteAddr != null && !remoteAddr.isEmpty()) {
+            return remoteAddr;
+        }
+
+        return request.getRemoteUser() != null ? request.getRemoteUser() : "Unknown";
+    }
+}

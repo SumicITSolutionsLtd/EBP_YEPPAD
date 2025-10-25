@@ -35,8 +35,8 @@ RUN ls -lh /build/target/*.jar
 FROM eclipse-temurin:17-jre-alpine
 
 # Metadata
-LABEL maintainer="YouthConnect Uganda <dev@youthconnect.ug>"
-LABEL description="USSD Service for YouthConnect Platform"
+LABEL maintainer="Entreprenuership Booster Platform Uganda <dev@entreprenuership-booster-platform.ug>"
+LABEL description="USSD Service for Entreprenuership Booster Platform"
 LABEL version="1.0.0"
 
 # Install dependencies for monitoring and debugging

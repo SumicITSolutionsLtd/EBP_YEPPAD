@@ -1,0 +1,179 @@
+# ==============================================================================
+# Edge Functions Service - Production Configuration
+# Version: 1.0.0
+# ==============================================================================
+
+server:
+  port: ${SERVER_PORT:8091}
+  compression:
+    enabled: true
+  http2:
+    enabled: true
+  shutdown: graceful
+
+spring:
+  application:
+    name: edge-functions-service
+
+  # ===========================================================================
+  # CLOUD CONFIGURATION
+  # ===========================================================================
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 10000
+            readTimeout: 30000
+            loggerLevel: BASIC
+      circuitbreaker:
+        enabled: true
+
+# ==============================================================================
+# EUREKA SERVICE DISCOVERY
+# ==============================================================================
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://service-registry:8761/eureka/}
+    fetch-registry: true
+    register-with-eureka: true
+    registry-fetch-interval-seconds: 30
+
+  instance:
+    prefer-ip-address: false
+    hostname: ${HOSTNAME:edge-functions}
+    instance-id: ${spring.application.name}:${HOSTNAME:${random.value}}
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
+    metadata-map:
+      version: 1.0.0
+      environment: production
+
+# ==============================================================================
+# OPENAI API CONFIGURATION
+# ==============================================================================
+openai:
+  api:
+    key: ${OPENAI_API_KEY}
+    base-url: ${OPENAI_API_BASE_URL:https://api.openai.com/v1}
+    default-chat-model: gpt-4o-mini
+    default-tts-model: tts-1
+    request-timeout-ms: 30000
+    max-tokens: 200
+    temperature: 0.7
+    enabled: true
+
+# ==============================================================================
+# RESILIENCE4J - PRODUCTION TUNING
+# ==============================================================================
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 20
+        failure-rate-threshold: 60
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 5
+        automatic-transition-from-open-to-half-open-enabled: true
+
+    instances:
+      multiService:
+        base-config: default
+      orchestration:
+        base-config: default
+        failure-rate-threshold: 70
+
+  retry:
+    configs:
+      default:
+        max-attempts: 5
+        wait-duration: 2s
+        retry-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - java.net.SocketTimeoutException
+
+  ratelimiter:
+    configs:
+      default:
+        limit-for-period: 200
+        limit-refresh-period: 1m
+        timeout-duration: 10s
+
+      openai:
+        limit-for-period: 50
+        limit-refresh-period: 1m
+        timeout-duration: 15s
+
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 10s
+      openai:
+        timeout-duration: 45s
+      ussd:
+        timeout-duration: 5s
+
+# ==============================================================================
+# LOGGING - PRODUCTION LEVEL
+# ==============================================================================
+logging:
+  level:
+    root: WARN
+    com.youthconnect.edge_functions: INFO
+    org.springframework.cloud.openfeign: INFO
+    io.github.resilience4j: INFO
+
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+  file:
+    name: /var/log/edge-functions/application.log
+    max-size: 50MB
+    max-history: 30
+
+# ==============================================================================
+# ACTUATOR - PRODUCTION ENDPOINTS
+# ==============================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+  health:
+    circuitbreakers:
+      enabled: true
+    ratelimiters:
+      enabled: true
+
+# ==============================================================================
+# FEATURE FLAGS - PRODUCTION
+# ==============================================================================
+features:
+  ai:
+    enabled: true
+  ussd:
+    enabled: true
+  sms:
+    enabled: true
+  email:
+    enabled: true
+  push-notifications:
+    enabled: false  # Enable when ready
