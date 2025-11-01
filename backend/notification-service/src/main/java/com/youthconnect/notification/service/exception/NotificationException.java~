@@ -1,4 +1,0 @@
-package com.youthconnect.notification.service.exception;
-
-public class NotificationException {
-}

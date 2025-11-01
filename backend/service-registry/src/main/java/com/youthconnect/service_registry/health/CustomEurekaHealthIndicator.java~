@@ -1,4 +1,0 @@
-package com.youthconnect.service_registry.health;
-
-public class CustomEurekaHealthIndicator {
-}

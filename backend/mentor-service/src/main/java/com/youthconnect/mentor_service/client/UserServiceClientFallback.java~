@@ -1,4 +1,0 @@
-package com.youthconnect.mentor_service.client;
-
-public class UserServiceClientFallback {
-}

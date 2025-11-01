@@ -1,4 +1,0 @@
-package com.youthconnect.opportunity_service.dto;
-
-public class ApplicationRequest {
-}

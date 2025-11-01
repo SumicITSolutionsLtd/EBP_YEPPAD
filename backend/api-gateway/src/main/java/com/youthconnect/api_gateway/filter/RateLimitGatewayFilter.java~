@@ -1,4 +1,0 @@
-package com.youthconnect.api_gateway.filter;
-
-public class RateLimitGatewayFilter {
-}

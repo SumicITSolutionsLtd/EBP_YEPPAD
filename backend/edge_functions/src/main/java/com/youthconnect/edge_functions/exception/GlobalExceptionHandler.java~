@@ -1,4 +1,0 @@
-package com.youthconnect.edge_functions.exception;
-
-public class GlobalExceptionHandler {
-}

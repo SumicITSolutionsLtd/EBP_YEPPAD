@@ -1,4 +1,0 @@
-package com.youthconnect.mentor_service.repository;
-
-public class MentorAvailabilityRepository {
-}
