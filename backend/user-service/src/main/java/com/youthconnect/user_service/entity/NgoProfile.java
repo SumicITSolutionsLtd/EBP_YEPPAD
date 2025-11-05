@@ -3,6 +3,7 @@ package com.youthconnect.user_service.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.util.UUID;
 
 /**
  * Entity class representing an NGO's profile information.
@@ -17,7 +18,7 @@ public class NgoProfile {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "ngo_id")
-    private Long id;
+    private UUID id;
 
     @OneToOne(fetch = FetchType.LAZY)
     // --- THIS IS THE FIX ---

@@ -119,7 +119,7 @@ package com.youthconnect.user_service.exception;
  *     .orElseThrow(() -> new InvalidCredentialsException("Invalid credentials"));
  * // Generic message doesn't reveal if email exists
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 2.0.0 (Merged Ultimate Edition)
  * @since 1.0.0
  */

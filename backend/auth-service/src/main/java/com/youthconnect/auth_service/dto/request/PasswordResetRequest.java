@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
  * Used when user submits new password with reset token.
  * Contains the token and new password.
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
  */
 @Data

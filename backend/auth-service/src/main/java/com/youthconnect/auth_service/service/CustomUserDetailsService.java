@@ -20,7 +20,7 @@ import java.util.Collections;
  * Integrates Spring Security with User Service via Feign client.
  * Loads user details from user-service for authentication.
  *
- * @author Youth Connect Uganda Development Team
+ * @author DOUGLAS KINGS KATO
  * @version 1.0.0
  */
 @Slf4j

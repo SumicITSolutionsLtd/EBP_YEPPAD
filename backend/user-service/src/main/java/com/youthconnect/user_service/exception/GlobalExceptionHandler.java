@@ -67,7 +67,7 @@ import java.util.stream.Collectors;
  *   "timestamp": "2024-01-15T10:30:00"
  * }
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 2.0.0
  * @since 1.0.0
  */

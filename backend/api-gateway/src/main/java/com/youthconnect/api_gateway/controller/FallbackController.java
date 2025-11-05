@@ -13,6 +13,7 @@ import java.util.Map;
 
 /**
  * Fallback Controller for Circuit Breaker
+ * UPDATED with Job Service Fallback
  *
  * Provides fallback endpoints when backend services are unavailable
  * due to circuit breaker opening (too many failures).
@@ -60,6 +61,27 @@ public class FallbackController {
         response.put("error", "Service Unavailable");
         response.put("message", "User service is temporarily unavailable. Please try again in a few moments.");
         response.put("service", "user-service");
+
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(response);
+    }
+
+    /**
+     * ⭐ NEW: Fallback for Job Service
+     * Triggered when job-service is down or circuit breaker is open
+     */
+    @GetMapping("/jobs")
+    public ResponseEntity<Map<String, Object>> jobServiceFallback() {
+        log.warn("Job service fallback triggered - service may be down");
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("timestamp", LocalDateTime.now().toString());
+        response.put("status", HttpStatus.SERVICE_UNAVAILABLE.value());
+        response.put("error", "Service Unavailable");
+        response.put("message", "Job service is temporarily unavailable. Please try again in a few moments.");
+        response.put("service", "job-service");
+        response.put("helpText", "You can still browse other features while we restore job listings.");
 
         return ResponseEntity
                 .status(HttpStatus.SERVICE_UNAVAILABLE)

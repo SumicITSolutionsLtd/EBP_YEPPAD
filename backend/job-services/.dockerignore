@@ -1,0 +1,44 @@
+# ============================================================================
+# FILE 4: .dockerignore (Exclude files from Docker build context)
+# ============================================================================
+
+# Maven build artifacts
+target/
+!target/*.jar
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Git files
+.git/
+.gitignore
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker files
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+README.md
+CHANGELOG.md
+docs/
+
+# Test files
+src/test/

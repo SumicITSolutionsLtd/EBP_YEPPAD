@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
  * Used when user requests a password reset link.
  * Contains only the email address.
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
  */
 @Data

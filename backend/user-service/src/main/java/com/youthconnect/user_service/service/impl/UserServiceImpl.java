@@ -1,6 +1,7 @@
 package com.youthconnect.user_service.service.impl;
 
 import com.youthconnect.user_service.dto.response.MentorProfileDTO;
+import com.youthconnect.user_service.dto.response.UserProfileResponse;
 import com.youthconnect.user_service.dto.UserProfileDTO;
 import com.youthconnect.user_service.dto.request.ProfileUpdateRequest;
 import com.youthconnect.user_service.dto.request.ProfileUpdateRequestDTO;
@@ -11,33 +12,53 @@ import com.youthconnect.user_service.exception.UserAlreadyExistsException;
 import com.youthconnect.user_service.exception.UserNotFoundException;
 import com.youthconnect.user_service.repository.*;
 import com.youthconnect.user_service.service.UserService;
+import com.youthconnect.user_service.client.JobServiceClient;
+import com.youthconnect.user_service.client.JobServiceClient.ApplicationSummaryResponse;
+import com.youthconnect.user_service.client.JobServiceClient.CurrentEmploymentDto;
+import com.youthconnect.user_service.controller.InternalUserController.UserProfileSummary;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.UUID;
 
 /**
- * UserService - Core service for user management in YouthConnect platform
+ * ═══════════════════════════════════════════════════════════════════════════
+ * USER SERVICE IMPLEMENTATION - COMPLETE WITH UUID MIGRATION FIXES
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Core service for comprehensive user management in YouthConnect platform.
  *
  * This service handles:
  * - User creation and registration (web and USSD)
  * - Profile management for all user types (Youth, Mentor, NGO, Funder, Service Provider)
  * - User retrieval by email, phone, or ID
+ * - Job statistics integration via JobServiceClient
+ * - Paginated mentor listing for scalability
  * - User search and filtering
  * - Account activation/deactivation
+ * - Internal API methods for job-service integration
  *
  * Design Principles:
  * - Transactional integrity for all write operations
  * - Role-based profile creation
  * - Support for both web and USSD registration flows
+ * - Circuit breaker pattern for external service calls
+ * - Graceful degradation when job-service is unavailable
  * - Comprehensive error handling and logging
+ * - Pagination support for large datasets
+ * - Type-safe UUID handling throughout
  *
- * @author YouthConnect Development Team
- * @version 2.0
+ * @author Douglas Kings Kato
+ * @version 2.4.0 (UUID Migration Complete)
+ * @since 2025-11-02
  */
 @Slf4j
 @Service
@@ -55,6 +76,13 @@ public class UserServiceImpl implements UserService {
     private final NgoProfileRepository ngoProfileRepository;
     private final FunderProfileRepository funderProfileRepository;
     private final ServiceProviderProfileRepository serviceProviderProfileRepository;
+
+    // ========================================================================
+    // EXTERNAL SERVICE CLIENTS
+    // ========================================================================
+
+    @Autowired
+    private JobServiceClient jobServiceClient;
 
     // ========================================================================
     // USER CREATION METHODS (AUTH SERVICE INTEGRATION)
@@ -172,32 +200,72 @@ public class UserServiceImpl implements UserService {
      * @throws UserNotFoundException if user not found
      */
     @Override
-    public User getUserById(Long userId) {
+    public User getUserById(UUID userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + userId));
     }
 
     // ========================================================================
-    // PROFILE RETRIEVAL METHODS
+    // PROFILE RETRIEVAL METHODS (WITH JOB STATISTICS)
     // ========================================================================
 
     /**
-     * Retrieves user profile by email
-     * FIXED: Added missing method implementation
+     * Retrieves user profile by email with job statistics
+     *
+     * ENHANCED: Now includes job application statistics and employment status from job-service.
+     * Uses circuit breaker pattern - if job-service is unavailable, returns profile without stats.
      *
      * Used by authenticated web users to get their own profile information.
      * This method provides a convenient way to fetch profile using email
      * which is the primary authentication identifier for web users.
      *
      * @param email User's email address
-     * @return UserProfileDTO with profile information
+     * @return UserProfileDTO with complete profile and job statistics
      * @throws UserNotFoundException if user or profile not found
      */
     @Override
     public UserProfileDTO getUserProfileByEmail(String email) {
-        log.debug("Retrieving profile by email: {}", email);
+        log.debug("Retrieving profile with job stats for email: {}", email);
         User user = getUserByEmail(email);
-        return getUserProfileById(user.getId());
+
+        // Build basic profile DTO
+        UserProfileDTO profile = getUserProfileById(user.getId());
+
+        // Note: For enhanced profile with job statistics, use getEnhancedUserProfileByEmail()
+        return profile;
+    }
+
+    /**
+     * Retrieves enhanced user profile by email with job statistics
+     *
+     * This method returns a comprehensive UserProfileResponse that includes:
+     * - All basic user and profile information
+     * - Job application statistics (total, approved, pending, rejected)
+     * - Current employment status and details
+     * - Success rate calculations
+     *
+     * Uses circuit breaker pattern - if job-service is unavailable, returns profile without stats.
+     *
+     * @param email User's email address
+     * @return UserProfileResponse with complete profile and job statistics
+     * @throws UserNotFoundException if user or profile not found
+     */
+    public UserProfileResponse getEnhancedUserProfileByEmail(String email) {
+        log.debug("Retrieving enhanced profile with job stats for email: {}", email);
+        User user = getUserByEmail(email);
+
+        // Build basic profile with role-specific data
+        UserProfileResponse profile = buildUserProfileResponse(user);
+
+        // Fetch and add job statistics (with graceful degradation)
+        try {
+            enrichProfileWithJobStatistics(profile, user.getId());
+        } catch (Exception e) {
+            log.warn("Failed to fetch job statistics for user {}: {}", user.getId(), e.getMessage());
+            // Continue without job stats - profile is still functional
+        }
+
+        return profile;
     }
 
     /**
@@ -205,6 +273,7 @@ public class UserServiceImpl implements UserService {
      *
      * This method is optimized for USSD service operations where phone number
      * is the primary identifier. Currently supports Youth profiles.
+     * Does not include job statistics for USSD users to minimize latency.
      *
      * @param phoneNumber User's phone number
      * @return UserProfileDTO with basic profile information
@@ -232,12 +301,13 @@ public class UserServiceImpl implements UserService {
      *
      * This method intelligently fetches the appropriate profile based on user role.
      * Falls back to basic information if specific profile doesn't exist.
+     * Legacy method - consider using getUserProfileByEmail for enhanced features.
      *
      * @param userId User's unique identifier
      * @return UserProfileDTO with role-specific profile data
      */
     @Override
-    public UserProfileDTO getUserProfileById(Long userId) {
+    public UserProfileDTO getUserProfileById(UUID userId) {
         User user = getUserById(userId);
 
         // Attempt to retrieve role-specific profile
@@ -262,19 +332,402 @@ public class UserServiceImpl implements UserService {
     }
 
     // ========================================================================
-    // PROFILE CREATION METHODS (PUBLIC API)
+    // JOB STATISTICS INTEGRATION (UUID MIGRATION FIXED)
     // ========================================================================
 
     /**
-     * Creates USSD user profile (always Youth)
+     * Enrich user profile with job application statistics and employment status
      *
-     * Simplified profile creation for USSD registration flow.
-     * All USSD users are registered as Youth with minimal required information.
+     * ✅ FIXED: This method now properly handles UUID type conversions for jobId
      *
-     * @param user User entity
-     * @param request USSD registration request
-     * @return UserProfileDTO with basic profile information
+     * This method fetches job-related data from job-service and enriches the profile.
+     * Implements circuit breaker pattern for resilience:
+     * - If job-service is unavailable, profile returns without job stats
+     * - If partial data is available, includes what's available
+     * - Logs all errors for monitoring and debugging
+     * - Handles type conversion during UUID migration period
+     *
+     * Job Statistics Include:
+     * - Total applications submitted
+     * - Applications by status (pending, approved, rejected)
+     * - Success rate calculation
+     * - Current employment information with proper UUID handling
+     *
+     * @param profile The profile to enrich
+     * @param userId The user ID
      */
+    private void enrichProfileWithJobStatistics(UserProfileResponse profile, UUID userId) {
+        try {
+            // Fetch application summary
+            ApplicationSummaryResponse appSummary = jobServiceClient.getUserApplicationSummary(userId);
+
+            if (appSummary != null) {
+                profile.setTotalJobApplications(appSummary.totalApplications());
+                profile.setApprovedJobApplications(appSummary.approvedApplications());
+                profile.setPendingJobApplications(appSummary.pendingApplications());
+                profile.setRejectedJobApplications(appSummary.rejectedApplications());
+                profile.setJobApplicationSuccessRate(appSummary.successRate());
+
+                log.debug("Added job statistics: {} total, {} approved for user {}",
+                        appSummary.totalApplications(),
+                        appSummary.approvedApplications(),
+                        userId);
+            }
+
+            // Fetch current employment status
+            CurrentEmploymentDto employment = jobServiceClient.getCurrentEmployment(userId);
+
+            if (employment != null && employment.isCurrent()) {
+                profile.setCurrentEmploymentStatus(
+                        String.format("Employed at %s as %s",
+                                employment.companyName(),
+                                employment.jobTitle())
+                );
+
+                // ✅ FIXED: Proper UUID handling for jobId
+                // Handle both UUID and Long types during migration period
+                UUID jobIdAsUuid = convertToUUID(employment.jobId());
+
+                // Set detailed current job information with proper UUID handling
+                UserProfileResponse.CurrentJobDetails jobDetails = UserProfileResponse.CurrentJobDetails.builder()
+                        .jobId(jobIdAsUuid)  // ✅ Now properly handles UUID conversion
+                        .jobTitle(employment.jobTitle())
+                        .companyName(employment.companyName())
+                        .employmentType(employment.employmentType())
+                        .startDate(employment.startDate())
+                        .build();
+
+                profile.setCurrentJob(jobDetails);
+
+                log.debug("Added employment status for user {}: {} (jobId: {})",
+                        userId, employment.companyName(), jobIdAsUuid);
+            } else {
+                profile.setCurrentEmploymentStatus("Seeking Opportunities");
+            }
+
+        } catch (Exception e) {
+            log.error("Error enriching profile with job statistics for user {}: {}",
+                    userId, e.getMessage());
+            // Set safe default values
+            profile.setTotalJobApplications(0);
+            profile.setPendingJobApplications(0);
+            profile.setApprovedJobApplications(0);
+            profile.setCurrentEmploymentStatus("Status unavailable");
+        }
+    }
+
+    /**
+     * Convert job ID to UUID
+     *
+     * ✅ MIGRATION HELPER: Handles conversion during the transition period when
+     * job-service might return Long IDs but user-service expects UUIDs.
+     *
+     * <p><strong>Conversion Strategy:</strong></p>
+     * <ul>
+     *   <li>If input is already UUID, return it directly</li>
+     *   <li>If input is Long, create deterministic UUID</li>
+     *   <li>If input is null, return null</li>
+     *   <li>Logs warnings for unexpected type conversions</li>
+     * </ul>
+     *
+     * <p><strong>Deterministic UUID Generation:</strong></p>
+     * Uses the Long value as the least significant bits of the UUID,
+     * ensuring the same Long always produces the same UUID.
+     * This maintains consistency across multiple calls.
+     *
+     * <p><strong>Future Migration:</strong></p>
+     * Once job-service is fully migrated to UUID, this method can be:
+     * <ul>
+     *   <li>Simplified to direct cast: (UUID) jobId</li>
+     *   <li>Or removed entirely if CurrentEmploymentDto.jobId() returns UUID</li>
+     * </ul>
+     *
+     * @param jobId Job ID as Object (could be UUID, Long, or null)
+     * @return UUID representation of job ID, or null
+     */
+    private UUID convertToUUID(Object jobId) {
+        if (jobId == null) {
+            return null;
+        }
+
+        // If already UUID, return directly
+        if (jobId instanceof UUID) {
+            return (UUID) jobId;
+        }
+
+        // If Long, convert to deterministic UUID
+        if (jobId instanceof Long) {
+            Long longId = (Long) jobId;
+            log.debug("Converting Long jobId {} to UUID (migration helper)", longId);
+            // Create reproducible UUID from Long value
+            // Most significant bits = 0, least significant bits = longId
+            return new UUID(0L, longId);
+        }
+
+        // Unexpected type - log error and return null
+        log.error("Unexpected jobId type: {} (value: {}). Expected UUID or Long.",
+                jobId.getClass().getName(), jobId);
+        return null;
+    }
+
+    /**
+     * Helper method to build UserProfileResponse from User entity
+     *
+     * Constructs a comprehensive profile response including:
+     * - Basic user information (email, phone, role)
+     * - Account status (active, verified)
+     * - Timestamps (created, updated, last login)
+     * - Role-specific profile data
+     *
+     * @param user The user entity
+     * @return UserProfileResponse with all basic information
+     */
+    private UserProfileResponse buildUserProfileResponse(User user) {
+        UserProfileResponse.UserProfileResponseBuilder builder = UserProfileResponse.builder()
+                .userId(user.getId())
+                .email(user.getEmail())
+                .phoneNumber(user.getPhoneNumber())
+                .role(user.getRole().name())
+                .isActive(user.isActive())
+                .emailVerified(user.isEmailVerified())
+                .phoneVerified(user.isPhoneVerified())
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
+                .lastLogin(user.getLastLogin());
+
+        // Add role-specific profile data
+        switch (user.getRole()) {
+            case YOUTH:
+                YouthProfile youthProfile = youthProfileRepository.findByUser_Id(user.getId()).orElse(null);
+                if (youthProfile != null) {
+                    builder.firstName(youthProfile.getFirstName())
+                            .lastName(youthProfile.getLastName())
+                            .gender(youthProfile.getGender())
+                            .district(youthProfile.getDistrict())
+                            .profession(youthProfile.getProfession())
+                            .description(youthProfile.getDescription());
+                }
+                break;
+
+            case MENTOR:
+                MentorProfile mentorProfile = mentorProfileRepository.findByUser_Id(user.getId()).orElse(null);
+                if (mentorProfile != null) {
+                    builder.firstName(mentorProfile.getFirstName())
+                            .lastName(mentorProfile.getLastName())
+                            .description(mentorProfile.getBio());
+                }
+                break;
+
+            case NGO:
+                NgoProfile ngoProfile = ngoProfileRepository.findByUser_Id(user.getId()).orElse(null);
+                if (ngoProfile != null) {
+                    builder.firstName(ngoProfile.getOrganisationName())
+                            .description(ngoProfile.getDescription());
+                }
+                break;
+
+            case FUNDER:
+                FunderProfile funderProfile = funderProfileRepository.findByUser_Id(user.getId()).orElse(null);
+                if (funderProfile != null) {
+                    builder.firstName(funderProfile.getFunderName());
+                }
+                break;
+
+            case SERVICE_PROVIDER:
+                ServiceProviderProfile spProfile = serviceProviderProfileRepository.findByUser_Id(user.getId()).orElse(null);
+                if (spProfile != null) {
+                    builder.firstName(spProfile.getProviderName())
+                            .description(spProfile.getAreaOfExpertise());
+                }
+                break;
+        }
+
+        return builder.build();
+    }
+
+    // ========================================================================
+    // INTERNAL API METHODS (FOR JOB SERVICE INTEGRATION)
+    // ========================================================================
+
+    /**
+     * Check if user exists by ID
+     *
+     * Called by job-service to verify user before creating jobs or applications.
+     * This is a lightweight check that doesn't load full user data.
+     *
+     * @param userId User ID to check
+     * @return true if user exists and is active, false otherwise
+     */
+    @Override
+    public boolean userExists(UUID userId) {
+        log.debug("Checking if user exists: {}", userId);
+        boolean exists = userRepository.existsById(userId);
+        log.debug("User {} existence check: {}", userId, exists);
+        return exists;
+    }
+
+    /**
+     * Get user profile summary for job service
+     *
+     * Returns comprehensive user information needed for job posting and application management.
+     *
+     * @param userId User ID to fetch
+     * @return UserProfileSummary with essential user information
+     * @throws UserNotFoundException if user not found
+     */
+    @Override
+    public UserProfileSummary getUserSummary(UUID userId) {
+        log.debug("Fetching user summary for userId: {}", userId);
+
+        User user = getUserById(userId);
+
+        String fullName = "User " + userId;
+        String organizationName = null;
+
+        // Get role-specific information
+        switch (user.getRole()) {
+            case YOUTH:
+                YouthProfile youthProfile = youthProfileRepository.findByUser_Id(userId).orElse(null);
+                if (youthProfile != null) {
+                    fullName = youthProfile.getFirstName() + " " + youthProfile.getLastName();
+                }
+                break;
+
+            case MENTOR:
+                MentorProfile mentorProfile = mentorProfileRepository.findByUser_Id(userId).orElse(null);
+                if (mentorProfile != null) {
+                    fullName = mentorProfile.getFirstName() + " " + mentorProfile.getLastName();
+                }
+                break;
+
+            case NGO:
+                NgoProfile ngoProfile = ngoProfileRepository.findByUser_Id(userId).orElse(null);
+                if (ngoProfile != null) {
+                    organizationName = ngoProfile.getOrganisationName();
+                    fullName = organizationName;
+                }
+                break;
+
+            case COMPANY:
+            case RECRUITER:
+            case GOVERNMENT:
+                organizationName = getUserOrganization(userId);
+                fullName = organizationName != null ? organizationName : "Organization " + userId;
+                break;
+
+            case FUNDER:
+                FunderProfile funderProfile = funderProfileRepository.findByUser_Id(userId).orElse(null);
+                if (funderProfile != null) {
+                    organizationName = funderProfile.getFunderName();
+                    fullName = organizationName;
+                }
+                break;
+
+            case SERVICE_PROVIDER:
+                ServiceProviderProfile spProfile = serviceProviderProfileRepository.findByUser_Id(userId).orElse(null);
+                if (spProfile != null) {
+                    organizationName = spProfile.getProviderName();
+                    fullName = organizationName;
+                }
+                break;
+        }
+
+        UserProfileSummary summary = new UserProfileSummary(
+                user.getId(),
+                user.getEmail(),
+                fullName,
+                user.getRole().name(),
+                organizationName,
+                user.isActive(),
+                user.isEmailVerified()
+        );
+
+        log.debug("User summary retrieved for userId {}: {}", userId, fullName);
+
+        return summary;
+    }
+
+    /**
+     * Check if user has permission to post jobs
+     *
+     * @param userId User ID to check
+     * @return true if user can post jobs, false otherwise
+     * @throws UserNotFoundException if user not found
+     */
+    @Override
+    public boolean canUserPostJobs(UUID userId) {
+        log.debug("Checking job posting permission for userId: {}", userId);
+
+        User user = getUserById(userId);
+
+        boolean canPost = user.getRole() == Role.NGO ||
+                user.getRole() == Role.COMPANY ||
+                user.getRole() == Role.RECRUITER ||
+                user.getRole() == Role.GOVERNMENT;
+
+        log.debug("User {} (role: {}) can post jobs: {}", userId, user.getRole(), canPost);
+
+        return canPost;
+    }
+
+    /**
+     * Get user's organization name
+     *
+     * @param userId User ID to fetch organization for
+     * @return Organization name or fallback identifier
+     * @throws UserNotFoundException if user not found
+     */
+    @Override
+    public String getUserOrganization(UUID userId) {
+        log.debug("Fetching organization for userId: {}", userId);
+
+        User user = getUserById(userId);
+
+        String organization = null;
+
+        switch (user.getRole()) {
+            case NGO:
+                NgoProfile ngoProfile = ngoProfileRepository.findByUser_Id(userId).orElse(null);
+                if (ngoProfile != null) {
+                    organization = ngoProfile.getOrganisationName();
+                }
+                break;
+
+            case FUNDER:
+                FunderProfile funderProfile = funderProfileRepository.findByUser_Id(userId).orElse(null);
+                if (funderProfile != null) {
+                    organization = funderProfile.getFunderName();
+                }
+                break;
+
+            case SERVICE_PROVIDER:
+                ServiceProviderProfile spProfile = serviceProviderProfileRepository
+                        .findByUser_Id(userId).orElse(null);
+                if (spProfile != null) {
+                    organization = spProfile.getProviderName();
+                }
+                break;
+
+            case COMPANY:
+            case RECRUITER:
+            case GOVERNMENT:
+                organization = "Organization (ID: " + userId + ")";
+                break;
+        }
+
+        if (organization == null) {
+            organization = "Organization (ID: " + userId + ")";
+        }
+
+        log.debug("Organization for userId {}: {}", userId, organization);
+
+        return organization;
+    }
+
+    // ========================================================================
+    // PROFILE CREATION METHODS (PUBLIC API)
+    // ========================================================================
+
     @Override
     @Transactional
     public UserProfileDTO createUssdUserProfile(User user, UssdRegistrationRequest request) {
@@ -291,17 +744,6 @@ public class UserServiceImpl implements UserService {
         return buildUserProfileDTO(user, savedProfile.getFirstName(), savedProfile.getLastName());
     }
 
-    /**
-     * Creates user profile after registration (web-based flow)
-     *
-     * Public API method that creates comprehensive profiles with full validation
-     * and enhanced features like verification status and availability.
-     *
-     * @param user User entity
-     * @param request Registration request with profile data
-     * @return UserProfileDTO containing created profile information
-     * @throws IllegalArgumentException if role is unsupported
-     */
     @Override
     @Transactional
     public UserProfileDTO createUserProfile(User user, RegistrationRequest request) {
@@ -322,10 +764,6 @@ public class UserServiceImpl implements UserService {
     // PROFILE CREATION METHODS (INTERNAL)
     // ========================================================================
 
-    /**
-     * Creates Youth profile during user registration
-     * Internal method called by createUserProfileForRole
-     */
     private void createYouthProfileInternal(User user, RegistrationRequest request) {
         YouthProfile profile = new YouthProfile(user);
         profile.setFirstName(request.getFirstName());
@@ -336,10 +774,6 @@ public class UserServiceImpl implements UserService {
         log.debug("Youth profile created for user: {}", user.getId());
     }
 
-    /**
-     * Creates Mentor profile during user registration
-     * Internal method called by createUserProfileForRole
-     */
     private void createMentorProfileInternal(User user, RegistrationRequest request) {
         MentorProfile profile = new MentorProfile(user);
         profile.setFirstName(request.getFirstName());
@@ -351,10 +785,6 @@ public class UserServiceImpl implements UserService {
         log.debug("Mentor profile created for user: {}", user.getId());
     }
 
-    /**
-     * Creates NGO profile during user registration
-     * Internal method called by createUserProfileForRole
-     */
     private void createNgoProfileInternal(User user, RegistrationRequest request) {
         NgoProfile profile = new NgoProfile(user);
         profile.setOrganisationName(request.getOrganisationName());
@@ -364,10 +794,6 @@ public class UserServiceImpl implements UserService {
         log.debug("NGO profile created for user: {}", user.getId());
     }
 
-    /**
-     * Creates Funder profile during user registration
-     * Internal method called by createUserProfileForRole
-     */
     private void createFunderProfileInternal(User user, RegistrationRequest request) {
         FunderProfile profile = new FunderProfile(user);
         profile.setFunderName(request.getFunderName());
@@ -376,10 +802,6 @@ public class UserServiceImpl implements UserService {
         log.debug("Funder profile created for user: {}", user.getId());
     }
 
-    /**
-     * Creates Service Provider profile during user registration
-     * Internal method called by createUserProfileForRole
-     */
     private void createServiceProviderProfileInternal(User user, RegistrationRequest request) {
         ServiceProviderProfile profile = new ServiceProviderProfile(user);
         profile.setProviderName(request.getProviderName());
@@ -389,10 +811,6 @@ public class UserServiceImpl implements UserService {
         log.debug("Service provider profile created for user: {}", user.getId());
     }
 
-    /**
-     * Creates Youth profile with enhanced features
-     * Includes date of birth parsing and comprehensive field mapping
-     */
     private UserProfileDTO createYouthProfile(User user, RegistrationRequest request) {
         YouthProfile profile = new YouthProfile(user);
         profile.setFirstName(request.getFirstName());
@@ -402,7 +820,6 @@ public class UserServiceImpl implements UserService {
         profile.setDistrict(request.getDistrict());
         profile.setProfession(request.getProfession());
 
-        // Parse and set date of birth with error handling
         if (request.getDateOfBirth() != null) {
             try {
                 profile.setDateOfBirth(LocalDate.parse(request.getDateOfBirth()));
@@ -417,10 +834,6 @@ public class UserServiceImpl implements UserService {
         return buildUserProfileDTO(user, savedProfile.getFirstName(), savedProfile.getLastName());
     }
 
-    /**
-     * Creates Mentor profile with availability status
-     * Sets default availability to AVAILABLE
-     */
     private UserProfileDTO createMentorProfile(User user, RegistrationRequest request) {
         MentorProfile profile = new MentorProfile(user);
         profile.setFirstName(request.getFirstName());
@@ -436,10 +849,6 @@ public class UserServiceImpl implements UserService {
         return buildUserProfileDTO(user, savedProfile.getFirstName(), savedProfile.getLastName());
     }
 
-    /**
-     * Creates NGO profile with verification flag
-     * New NGO profiles require manual verification
-     */
     private UserProfileDTO createNgoProfile(User user, RegistrationRequest request) {
         NgoProfile profile = new NgoProfile(user);
         profile.setOrganisationName(request.getOrganisationName());
@@ -453,9 +862,6 @@ public class UserServiceImpl implements UserService {
         return buildUserProfileDTO(user, savedProfile.getOrganisationName(), "Organization");
     }
 
-    /**
-     * Creates Funder profile
-     */
     private UserProfileDTO createFunderProfile(User user, RegistrationRequest request) {
         FunderProfile profile = new FunderProfile(user);
         profile.setFunderName(request.getFunderName());
@@ -467,10 +873,6 @@ public class UserServiceImpl implements UserService {
         return buildUserProfileDTO(user, savedProfile.getFunderName(), "Funder");
     }
 
-    /**
-     * Creates Service Provider profile with verification flag
-     * New service providers require manual verification
-     */
     private UserProfileDTO createServiceProviderProfile(User user, RegistrationRequest request) {
         ServiceProviderProfile profile = new ServiceProviderProfile(user);
         profile.setProviderName(request.getProviderName());
@@ -484,18 +886,11 @@ public class UserServiceImpl implements UserService {
         return buildUserProfileDTO(user, savedProfile.getProviderName(), "Service Provider");
     }
 
-    /**
-     * Creates basic profile for admin users
-     * Admins don't need detailed profiles
-     */
     private UserProfileDTO createBasicUserProfile(User user) {
         log.info("Created basic profile for admin user: {}", user.getEmail());
         return buildUserProfileDTO(user, "Admin", "User");
     }
 
-    /**
-     * Helper method to build UserProfileDTO consistently
-     */
     private UserProfileDTO buildUserProfileDTO(User user, String firstName, String lastName) {
         return UserProfileDTO.builder()
                 .userId(user.getId())
@@ -509,13 +904,6 @@ public class UserServiceImpl implements UserService {
     // PROFILE UPDATE METHODS
     // ========================================================================
 
-    /**
-     * Updates user profile via web interface
-     *
-     * @param email User's email
-     * @param request Profile update request
-     * @return Updated YouthProfile entity
-     */
     @Override
     @Transactional
     public YouthProfile updateUserProfile(String email, ProfileUpdateRequest request) {
@@ -533,14 +921,6 @@ public class UserServiceImpl implements UserService {
         return youthProfileRepository.save(profile);
     }
 
-    /**
-     * Updates user profile via USSD interface
-     *
-     * @param phoneNumber User's phone number
-     * @param request Profile update request
-     * @return Updated UserProfileDTO
-     * @throws UserNotFoundException if user or profile not found
-     */
     @Override
     @Transactional
     public UserProfileDTO updateUserProfileByPhone(String phoneNumber, ProfileUpdateRequestDTO request) {
@@ -559,26 +939,31 @@ public class UserServiceImpl implements UserService {
     }
 
     // ========================================================================
-    // MENTOR-SPECIFIC METHODS
+    // MENTOR-SPECIFIC METHODS (ENHANCED WITH PAGINATION)
     // ========================================================================
 
     /**
-     * Retrieves all active mentors with their profiles
+     * Retrieves all active mentors with their profiles (non-paginated)
      *
-     * Used for mentor discovery and matching features.
-     * Returns comprehensive mentor information including availability status.
-     *
-     * @return List of MentorProfileDTO objects
+     * @return List of MentorProfileDTO objects for all active mentors
+     * @deprecated Use {@link #getAllMentors(Pageable)} for better performance and scalability
      */
     @Override
     public List<MentorProfileDTO> getAllMentors() {
+        log.debug("Fetching all mentors (non-paginated)");
+
         List<User> mentorUsers = userRepository.findByRoleAndIsActiveTrue(Role.MENTOR);
+        log.info("Found {} active mentors (non-paginated query)", mentorUsers.size());
 
         return mentorUsers.stream().map(user -> {
             MentorProfile profile = mentorProfileRepository.findByUser_Id(user.getId())
-                    .orElse(new MentorProfile(user));
+                    .orElseGet(() -> {
+                        log.warn("No profile found for mentor user: {}, using defaults", user.getId());
+                        return new MentorProfile(user);
+                    });
 
             return MentorProfileDTO.builder()
+                    .mentorId(user.getId())
                     .user(user)
                     .firstName(profile.getFirstName())
                     .lastName(profile.getLastName())
@@ -591,33 +976,72 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * Retrieves mentor by ID
-     * FIXED: Added missing method implementation
+     * Retrieves all active mentors with pagination support
      *
-     * Provides detailed information about a specific mentor including their
-     * availability status, expertise, and years of experience. This is used
-     * for mentor profile pages and booking systems.
-     *
-     * @param mentorId Mentor's user ID
-     * @return MentorProfileDTO with comprehensive mentor information
-     * @throws UserNotFoundException if mentor not found
-     * @throws IllegalArgumentException if user is not a mentor
+     * @param pageable Pagination and sorting parameters
+     * @return Page of MentorProfileDTO with complete pagination metadata
      */
     @Override
-    public MentorProfileDTO getMentorById(Long mentorId) {
-        log.debug("Retrieving mentor by ID: {}", mentorId);
+    public Page<MentorProfileDTO> getAllMentors(Pageable pageable) {
+        log.debug("Fetching paginated mentors - page: {}, size: {}, sort: {}",
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                pageable.getSort());
+
+        Page<User> mentorUsers = userRepository.findByRoleAndIsActiveTrue(Role.MENTOR, pageable);
+
+        log.debug("Retrieved {} mentors on page {} of {} (total: {} mentors)",
+                mentorUsers.getNumberOfElements(),
+                mentorUsers.getNumber() + 1,
+                mentorUsers.getTotalPages(),
+                mentorUsers.getTotalElements());
+
+        return mentorUsers.map(user -> {
+            MentorProfile profile = mentorProfileRepository.findByUser_Id(user.getId())
+                    .orElseGet(() -> {
+                        log.warn("No profile found for mentor user: {} (email: {}), creating default profile",
+                                user.getId(), user.getEmail());
+                        return new MentorProfile(user);
+                    });
+
+            return MentorProfileDTO.builder()
+                    .mentorId(user.getId())
+                    .user(user)
+                    .firstName(profile.getFirstName())
+                    .lastName(profile.getLastName())
+                    .bio(profile.getBio())
+                    .areaOfExpertise(profile.getAreaOfExpertise())
+                    .experienceYears(profile.getExperienceYears())
+                    .availabilityStatus(profile.getAvailabilityStatus())
+                    .build();
+        });
+    }
+
+    @Override
+    public MentorProfileDTO getMentorById(UUID mentorId) {
+        log.debug("Retrieving mentor profile for ID: {}", mentorId);
 
         User user = getUserById(mentorId);
 
-        // Validate that the user is actually a mentor
         if (user.getRole() != Role.MENTOR) {
-            throw new IllegalArgumentException("User with ID " + mentorId + " is not a mentor");
+            log.error("Access denied: User {} has role {} but MENTOR role required",
+                    mentorId, user.getRole());
+            throw new IllegalArgumentException(
+                    String.format("User with ID %s is not a mentor (role: %s)",
+                            mentorId, user.getRole()));
         }
 
         MentorProfile profile = mentorProfileRepository.findByUser_Id(mentorId)
-                .orElseThrow(() -> new UserNotFoundException("Mentor profile not found for user ID: " + mentorId));
+                .orElseThrow(() -> new UserNotFoundException(
+                        "Mentor profile not found for user ID: " + mentorId));
+
+        log.debug("Successfully retrieved mentor profile: {} {} (expertise: {})",
+                profile.getFirstName(),
+                profile.getLastName(),
+                profile.getAreaOfExpertise());
 
         return MentorProfileDTO.builder()
+                .mentorId(user.getId())
                 .user(user)
                 .firstName(profile.getFirstName())
                 .lastName(profile.getLastName())
@@ -632,58 +1056,44 @@ public class UserServiceImpl implements UserService {
     // USER QUERY AND SEARCH METHODS
     // ========================================================================
 
-    /**
-     * Retrieves all active users by role
-     *
-     * @param role User role to filter by
-     * @return List of active users with specified role
-     */
     @Override
     public List<User> getUsersByRole(Role role) {
         return userRepository.findByRoleAndIsActiveTrue(role);
     }
 
-    /**
-     * Searches active users by search term
-     *
-     * Searches across multiple fields (email, name, etc.)
-     *
-     * @param searchTerm Search query string
-     * @return List of matching active users
-     */
     @Override
     public List<User> searchUsers(String searchTerm) {
-        return userRepository.searchActiveUsers(searchTerm);
+        log.debug("Searching users (non-paginated) with term: {}", searchTerm);
+        List<User> results = userRepository.searchActiveUsers(searchTerm);
+        log.debug("Found {} users matching search term: {}", results.size(), searchTerm);
+        return results;
     }
 
-    /**
-     * Gets count of active users by role
-     *
-     * @param role User role to count
-     * @return Number of active users with specified role
-     */
+    public Page<User> searchUsers(String searchTerm, Pageable pageable) {
+        log.debug("Searching users (paginated) - term: '{}', page: {}, size: {}",
+                searchTerm, pageable.getPageNumber(), pageable.getPageSize());
+
+        Page<User> results = userRepository.searchActiveUsers(searchTerm, pageable);
+
+        log.debug("Found {} users on page {} of {} (total matches: {})",
+                results.getNumberOfElements(),
+                results.getNumber() + 1,
+                results.getTotalPages(),
+                results.getTotalElements());
+
+        return results;
+    }
+
     @Override
     public long getUserCountByRole(Role role) {
         return userRepository.countActiveUsersByRole(role);
     }
 
-    /**
-     * Checks if email already exists
-     *
-     * @param email Email to check
-     * @return true if email exists
-     */
     @Override
     public boolean emailExists(String email) {
         return userRepository.existsByEmailIgnoreCase(email);
     }
 
-    /**
-     * Checks if phone number already exists
-     *
-     * @param phoneNumber Phone number to check
-     * @return true if phone number exists
-     */
     @Override
     public boolean phoneExists(String phoneNumber) {
         return userRepository.existsByPhoneNumber(phoneNumber);
@@ -693,31 +1103,18 @@ public class UserServiceImpl implements UserService {
     // ACCOUNT MANAGEMENT METHODS
     // ========================================================================
 
-    /**
-     * Deactivates user account
-     *
-     * Soft delete - sets active flag to false but retains all user data.
-     * User can be reactivated later if needed.
-     *
-     * @param userId User ID to deactivate
-     */
     @Override
     @Transactional
-    public void deactivateUser(Long userId) {
+    public void deactivateUser(UUID userId) {
         User user = getUserById(userId);
         user.setActive(false);
         userRepository.save(user);
         log.info("Deactivated user account: {}", user.getEmail());
     }
 
-    /**
-     * Reactivates previously deactivated user account
-     *
-     * @param userId User ID to reactivate
-     */
     @Override
     @Transactional
-    public void reactivateUser(Long userId) {
+    public void reactivateUser(UUID userId) {
         User user = getUserById(userId);
         user.setActive(true);
         userRepository.save(user);

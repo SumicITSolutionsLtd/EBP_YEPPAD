@@ -71,7 +71,7 @@ package com.youthconnect.user_service.exception;
  *   "timestamp": "2024-01-15T10:30:00"
  * }
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 2.0.0 (Merged Ultimate Edition)
  * @since 1.0.0
  */

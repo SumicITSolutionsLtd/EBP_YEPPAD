@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
  *     <li>Logging levels</li>
  * </ul>
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
  */
 @Configuration

@@ -1,0 +1,188 @@
+# ============================================================================
+# FILE 2: docker-compose.prod.yml (Production Setup)
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # Production PostgreSQL with SSL and security hardening
+  postgres:
+    image: postgres:15-alpine
+    container_name: job-service-postgres-prod
+    
+    environment:
+      POSTGRES_DB: ${DB_NAME:job_service_db}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=en_US.UTF-8"
+      
+      # Security settings
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      
+      # Performance tuning for production
+      POSTGRES_SHARED_BUFFERS: 1GB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 4GB
+      POSTGRES_MAINTENANCE_WORK_MEM: 256MB
+      POSTGRES_WORK_MEM: 16MB
+      POSTGRES_MAX_CONNECTIONS: 200
+    
+    ports:
+      - "5432:5432"
+    
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      - ./backups:/backups
+      - ./postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    
+    networks:
+      - job-service-prod-network
+    
+    restart: always
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d job_service_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+
+  # Production Redis with persistence and security
+  redis:
+    image: redis:7-alpine
+    container_name: job-service-redis-prod
+    
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --tcp-backlog 511
+      --timeout 300
+      --tcp-keepalive 300
+    
+    ports:
+      - "6379:6379"
+    
+    volumes:
+      - redis_prod_data:/data
+    
+    networks:
+      - job-service-prod-network
+    
+    restart: always
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # Production Job Service (Multiple instances for HA)
+  job-service-1:
+    image: job-service:${VERSION:-1.0.0}
+    container_name: job-service-app-prod-1
+    
+    ports:
+      - "8000:8000"
+    
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/job_service_db?sslmode=require
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URI}
+      JWT_SECRET: ${JWT_SECRET}
+      
+      JAVA_OPTS: >
+        -Xms2g
+        -Xmx4g
+        -XX:+UseG1GC
+        -XX:MaxGCPauseMillis=200
+        -XX:+UseStringDeduplication
+        -XX:+HeapDumpOnOutOfMemoryError
+        -XX:HeapDumpPath=/app/logs/heap_dump.hprof
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    networks:
+      - job-service-prod-network
+    
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/var/app/uploads
+    
+    restart: always
+    
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '2.0'
+          memory: 4G
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+networks:
+  job-service-prod-network:
+    driver: bridge
+    name: job-service-prod-network
+
+volumes:
+  postgres_prod_data:
+    driver: local
+  redis_prod_data:
+    driver: local

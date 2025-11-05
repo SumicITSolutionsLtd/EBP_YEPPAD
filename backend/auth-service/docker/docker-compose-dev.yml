@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # =================================================================================
+  # PostgreSQL Database
+  # =================================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: auth-postgres-dev
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ebp_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Douglas20!
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Auto-create schema on first run
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - youthconnect-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ebp_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =================================================================================
+  # Redis Cache
+  # =================================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: auth-redis-dev
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - youthconnect-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =================================================================================
+  # Service Registry (Eureka) - Optional for local dev
+  # =================================================================================
+  service-registry:
+    image: youthconnect/service-registry:latest
+    container_name: service-registry-dev
+    ports:
+      - "8761:8761"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+    networks:
+      - youthconnect-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  youthconnect-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:

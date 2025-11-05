@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Repository interface for managing NgoProfile entities.
@@ -13,7 +14,7 @@ import java.util.Optional;
  *
  * FIXED: Added findByUser_Id() method required by ProfileService
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.1
  */
 @Repository
@@ -30,7 +31,7 @@ public interface NgoProfileRepository extends JpaRepository<NgoProfile, Long> {
      * @param userId The ID of the user to search for
      * @return An Optional containing the NgoProfile if found
      */
-    Optional<NgoProfile> findByUser_Id(Long userId);
+    Optional<NgoProfile> findByUser_Id(UUID userId);
 
     // Optional: Add custom query methods as needed
     // Optional<NgoProfile> findByOrganisationName(String organisationName);

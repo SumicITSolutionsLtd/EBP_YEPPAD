@@ -1,5 +1,3 @@
-# 📱 Notification Service - Kwetu-Hub Platform
-
 Multi-channel notification delivery service supporting SMS, Email, and Push notifications for the Youth Connect Uganda platform.
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
@@ -32,7 +30,7 @@ Multi-channel notification delivery service supporting SMS, Email, and Push noti
 
 ## 🎯 Overview
 
-The Notification Service is a critical component of the Kwetu-Hub Platform, responsible for delivering multi-channel notifications to 10,000+ users across Uganda. It ensures that youth beneficiaries receive timely updates about opportunities, applications, mentorship sessions, and learning progress.
+The Notification Service is a critical component of the Entrepreneurship Booster Platform, responsible for delivering multi-channel notifications to 10,000+ users across Uganda. It ensures that youth beneficiaries receive timely updates about opportunities, applications, mentorship sessions, and learning progress.
 
 ### Key Capabilities
 

@@ -1,4 +1,0 @@
-package com.youthconnect.user_service.repository;
-
-public class UserInterestRepository {
-}

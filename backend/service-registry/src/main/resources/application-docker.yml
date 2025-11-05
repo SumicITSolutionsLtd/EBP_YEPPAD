@@ -1,5 +1,5 @@
 # ================================================================================
-# Service Registry (Eureka Server) - Docker Configuration
+# Service Registry (Eureka Server) - Docker Configuration - FIXED
 # ================================================================================
 # This configuration is activated when running in Docker containers
 # Profile: docker
@@ -24,7 +24,7 @@ server:
     min-response-size: 1024
 
 # ================================================================================
-# Eureka Server Configuration for Docker
+# Eureka Server Configuration for Docker (FIXED - merged into single block)
 # ================================================================================
 eureka:
   instance:

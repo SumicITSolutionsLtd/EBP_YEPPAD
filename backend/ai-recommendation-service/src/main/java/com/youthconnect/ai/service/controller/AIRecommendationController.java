@@ -1,8 +1,9 @@
 package com.youthconnect.ai.service.controller;
 
-import com.youthconnect.ai_service.dto.*;
-import com.youthconnect.ai_service.service.AIRecommendationService;
-import com.youthconnect.ai_service.service.UserActivityService;
+import com.youthconnect.ai.service.dto.*;
+import com.youthconnect.ai.service.service.AIRecommendationService;
+import com.youthconnect.ai.service.service.UserActivityService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -11,9 +12,18 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * REST API Controller for AI Recommendation Service
+ * Exposes intelligent recommendation endpoints
+ *
+ * Base Path: /api/v1/ai
+ *
+ * @author Douglas Kings Kato
+ * @version 1.0.0
+ */
 @Slf4j
 @RestController
-@RequestMapping("/api/ai")
+@RequestMapping("/api/v1/ai")
 @RequiredArgsConstructor
 public class AIRecommendationController {
 
@@ -22,6 +32,12 @@ public class AIRecommendationController {
 
     /**
      * Get personalized opportunity recommendations for a user
+     *
+     * GET /api/v1/ai/recommendations/opportunities/{userId}
+     *
+     * @param userId User ID
+     * @param limit Maximum number of recommendations (default: 10)
+     * @return List of personalized opportunity recommendations
      */
     @GetMapping("/recommendations/opportunities/{userId}")
     public ResponseEntity<Map<String, Object>> getOpportunityRecommendations(
@@ -43,7 +59,8 @@ public class AIRecommendationController {
             ));
 
         } catch (Exception e) {
-            log.error("Error generating opportunity recommendations for user {}: {}", userId, e.getMessage());
+            log.error("Error generating opportunity recommendations for user {}: {}",
+                    userId, e.getMessage());
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
                     "error", "Failed to generate recommendations",
@@ -54,6 +71,12 @@ public class AIRecommendationController {
 
     /**
      * Get personalized learning content recommendations
+     *
+     * GET /api/v1/ai/recommendations/content/{userId}
+     *
+     * @param userId User ID
+     * @param limit Maximum number of recommendations (default: 8)
+     * @return List of personalized content recommendations
      */
     @GetMapping("/recommendations/content/{userId}")
     public ResponseEntity<Map<String, Object>> getContentRecommendations(
@@ -74,7 +97,8 @@ public class AIRecommendationController {
             ));
 
         } catch (Exception e) {
-            log.error("Error generating content recommendations for user {}: {}", userId, e.getMessage());
+            log.error("Error generating content recommendations for user {}: {}",
+                    userId, e.getMessage());
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
                     "error", "Failed to generate content recommendations"
@@ -84,6 +108,12 @@ public class AIRecommendationController {
 
     /**
      * Get compatible mentors for a youth user
+     *
+     * GET /api/v1/ai/recommendations/mentors/{youthUserId}
+     *
+     * @param youthUserId Youth user ID
+     * @param limit Maximum number of recommendations (default: 5)
+     * @return List of compatible mentor recommendations
      */
     @GetMapping("/recommendations/mentors/{youthUserId}")
     public ResponseEntity<Map<String, Object>> getMentorRecommendations(
@@ -104,7 +134,8 @@ public class AIRecommendationController {
             ));
 
         } catch (Exception e) {
-            log.error("Error generating mentor recommendations for user {}: {}", youthUserId, e.getMessage());
+            log.error("Error generating mentor recommendations for user {}: {}",
+                    youthUserId, e.getMessage());
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
                     "error", "Failed to generate mentor recommendations"
@@ -114,13 +145,20 @@ public class AIRecommendationController {
 
     /**
      * Predict success probability for user applying to opportunity
+     *
+     * GET /api/v1/ai/predict/success/{userId}/{opportunityId}
+     *
+     * @param userId User ID
+     * @param opportunityId Opportunity ID
+     * @return Success probability and confidence level
      */
     @GetMapping("/predict/success/{userId}/{opportunityId}")
     public ResponseEntity<Map<String, Object>> predictSuccessProbability(
             @PathVariable Long userId,
             @PathVariable Long opportunityId) {
 
-        log.info("Predicting success probability for user {} applying to opportunity {}", userId, opportunityId);
+        log.info("Predicting success probability for user {} applying to opportunity {}",
+                userId, opportunityId);
 
         try {
             double probability = aiService.predictSuccessProbability(userId, opportunityId);
@@ -146,10 +184,15 @@ public class AIRecommendationController {
 
     /**
      * Record user activity for learning model
+     *
+     * POST /api/v1/ai/activity/record
+     *
+     * @param request Activity details
+     * @return Confirmation response
      */
     @PostMapping("/activity/record")
     public ResponseEntity<Map<String, Object>> recordUserActivity(
-            @RequestBody UserActivityRequest request) {
+            @Valid @RequestBody UserActivityRequest request) {
 
         log.info("Recording user activity - User: {}, Activity: {}",
                 request.getUserId(), request.getActivityType());
@@ -178,9 +221,16 @@ public class AIRecommendationController {
 
     /**
      * Get user behavior insights
+     *
+     * GET /api/v1/ai/insights/behavior/{userId}
+     *
+     * @param userId User ID
+     * @return Behavioral insights and analytics
      */
     @GetMapping("/insights/behavior/{userId}")
-    public ResponseEntity<Map<String, Object>> getUserBehaviorInsights(@PathVariable Long userId) {
+    public ResponseEntity<Map<String, Object>> getUserBehaviorInsights(
+            @PathVariable Long userId) {
+
         log.info("Getting behavior insights for user: {}", userId);
 
         try {
@@ -193,7 +243,8 @@ public class AIRecommendationController {
             ));
 
         } catch (Exception e) {
-            log.error("Error getting behavior insights for user {}: {}", userId, e.getMessage());
+            log.error("Error getting behavior insights for user {}: {}",
+                    userId, e.getMessage());
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
                     "error", "Failed to get behavior insights"
@@ -203,6 +254,10 @@ public class AIRecommendationController {
 
     /**
      * Health check endpoint
+     *
+     * GET /api/v1/ai/health
+     *
+     * @return Service health status
      */
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> healthCheck() {
@@ -219,6 +274,13 @@ public class AIRecommendationController {
         ));
     }
 
+    // =========================================================================
+    // PRIVATE HELPER METHODS
+    // =========================================================================
+
+    /**
+     * Determine confidence level based on probability score
+     */
     private String getConfidenceLevel(double probability) {
         if (probability >= 0.8) return "HIGH";
         if (probability >= 0.6) return "MEDIUM";
@@ -226,6 +288,9 @@ public class AIRecommendationController {
         return "LOW";
     }
 
+    /**
+     * Generate application advice based on success probability
+     */
     private String generateApplicationAdvice(double probability) {
         if (probability >= 0.8) {
             return "Excellent match! Your profile strongly aligns with this opportunity.";

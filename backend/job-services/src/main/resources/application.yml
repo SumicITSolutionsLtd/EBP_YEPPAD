@@ -1,0 +1,302 @@
+# ============================================================================
+# Job Service - Main Configuration (Base)
+# Author: Douglas Kings Kato
+# Version: 3.0.0 (PostgreSQL Migration)
+# ============================================================================
+server:
+  port: 8000
+  servlet:
+    context-path: /
+  error:
+    include-message: always
+    include-binding-errors: always
+
+spring:
+  application:
+    name: job-services
+
+  profiles:
+    # Default active profile (can be overridden with SPRING_PROFILES_ACTIVE)
+    active: ${ACTIVE_PROFILE:dev}
+
+  # ============================================================================
+  # POSTGRESQL DATABASE CONFIGURATION
+  # ============================================================================
+  datasource:
+    url: jdbc:postgresql://localhost:5432/job_service_db
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+      pool-name: JobServiceHikariPool
+      leak-detection-threshold: 60000
+
+  # ============================================================================
+  # JPA / HIBERNATE CONFIGURATION
+  # ============================================================================
+  jpa:
+    hibernate:
+      ddl-auto: update
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyJpaCompliantImpl
+
+    show-sql: true
+
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: true
+        order_inserts: true
+        order_updates: true
+        generate_statistics: true
+        temp:
+          use_jdbc_metadata_defaults: false
+
+        # JDBC batching for performance
+        jdbc:
+          batch_size: 20
+          fetch_size: 50
+          batch_versioned_data: true
+
+        cache:
+          use_second_level_cache: false
+          use_query_cache: false
+
+  # ============================================================================
+  # REDIS CONFIGURATION
+  # ============================================================================
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+          max-wait: -1ms
+        shutdown-timeout: 100ms
+      cache:
+        time-to-live: 1800000ms
+        cache-null-values: false
+        key-prefix: "job-service:"
+
+  # ============================================================================
+  # CACHE CONFIGURATION (Caffeine)
+  # ============================================================================
+  cache:
+    type: caffeine
+    cache-names:
+      - jobs
+      - categories
+      - jobsByCategory
+      - activeJobs
+      - applications
+      - userApplications
+    caffeine:
+      spec: maximumSize=10000,expireAfterWrite=1800s
+
+# ============================================================================
+# EUREKA SERVICE DISCOVERY
+# ============================================================================
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URI:http://localhost:8761/eureka}
+    fetch-registry: true
+    register-with-eureka: true
+    registry-fetch-interval-seconds: 30
+    healthcheck:
+      enabled: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
+    metadata-map:
+      version: "3.0.0"
+      profile: ${spring.profiles.active}
+      zone: ${DATACENTER:local}
+
+# ============================================================================
+# FEIGN CLIENT CONFIGURATION
+# ============================================================================
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 10000
+        loggerLevel: BASIC
+        retryer: feign.Retryer.Default
+
+      user-service:
+        url: ${USER_SERVICE_URL:http://localhost:8081}
+        connectTimeout: 3000
+        readTimeout: 5000
+
+      notification-service:
+        url: ${NOTIFICATION_SERVICE_URL:http://localhost:8086}
+        connectTimeout: 3000
+        readTimeout: 5000
+
+      ai-recommendation-service:
+        url: ${AI_SERVICE_URL:http://localhost:8087}
+        connectTimeout: 5000
+        readTimeout: 10000
+
+  circuitbreaker:
+    enabled: true
+
+# ============================================================================
+# RESILIENCE4J CIRCUIT BREAKER CONFIGURATION
+# ============================================================================
+resilience4j:
+  circuitbreaker:
+    instances:
+      default:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10000
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+
+  retry:
+    instances:
+      default:
+        maxAttempts: 3
+        waitDuration: 1000
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+
+# ============================================================================
+# ACTUATOR / MONITORING
+# ============================================================================
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health,info,metrics,prometheus,env,loggers
+        exclude: shutdown
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+      probes:
+        enabled: true
+    info:
+      enabled: true
+  health:
+    db:
+      enabled: true
+    redis:
+      enabled: true
+    diskspace:
+      enabled: true
+      threshold: 10MB
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${spring.profiles.active}
+
+# ============================================================================
+# LOGGING CONFIGURATION
+# ============================================================================
+logging:
+  level:
+    root: INFO
+    com.youthconnect.job_services: DEBUG
+    org.springframework.web: INFO
+    org.springframework.security: DEBUG
+    org.springframework.cloud: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    com.zaxxer.hikari: INFO
+    feign: DEBUG
+    org.springframework.data.redis: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/job-service.log
+    max-size: 10MB
+    max-history: 30
+    total-size-cap: 1GB
+
+# ============================================================================
+# APPLICATION-SPECIFIC SETTINGS
+# ============================================================================
+app:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:youth-connect-secure-secret-key-2025-minimum-256-bits-required-for-production-use-environment-variable}
+      access-token-expiry: 900
+      refresh-token-expiry: 604800
+
+  job:
+    max-page-size: 100
+    default-page-size: 20
+    max-applications-per-day: 20
+    max-pending-applications: 50
+    default-expiration-days: 30
+    max-title-length: 255
+    max-description-length: 10000
+
+  upload:
+    max-file-size: 10485760
+    allowed-types:
+      - application/pdf
+      - application/msword
+      - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+    directory: ${UPLOAD_DIR:./uploads}
+
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - http://localhost:4200
+      - http://localhost:8088
+      - https://youthconnect.ug
+      - https://api.youthconnect.ug
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+    allowed-headers: "*"
+    allow-credentials: true
+    max-age: 3600
+
+# ============================================================================
+# SPRINGDOC / SWAGGER CONFIGURATION
+# ============================================================================
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    try-it-out-enabled: true
+    operations-sorter: alpha
+    tags-sorter: alpha
+    display-request-duration: true

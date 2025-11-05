@@ -11,7 +11,7 @@ spring:
   # DATABASE CONFIGURATION
   # ═════════════════════════════════════════════════════════════════════════
   datasource:
-    url: jdbc:mysql://localhost:3307/youth_connect_db?useSSL=false&serverTimezone=Africa/Kampala&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3307/ebp_db?useSSL=false&serverTimezone=Africa/Kampala&allowPublicKeyRetrieval=true
     username: root
     password: ${DB_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver

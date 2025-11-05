@@ -5,17 +5,13 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.GenericGenerator;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
- * Core User entity for the YouthConnect application.
- * This class is the central point of the user-service. It stores the fundamental
- * authentication and authorization information for every single actor in the system
- * (Youth, NGO, Mentor, etc.) and serves as the anchor for linking to specific profile tables.
- *
- * @author Youth Connect Uganda Development Team
- * @version 2.0.0
+ * Core User entity - UPDATED to use UUID
  */
 @Entity
 @Table(name = "users")
@@ -24,9 +20,13 @@ import java.time.LocalDateTime;
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_id")
-    private Long id;
+    @GeneratedValue(generator = "UUID")
+    @GenericGenerator(
+            name = "UUID",
+            strategy = "org.hibernate.id.UUIDGenerator"
+    )
+    @Column(name = "user_id", updatable = false, nullable = false, columnDefinition = "UUID")
+    private UUID id; // CHANGED FROM Long to UUID
 
     @Column(nullable = false, unique = true, length = 100)
     private String email;
@@ -67,14 +67,11 @@ public class User {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // Builder pattern for easier object creation
+    // Builder pattern
     public static UserBuilder builder() {
         return new UserBuilder();
     }
 
-    /**
-     * Builder class for User entity
-     */
     public static class UserBuilder {
         private String email;
         private String phoneNumber;

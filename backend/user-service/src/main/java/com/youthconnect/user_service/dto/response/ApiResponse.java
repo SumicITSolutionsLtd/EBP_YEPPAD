@@ -118,7 +118,7 @@ import java.time.LocalDateTime;
  * - Jackson automatically serializes/deserializes with @JsonInclude
  *
  * @param <T> Type of response payload (UserDTO, List<String>, Map, etc.)
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 3.0.0 (Merged Ultimate Edition)
  * @since 1.0.0
  */

@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
  * Data Transfer Object (DTO) for receiving profile update requests from the WEB frontend.
  * This class defines the shape of the JSON sent from the React "Edit Profile" form.
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
  */
 @Data

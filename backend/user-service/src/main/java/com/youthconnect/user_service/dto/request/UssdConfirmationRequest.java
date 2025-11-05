@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.util.UUID;
 
 /**
  * DTO for USSD registration confirmation requests.
@@ -28,7 +29,7 @@ import lombok.NoArgsConstructor;
  *   "userName": "Damien",
  *   "userId": 12345,
  *   "confirmationCode": "YCU-56789",
- *   "message": "Dear Damien, your Kwetu-Hub account has been successfully created!"
+ *   "message": "Dear Damien, your Entrepreneurship Booster Platform account has been successfully created!"
  * }
  * </pre>
  *
@@ -59,7 +60,7 @@ public class UssdConfirmationRequest {
     /**
      * Unique user ID generated after successful registration.
      */
-    private Long userId;
+    private UUID userId;
 
     /**
      * Optional confirmation code (for verification or tracking).

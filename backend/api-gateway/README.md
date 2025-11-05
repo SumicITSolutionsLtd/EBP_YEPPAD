@@ -1,247 +1,159 @@
-# Youth Connect Uganda - API Gateway
+# Youth Connect Uganda - API Gateway with JWT Authentication
 
-## Overview
+## 🔐 Overview
 
-The API Gateway is the single entry point for all client requests in the Youth Connect Uganda platform. It provides intelligent routing, security, and monitoring capabilities.
+The API Gateway is the **centralized entry point** for all client requests in the Youth Connect Uganda platform. It provides intelligent routing, **JWT authentication**, security, and monitoring capabilities.
 
-## Features
+### **NEW: JWT Authentication Integration**
 
-✅ **Intelligent Routing** - Routes requests to appropriate microservices based on URL patterns  
-✅ **Rate Limiting** - Prevents API abuse with token bucket algorithm (100 req/min)  
-✅ **Circuit Breaker** - Resilience4j circuit breaker for fault tolerance  
+The gateway now validates JWT tokens before routing requests to backend services, ensuring secure access control across the entire platform.
+
+---
+
+## ✨ Features
+
+✅ **JWT Authentication** - Validates tokens before routing to backend services  
+✅ **Intelligent Routing** - Routes requests to appropriate microservices  
+✅ **Rate Limiting** - Token bucket algorithm (100 req/min)  
+✅ **Circuit Breaker** - Resilience4j for fault tolerance  
 ✅ **CORS Configuration** - Supports web and mobile clients  
 ✅ **Security Headers** - Automatic injection of security headers  
-✅ **Request Logging** - Comprehensive request/response logging with request IDs  
-✅ **Load Balancing** - Automatic load balancing across service instances  
-✅ **Service Discovery** - Integration with Eureka for dynamic service discovery  
-✅ **Health Checks** - Multiple health check endpoints for monitoring  
-✅ **Global Exception Handling** - Standardized error responses
+✅ **Request Logging** - Comprehensive logging with request IDs  
+✅ **Load Balancing** - Automatic load balancing across instances  
+✅ **Service Discovery** - Integration with Eureka  
+✅ **User Context Injection** - Adds user info headers for downstream services
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
 ```
-[Client] → [API Gateway:8080] → [Eureka:8761] → [Backend Services]
+[Client] → [JWT Token] → [API Gateway:8088] 
+    ↓ Validate Token
+    ↓ Extract User Info
+    ↓ Add Headers (X-User-Id, X-User-Email, X-User-Roles)
+    → [Eureka:8761] → [Backend Services]
 ```
 
-### Request Flow
-1. Client sends request to API Gateway (port 8080)
-2. Rate limiting filter checks request limits
-3. Request logging filter logs the request
-4. Gateway routes to appropriate backend service via Eureka
-5. Circuit breaker protects against service failures
-6. Security headers added to response
-7. Response returned to client
+### Request Flow with Authentication
+
+1. Client sends request with `Authorization: Bearer <token>` header
+2. **JWT Authentication Filter** validates token signature and expiration
+3. Gateway extracts user info (userId, email, roles) from token
+4. **User context headers** added to request for backend services
+5. Rate limiting filter checks request limits
+6. Request logging filter logs the request
+7. Gateway routes to appropriate backend service via Eureka
+8. Circuit breaker protects against service failures
+9. Security headers added to response
+10. Response returned to client
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 api-gateway/
 ├── src/
 │   ├── main/
 │   │   ├── java/com/youthconnect/api_gateway/
-│   │   │   ├── ApiGatewayApplication.java       # Main application
+│   │   │   ├── ApiGatewayApplication.java
 │   │   │   ├── config/
-│   │   │   │   ├── CorsConfig.java              # CORS configuration
-│   │   │   │   ├── RateLimitConfig.java         # Rate limiting config
-│   │   │   │   └── GatewayConfig.java           # Additional beans
+│   │   │   │   ├── CorsConfig.java
+│   │   │   │   ├── RateLimitConfig.java
+│   │   │   │   └── GatewayConfig.java
 │   │   │   ├── controller/
-│   │   │   │   ├── FallbackController.java      # Circuit breaker fallbacks
-│   │   │   │   └── HealthCheckController.java   # Health endpoints
+│   │   │   │   ├── FallbackController.java
+│   │   │   │   └── HealthCheckController.java
 │   │   │   ├── exception/
-│   │   │   │   └── GlobalExceptionHandler.java  # Error handling
-│   │   │   └── filter/
-│   │   │       ├── RateLimitGatewayFilter.java  # Rate limiting filter
-│   │   │       ├── SecurityHeadersFilter.java   # Security headers
-│   │   │       └── RequestLoggingFilter.java    # Request logging
+│   │   │   │   └── GlobalExceptionHandler.java
+│   │   │   ├── filter/
+│   │   │   │   ├── JwtAuthenticationFilter.java       ⭐ NEW
+│   │   │   │   ├── RateLimitGatewayFilter.java
+│   │   │   │   ├── SecurityHeadersFilter.java
+│   │   │   │   └── RequestLoggingFilter.java
+│   │   │   └── util/
+│   │   │       └── JwtUtil.java                       ⭐ NEW
 │   │   └── resources/
-│   │       └── application.yml                  # Configuration
+│   │       └── application.yml
 │   └── test/
-│       └── java/com/youthconnect/api_gateway/
-│           └── ApiGatewayApplicationTests.java
-├── pom.xml                                      # Maven dependencies
-└── README.md                                    # This file
+├── pom.xml
+└── README.md
 ```
 
 ---
 
-## Configuration
+## 🔐 JWT Authentication Details
 
-### application.yml
+### Public Endpoints (No Authentication Required)
 
-The gateway is configured via `application.yml`. Key sections:
+These endpoints are accessible without a JWT token:
 
-#### Service Routes
+```
+POST   /api/auth/register
+POST   /api/auth/login
+POST   /api/auth/refresh
+POST   /api/auth/reset-password/**
+GET    /health/**
+GET    /actuator/**
+GET    /swagger-ui/**
+GET    /v3/api-docs/**
+```
+
+### Protected Endpoints (JWT Required)
+
+All other endpoints require a valid JWT token in the `Authorization` header:
+
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+### User Context Headers
+
+After JWT validation, the gateway adds these headers for backend services:
+
+| Header | Description | Example |
+|--------|-------------|---------|
+| `X-User-Id` | User's unique identifier (UID) | `550e8400-e29b-41d4-a716-446655440000` |
+| `X-User-Email` | User's email address | `john.doe@example.com` |
+| `X-User-Roles` | Comma-separated user roles | `USER,MENTOR,ADMIN` |
+| `X-Auth-Token` | Original JWT token | `eyJhbGciOiJIUz...` |
+
+Backend services can use these headers to identify users without re-validating the JWT.
+
+### JWT Configuration
+
+JWT settings in `application.yml`:
+
 ```yaml
-spring:
-  cloud:
-    gateway:
-      routes:
-        - id: user-service
-          uri: lb://user-service
-          predicates:
-            - Path=/api/users/**
+jwt:
+  secret: ${JWT_SECRET:YouthConnectUgandaSecureSecretKey2025MinimumLengthRequired}
+  expiration: 86400000  # 24 hours
+  issuer: youth-connect-uganda
 ```
 
-#### Rate Limiting
-```yaml
-app:
-  security:
-    rate-limit:
-      enabled: true
-      requests-per-minute: 100
-      auth-requests-per-minute: 20
-```
-
-#### CORS
-```yaml
-spring:
-  cloud:
-    gateway:
-      globalcors:
-        cors-configurations:
-          '[/**]':
-            allowedOrigins: ["http://localhost:3000"]
-```
+**⚠️ IMPORTANT**: The `jwt.secret` **MUST** match the secret used by the `auth-service`.
 
 ---
 
-## Endpoints
-
-### Backend Service Routes
-
-| Service | Path Pattern | Backend Service |
-|---------|-------------|-----------------|
-| Auth | `/api/auth/**` | auth-service |
-| Users | `/api/users/**` | user-service |
-| Opportunities | `/api/opportunities/**` | opportunity-service |
-| Applications | `/api/applications/**` | opportunity-service |
-| Learning | `/api/learning/**` | content-service |
-| Posts | `/api/posts/**`, `/api/feed/**` | content-service |
-| Mentorship | `/api/mentorship/**` | mentor-service |
-| USSD | `/api/ussd/**` | ussd-service |
-| Recommendations | `/api/recommendations/**` | ai-recommendation-service |
-| Analytics | `/api/analytics/**` | analytics-service |
-| Notifications | `/api/notifications/**` | notification-service |
-| Files | `/api/files/**` | file-management-service |
-
-### Health Check Endpoints
-
-| Endpoint | Purpose |
-|----------|---------|
-| `/health` | Simple health check (200 OK if running) |
-| `/health/detailed` | Detailed health with registered services |
-| `/health/ready` | Kubernetes readiness probe |
-| `/health/live` | Kubernetes liveness probe |
-
-### Actuator Endpoints
-
-| Endpoint | Purpose |
-|----------|---------|
-| `/actuator/health` | Spring Boot health check |
-| `/actuator/prometheus` | Prometheus metrics |
-| `/actuator/metrics` | Application metrics |
-| `/actuator/gateway` | Gateway-specific metrics |
-
----
-
-## Rate Limiting
-
-The gateway implements token bucket rate limiting:
-
-### Rate Limits
-
-| Endpoint Type | Requests/Minute | Use Case |
-|--------------|-----------------|----------|
-| **Auth Endpoints** | 20 | Login, register, password reset |
-| **USSD Endpoints** | 50 | USSD session management |
-| **General Endpoints** | 100 | All other API endpoints |
-
-### Rate Limit Headers
-
-Responses include rate limit information:
-
-```
-X-Rate-Limit-Remaining: 95
-X-Rate-Limit-Retry-After-Seconds: 45
-```
-
-### Rate Limit Exceeded Response
-
-```json
-{
-  "timestamp": "2025-01-20T10:30:00",
-  "status": 429,
-  "error": "Too Many Requests",
-  "message": "Rate limit exceeded",
-  "path": "/api/auth/login"
-}
-```
-
----
-
-## Circuit Breaker
-
-Resilience4j circuit breaker protects against cascading failures.
-
-### Circuit Breaker States
-
-1. **CLOSED** - Normal operation, requests flow through
-2. **OPEN** - Too many failures, requests fail fast (fallback)
-3. **HALF_OPEN** - Testing if service recovered
-
-### Configuration
-
-- **Failure Threshold**: 50% failure rate
-- **Minimum Calls**: 5 calls before evaluation
-- **Wait Duration**: 10 seconds in open state
-- **Slow Call Threshold**: 3 seconds
-
-### Fallback Endpoints
-
-When circuit breaker opens, requests route to fallback endpoints:
-
-- `/fallback/auth` - Auth service unavailable
-- `/fallback/users` - User service unavailable
-- `/fallback/opportunities` - Opportunity service unavailable
-- `/fallback/mentorship` - Mentorship service unavailable
-
----
-
-## Security
-
-### Security Headers
-
-All responses include security headers:
-
-```
-X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
-X-XSS-Protection: 1; mode=block
-Content-Security-Policy: default-src 'self'
-```
-
-### CORS
-
-CORS is configured for:
-- Web app: `http://localhost:3000`
-- Mobile app: `http://localhost:3001`
-- Production: `https://youthconnect.ug`
-
----
-
-## Running the Gateway
+## 🚀 Running the Gateway
 
 ### Prerequisites
 
 1. **Java 17** installed
 2. **Maven 3.8+** installed
 3. **Service Registry** running on port 8761
+4. **Auth Service** configured with matching JWT secret
 
-### Start the Gateway
+### Step 1: Set JWT Secret (Production)
+
+For production, use environment variable:
+
+```bash
+export JWT_SECRET="YourSecureSecretKeyMinimum32CharactersLong"
+```
+
+### Step 2: Start the Gateway
 
 ```bash
 # Navigate to api-gateway directory
@@ -254,208 +166,268 @@ mvn clean install
 mvn spring-boot:run
 ```
 
-The gateway will start on **port 8080**.
+The gateway will start on **port 8088**.
 
-### Verify Startup
+### Step 3: Verify Startup
 
 1. Check console for startup message
-2. Visit health endpoint: `http://localhost:8080/health`
+2. Visit health endpoint: `http://localhost:8088/health`
 3. Check Eureka dashboard: `http://localhost:8761`
 
 Expected output:
 ```
 🚀 API Gateway Started Successfully!
-🌐 Local URL: http://localhost:8080
+🌐 Local URL: http://localhost:8088
 📊 Eureka Server: http://localhost:8761/eureka
 ```
 
 ---
 
-## Testing
+## 🧪 Testing Authentication
 
-### Test Rate Limiting
-
-```bash
-# Send 25 rapid requests (should trigger rate limit)
-for i in {1..25}; do
-  curl -w "\nStatus: %{http_code}\n" http://localhost:8080/api/auth/login
-done
-```
-
-Expected: First 20 succeed, rest return `429 Too Many Requests`
-
-### Test CORS
+### Test 1: Public Endpoint (No Token Required)
 
 ```bash
-curl -H "Origin: http://localhost:3000" \
-     -H "Access-Control-Request-Method: POST" \
-     -X OPTIONS \
-     http://localhost:8080/api/users
+curl http://localhost:8088/api/auth/login \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "password123"
+  }'
 ```
 
-Expected: `Access-Control-Allow-Origin: http://localhost:3000` header
+Expected: **200 OK** with JWT token in response
 
-### Test Circuit Breaker
+### Test 2: Protected Endpoint (Token Required)
 
-1. Stop user-service
-2. Make request: `curl http://localhost:8080/api/users`
-3. After 5 failures, circuit breaker opens
-4. Subsequent requests immediately return fallback response
+```bash
+# Without token - should fail
+curl http://localhost:8088/api/v1/users/me \
+  -H "Content-Type: application/json"
+```
+
+Expected: **401 Unauthorized**
+```json
+{
+  "timestamp": "2025-11-02T16:30:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "message": "Missing or invalid Authorization header",
+  "path": "/api/v1/users/me"
+}
+```
+
+```bash
+# With valid token - should succeed
+curl http://localhost:8088/api/v1/users/me \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+Expected: **200 OK** with user data
+
+### Test 3: Expired Token
+
+```bash
+curl http://localhost:8088/api/v1/users/me \
+  -H "Authorization: Bearer <expired_token>"
+```
+
+Expected: **401 Unauthorized**
+```json
+{
+  "timestamp": "2025-11-02T16:30:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "message": "Invalid or expired token",
+  "path": "/api/v1/users/me"
+}
+```
+
+### Test 4: Verify User Context Headers
+
+Backend services should receive user context headers:
+
+```bash
+# In backend service logs, you should see:
+X-User-Id: 550e8400-e29b-41d4-a716-446655440000
+X-User-Email: john.doe@example.com
+X-User-Roles: USER,MENTOR
+X-Auth-Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
 
 ---
 
-## Monitoring
+## 📋 Service Routes
 
-### Prometheus Metrics
+### Authentication Required Services
 
-Access metrics at: `http://localhost:8080/actuator/prometheus`
-
-Key metrics:
-- `gateway_requests_total` - Total requests processed
-- `gateway_requests_seconds` - Request duration
-- `resilience4j_circuitbreaker_state` - Circuit breaker state
-
-### Request Logging
-
-All requests logged with:
-```
->>> Incoming Request | ID: abc-123 | Method: POST | Path: /api/users | IP: 127.0.0.1
-<<< Outgoing Response | ID: abc-123 | Status: 200 | Time: 145ms
-```
+| Service | Path Pattern | Authentication | Backend Service |
+|---------|-------------|----------------|-----------------|
+| Auth | `/api/auth/login`, `/api/auth/register` | ❌ Public | auth-service |
+| Users | `/api/v1/users/**` | ✅ Required | user-service |
+| Jobs | `/api/v1/jobs/**` | ✅ Required | job-service |
+| Opportunities | `/api/opportunities/**` | ✅ Required | opportunity-service |
+| Mentorship | `/api/mentorship/**` | ✅ Required | mentor-service |
+| Files | `/api/files/**` | ✅ Required | file-management-service |
+| Notifications | `/api/notifications/**` | ✅ Required | notification-service |
+| AI Recommendations | `/api/v1/ai/**` | ✅ Required | ai-recommendation-service |
+| Content | `/api/learning/**`, `/api/posts/**` | ⚠️ Mixed | content-service |
+| Analytics | `/api/analytics/**` | ✅ Internal | analytics-service |
 
 ---
 
-## Troubleshooting
+## 🔧 Configuration
 
-### Gateway won't start
+### Rate Limiting
 
-**Problem**: Port 8080 already in use  
-**Solution**: Change port in `application.yml` or kill process on 8080
+Rate limits apply **after** JWT validation:
 
-```bash
-# Find process on port 8080
-lsof -i :8080
+| Endpoint Type | Requests/Minute |
+|--------------|-----------------|
+| Auth Endpoints | 20 |
+| USSD Endpoints | 50 |
+| General Endpoints | 100 |
 
-# Kill process
-kill -9 <PID>
-```
+### Circuit Breaker
 
-### Services not registering
-
-**Problem**: Eureka server not running  
-**Solution**: Start service-registry first
-
-```bash
-cd service-registry
-mvn spring-boot:run
-```
-
-### Rate limiting not working
-
-**Problem**: `bucket4j` dependency not found  
-**Solution**: Check pom.xml has correct version (8.1.0, NOT 8.10.1)
-
-### CORS errors
-
-**Problem**: Frontend origin not allowed  
-**Solution**: Add origin to `application.yml`:
+Circuit breaker configuration:
 
 ```yaml
-spring:
-  cloud:
-    gateway:
-      globalcors:
-        cors-configurations:
-          '[/**]':
-            allowedOrigins:
-              - "http://your-frontend-url:port"
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        sliding-window-size: 10
 ```
 
 ---
 
-## Production Deployment
+## 🐳 Docker Deployment
 
-### Environment Variables
-
-Override configuration with environment variables:
-
-```bash
-SERVER_PORT=80
-EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka:8761/eureka
-APP_SECURITY_RATE_LIMIT_REQUESTS_PER_MINUTE=1000
-```
-
-### Docker Deployment
+### Dockerfile
 
 ```dockerfile
 FROM openjdk:17-jdk-slim
-COPY target/api-gateway-0.0.1-SNAPSHOT.jar app.jar
-EXPOSE 8080
+WORKDIR /app
+COPY target/api-gateway-1.0.0.jar app.jar
+EXPOSE 8088
+
+# Set JWT secret via environment variable
+ENV JWT_SECRET=${JWT_SECRET}
+
 ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
 
-### Kubernetes Deployment
+### Docker Compose
 
 ```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: api-gateway
-spec:
-  type: LoadBalancer
-  ports:
-    - port: 80
-      targetPort: 8080
-  selector:
-    app: api-gateway
+version: '3.8'
+services:
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8088:8088"
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+      - EUREKA_SERVER=http://service-registry:8761/eureka
+    depends_on:
+      - service-registry
+      - auth-service
 ```
 
 ---
 
-## Performance Optimization
+## 🔍 Monitoring
 
-### Recommended Settings for Production
+### Health Checks
 
-```yaml
-# Increase thread pool
-server:
-  tomcat:
-    threads:
-      max: 200
-      min-spare: 10
+```bash
+# Simple health check
+curl http://localhost:8088/health
 
-# Increase connection timeout
-spring:
-  cloud:
-    gateway:
-      httpclient:
-        connect-timeout: 5000
-        response-timeout: 30s
+# Detailed health with services
+curl http://localhost:8088/health/detailed
+```
+
+### Prometheus Metrics
+
+```bash
+curl http://localhost:8088/actuator/prometheus
+```
+
+Key metrics:
+- `gateway_jwt_validations_total` - Total JWT validations
+- `gateway_jwt_validation_failures_total` - Failed validations
+- `gateway_requests_total` - Total requests
+- `resilience4j_circuitbreaker_state` - Circuit breaker state
+
+---
+
+## 🛠️ Troubleshooting
+
+### JWT Validation Fails
+
+**Problem**: All protected endpoints return 401  
+**Solution**: Check JWT secret matches auth-service
+
+```bash
+# Check gateway logs
+tail -f logs/api-gateway.log | grep JWT
+
+# Verify secret in application.yml matches auth-service
+```
+
+### "Missing Authorization Header"
+
+**Problem**: Token not being sent  
+**Solution**: Ensure client sends token in correct format
+
+```javascript
+// Correct format
+headers: {
+  'Authorization': `Bearer ${token}`
+}
+```
+
+### Backend Services Don't Receive User Context
+
+**Problem**: X-User-Id header missing in backend  
+**Solution**: Check JWT filter order and header injection
+
+```bash
+# Check logs for filter execution order
+grep "JwtAuthenticationFilter" logs/api-gateway.log
 ```
 
 ---
 
-## Contributing
+## 📊 Development Guidelines Compliance
 
-When modifying the API Gateway:
+This implementation follows all backend development guidelines:
 
-1. Update route configurations in `application.yml`
-2. Add/modify filters in `filter/` package
-3. Update this README with changes
-4. Test all routes after changes
-5. Update integration tests
+✅ **Authentication via Gateway** - JWT validation centralized in API Gateway  
+✅ **Token-Based Auth** - Uses JWT (JSON Web Tokens)  
+✅ **Stateless Services** - Backend services don't validate tokens  
+✅ **User Context Injection** - Gateway adds user headers  
+✅ **Public Endpoints** - Login/register accessible without auth  
+✅ **Protected Routes** - All user-facing services secured  
+✅ **Health Checks** - Available at `/health` endpoints  
+✅ **Docker Ready** - Dockerfile and compose configuration included
 
 ---
 
-## Support
+## 📝 License
+
+Copyright © 2025 Youth Connect Uganda. All rights reserved.
+
+---
+
+## 👥 Support
 
 For issues or questions:
 - **Email**: support@youthconnect.ug
 - **Slack**: #api-gateway channel
 - **Documentation**: https://docs.youthconnect.ug
-
----
-
-## License
-
-Copyright © 2025 Youth Connect Uganda. All rights reserved.

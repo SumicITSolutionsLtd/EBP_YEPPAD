@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.*;
  * Base Path: {@code /api/notifications}
  *
  * @author
- *     Youth Connect Uganda Development Team
+ *     Douglas Kings Kato
  * @version
  *     1.1.0
  */

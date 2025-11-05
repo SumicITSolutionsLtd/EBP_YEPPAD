@@ -1,6 +1,7 @@
 package com.youthconnect.ai.service.service;
 
 import com.youthconnect.ai.service.entity.UserActivityLog;
+import com.youthconnect.ai.service.model.UserBehaviorData;
 import com.youthconnect.ai.service.repository.UserActivityLogRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -15,14 +16,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
- * PRODUCTION IMPLEMENTATION: User Activity Tracking Service
- * Records and analyzes user behavior for AI recommendations
+ * User Activity Tracking Service
  *
- * This is a REAL service that handles actual data processing for:
- * - User behavior tracking across all platform interactions
- * - Data collection for machine learning algorithms
- * - Analytics and insights generation
- * - Performance optimization through async processing
+ * Records and analyzes user behavior for AI recommendations
+ * Handles activity logging, behavior analysis, and engagement metrics
+ *
+ * @author Douglas Kings Kato
+ * @version 1.0.0
  */
 @Slf4j
 @Service
@@ -37,10 +37,10 @@ public class UserActivityService {
      * Record user activity asynchronously for performance
      * This method is called from other services via Feign clients
      *
-     * @param userId - The user performing the activity
-     * @param activityType - Type of activity (VIEW_OPPORTUNITY, LISTEN_AUDIO, etc.)
-     * @param targetId - ID of the target item (optional)
-     * @param metadata - Additional context information
+     * @param userId The user performing the activity
+     * @param activityType Type of activity (VIEW_OPPORTUNITY, LISTEN_AUDIO, etc.)
+     * @param targetId ID of the target item (optional)
+     * @param metadata Additional context information
      */
     @Async
     public CompletableFuture<Void> recordActivity(Long userId, String activityType,
@@ -68,9 +68,6 @@ public class UserActivityService {
             // Save to database
             activityRepository.save(activityLog);
 
-            // Update user engagement metrics if needed
-            updateEngagementMetrics(userId, activityType);
-
             log.debug("Successfully recorded activity for user {}: {}", userId, activityType);
 
         } catch (Exception e) {
@@ -84,8 +81,8 @@ public class UserActivityService {
     /**
      * Get user behavior analysis for recommendation algorithms
      *
-     * @param userId - User to analyze
-     * @param days - Number of days to look back
+     * @param userId User to analyze
+     * @param days Number of days to look back
      * @return Behavior analysis data
      */
     public Map<String, Object> getUserBehaviorAnalysis(Long userId, int days) {
@@ -120,40 +117,70 @@ public class UserActivityService {
     }
 
     /**
-     * Get user activity patterns for specific activity types
+     * Get user behavior data for recommendation algorithms
+     *
+     * CRITICAL METHOD: Called by AIRecommendationServiceImpl
+     *
+     * @param userId User to analyze
+     * @param days Number of days to look back
+     * @return UserBehaviorData model for AI processing
      */
-    public List<Map<String, Object>> getUserActivityPattern(Long userId, String activityType, int limit) {
-        log.debug("Getting activity pattern for user {}: {}", userId, activityType);
+    public UserBehaviorData getUserBehaviorData(Long userId, int days) {
+        log.debug("Getting behavior data for user: {} over {} days", userId, days);
 
-        List<UserActivityLog> activities = activityRepository
-                .findByUserIdAndActivityTypeOrderByCreatedAtDesc(userId, activityType);
+        try {
+            LocalDateTime since = LocalDateTime.now().minusDays(days);
 
-        return activities.stream()
-                .limit(limit)
-                .map(this::convertActivityToMap)
-                .collect(Collectors.toList());
+            // Get recent activities
+            List<UserActivityLog> recentActivities = activityRepository.findRecentActivitiesByUser(userId, since);
+
+            // Calculate session count
+            Long sessionCount = calculateSessionCount(userId, since);
+
+            // Calculate average session duration
+            double avgSessionDuration = calculateAverageSessionDuration(recentActivities);
+
+            // Get most active hours
+            List<Integer> mostActiveHours = getMostActiveHours(userId);
+
+            // Get preferred content types
+            List<String> preferredTypes = getPreferredContentTypes(userId);
+
+            // Calculate engagement metrics
+            String engagementLevel = calculateEngagementLevel(recentActivities);
+
+            // Count activity types
+            int opportunityViews = countActivityType(recentActivities, "VIEW_OPPORTUNITY");
+            int applicationsSubmitted = countActivityType(recentActivities, "APPLY_JOB");
+            int learningModulesAccessed = countActivityType(recentActivities, "LISTEN_AUDIO");
+            int communityPostViews = countActivityType(recentActivities, "VIEW_POST");
+
+            // Build behavior data model
+            return UserBehaviorData.builder()
+                    .userId(userId)
+                    .sessionCount(sessionCount != null ? sessionCount.intValue() : 0)
+                    .averageSessionDuration(avgSessionDuration)
+                    .mostActiveHours(mostActiveHours)
+                    .preferredContentTypes(preferredTypes)
+                    .totalInteractions(recentActivities.size())
+                    .opportunityViews(opportunityViews)
+                    .applicationsSubmitted(applicationsSubmitted)
+                    .learningModulesAccessed(learningModulesAccessed)
+                    .communityPostViews(communityPostViews)
+                    .applicationSuccessRate(calculateSuccessRate(userId))
+                    .lastInteractionTime(getLastInteractionTime(recentActivities))
+                    .engagementLevel(engagementLevel)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error getting behavior data for user {}: {}", userId, e.getMessage(), e);
+            return createFallbackBehaviorDataModel(userId);
+        }
     }
 
-    /**
-     * Get platform-wide activity statistics for analytics
-     */
-    public Map<String, Object> getPlatformActivityStatistics(int days) {
-        log.debug("Calculating platform activity statistics for {} days", days);
-
-        LocalDateTime since = LocalDateTime.now().minusDays(days);
-
-        // This would typically use custom repository methods
-        // For now, returning calculated statistics
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("totalActivities", activityRepository.count());
-        stats.put("uniqueUsers", getActiveUserCount(since));
-        stats.put("topActivityTypes", getTopActivityTypes(since));
-        stats.put("hourlyDistribution", getHourlyActivityDistribution(since));
-
-        return stats;
-    }
-
-    // Private helper methods
+    // =========================================================================
+    // PRIVATE HELPER METHODS
+    // =========================================================================
 
     private String extractSessionId(Map<String, Object> metadata) {
         if (metadata != null && metadata.containsKey("sessionId")) {
@@ -163,11 +190,11 @@ public class UserActivityService {
     }
 
     private String extractTargetType(String activityType) {
-        // Extract target type from activity type
         if (activityType.contains("OPPORTUNITY")) return "OPPORTUNITY";
         if (activityType.contains("AUDIO") || activityType.contains("MODULE")) return "LEARNING_MODULE";
         if (activityType.contains("MENTOR")) return "MENTOR";
         if (activityType.contains("POST")) return "COMMUNITY_POST";
+        if (activityType.contains("JOB")) return "JOB";
         return "UNKNOWN";
     }
 
@@ -182,12 +209,6 @@ public class UserActivityService {
             log.warn("Failed to convert metadata to JSON: {}", e.getMessage());
             return "{}";
         }
-    }
-
-    private void updateEngagementMetrics(Long userId, String activityType) {
-        // Update user engagement metrics based on activity
-        // This could trigger additional ML processing
-        log.debug("Updating engagement metrics for user {} after activity: {}", userId, activityType);
     }
 
     private Long calculateSessionCount(Long userId, LocalDateTime since) {
@@ -285,6 +306,25 @@ public class UserActivityService {
                 .orElse(null);
     }
 
+    private int countActivityType(List<UserActivityLog> activities, String activityType) {
+        return (int) activities.stream()
+                .filter(activity -> activityType.equals(activity.getActivityType()))
+                .count();
+    }
+
+    private double calculateSuccessRate(Long userId) {
+        // STUB: In production, query applications table for actual success rate
+        return 0.65; // 65% default
+    }
+
+    private Long getLastInteractionTime(List<UserActivityLog> activities) {
+        return activities.stream()
+                .map(UserActivityLog::getCreatedAt)
+                .max(LocalDateTime::compareTo)
+                .map(dt -> java.time.Instant.now().toEpochMilli())
+                .orElse(null);
+    }
+
     private Map<String, Object> createFallbackBehaviorAnalysis(Long userId) {
         Map<String, Object> fallback = new HashMap<>();
         fallback.put("userId", userId);
@@ -295,48 +335,15 @@ public class UserActivityService {
         return fallback;
     }
 
-    private Map<String, Object> convertActivityToMap(UserActivityLog activity) {
-        Map<String, Object> activityMap = new HashMap<>();
-        activityMap.put("activityType", activity.getActivityType());
-        activityMap.put("targetId", activity.getTargetId());
-        activityMap.put("targetType", activity.getTargetType());
-        activityMap.put("createdAt", activity.getCreatedAt());
-        activityMap.put("sessionId", activity.getSessionId());
-
-        // Parse metadata JSON back to Map if needed
-        try {
-            if (activity.getMetadata() != null && !activity.getMetadata().equals("{}")) {
-                Map<String, Object> metadata = objectMapper.readValue(activity.getMetadata(), Map.class);
-                activityMap.put("metadata", metadata);
-            }
-        } catch (Exception e) {
-            log.debug("Could not parse metadata for activity {}", activity.getLogId());
-        }
-
-        return activityMap;
-    }
-
-    private long getActiveUserCount(LocalDateTime since) {
-        // This would need a custom repository method
-        // For now, return estimated count
-        return 500; // Placeholder
-    }
-
-    private List<Map<String, Object>> getTopActivityTypes(LocalDateTime since) {
-        // Return mock top activities
-        return Arrays.asList(
-                Map.of("activityType", "VIEW_OPPORTUNITY", "count", 1250),
-                Map.of("activityType", "LISTEN_AUDIO", "count", 890),
-                Map.of("activityType", "APPLY_JOB", "count", 456)
-        );
-    }
-
-    private Map<Integer, Long> getHourlyActivityDistribution(LocalDateTime since) {
-        // Return mock hourly distribution
-        Map<Integer, Long> distribution = new HashMap<>();
-        for (int hour = 0; hour < 24; hour++) {
-            distribution.put(hour, (long) (Math.random() * 100));
-        }
-        return distribution;
+    private UserBehaviorData createFallbackBehaviorDataModel(Long userId) {
+        return UserBehaviorData.builder()
+                .userId(userId)
+                .sessionCount(0)
+                .averageSessionDuration(0.0)
+                .mostActiveHours(List.of(9, 10, 14, 15))
+                .preferredContentTypes(List.of("OPPORTUNITY"))
+                .totalInteractions(0)
+                .engagementLevel("NEW")
+                .build();
     }
 }

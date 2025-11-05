@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * UserInterestRepository - User Interest Data Access Layer
@@ -26,9 +27,8 @@ import java.util.Optional;
  * Primary Key: user_interest_id (auto-increment)
  * Unique Constraint: (user_id, interest_tag)
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
- * @since 2024-01-15
  */
 @Repository
 public interface UserInterestRepository extends JpaRepository<UserInterest, Long> {
@@ -48,7 +48,7 @@ public interface UserInterestRepository extends JpaRepository<UserInterest, Long
      */
     @Query("SELECT ui FROM UserInterest ui WHERE ui.userId = :userId " +
             "ORDER BY ui.interestLevel DESC, ui.createdAt DESC")
-    List<UserInterest> findByUserId(@Param("userId") Long userId);
+    List<UserInterest> findByUserId(@Param("userId") UUID userId);
 
     /**
      * Find a specific interest by user and tag
@@ -58,7 +58,7 @@ public interface UserInterestRepository extends JpaRepository<UserInterest, Long
      * @param interestTag Interest keyword (e.g., "Agriculture", "Technology")
      * @return Optional containing the interest if found
      */
-    Optional<UserInterest> findByUserIdAndInterestTag(Long userId, String interestTag);
+    Optional<UserInterest> findByUserIdAndInterestTag(UUID userId, String interestTag);
 
     /**
      * Check if a user has a specific interest
@@ -68,7 +68,7 @@ public interface UserInterestRepository extends JpaRepository<UserInterest, Long
      * @param interestTag Interest keyword
      * @return true if user has this interest
      */
-    boolean existsByUserIdAndInterestTag(Long userId, String interestTag);
+    boolean existsByUserIdAndInterestTag(UUID userId, String interestTag);
 
     // ========================================================================
     // INTEREST LEVEL QUERIES
@@ -85,7 +85,7 @@ public interface UserInterestRepository extends JpaRepository<UserInterest, Long
      */
     @Query("SELECT ui FROM UserInterest ui WHERE ui.userId = :userId " +
             "AND ui.interestLevel = 'HIGH'")
-    List<UserInterest> findHighPriorityInterests(@Param("userId") Long userId);
+    List<UserInterest> findHighPriorityInterests(@Param("userId") UUID userId);
 
     /**
      * Find interests by source type
@@ -96,7 +96,7 @@ public interface UserInterestRepository extends JpaRepository<UserInterest, Long
      * @return List of interests from specified source
      */
     @Query("SELECT ui FROM UserInterest ui WHERE ui.userId = :userId AND ui.source = :source")
-    List<UserInterest> findByUserIdAndSource(@Param("userId") Long userId,
+    List<UserInterest> findByUserIdAndSource(@Param("userId") UUID userId,
                                              @Param("source") String source);
 
     // ========================================================================
@@ -114,7 +114,7 @@ public interface UserInterestRepository extends JpaRepository<UserInterest, Long
      */
     @Modifying
     @Query("DELETE FROM UserInterest ui WHERE ui.userId = :userId")
-    int deleteAllByUserId(@Param("userId") Long userId);
+    int deleteAllByUserId(@Param("userId") UUID userId);
 
     /**
      * Delete a specific interest
@@ -127,7 +127,7 @@ public interface UserInterestRepository extends JpaRepository<UserInterest, Long
     @Modifying
     @Query("DELETE FROM UserInterest ui WHERE ui.userId = :userId " +
             "AND ui.interestTag = :interestTag")
-    int deleteByUserIdAndInterestTag(@Param("userId") Long userId,
+    int deleteByUserIdAndInterestTag(@Param("userId") UUID userId,
                                      @Param("interestTag") String interestTag);
 
     // ========================================================================
@@ -141,7 +141,7 @@ public interface UserInterestRepository extends JpaRepository<UserInterest, Long
      * @param userId User's unique identifier
      * @return Number of interests registered
      */
-    long countByUserId(Long userId);
+    long countByUserId(UUID userId);
 
     /**
      * Find users with similar interests (for collaborative filtering)
@@ -192,7 +192,7 @@ public interface UserInterestRepository extends JpaRepository<UserInterest, Long
             "ORDER BY co_occurrence DESC " +
             "LIMIT :limit",
             nativeQuery = true)
-    List<Object[]> findRelatedInterests(@Param("userId") Long userId,
+    List<Object[]> findRelatedInterests(@Param("userId") UUID userId,
                                         @Param("currentInterestTag") String currentInterestTag,
                                         @Param("limit") int limit);
 
@@ -213,7 +213,7 @@ public interface UserInterestRepository extends JpaRepository<UserInterest, Long
     @Query("UPDATE UserInterest ui SET ui.interestLevel = :newLevel, " +
             "ui.updatedAt = CURRENT_TIMESTAMP " +
             "WHERE ui.userId = :userId AND ui.interestTag = :interestTag")
-    int updateInterestLevel(@Param("userId") Long userId,
+    int updateInterestLevel(@Param("userId") UUID userId,
                             @Param("interestTag") String interestTag,
                             @Param("newLevel") String newLevel);
 
@@ -230,6 +230,6 @@ public interface UserInterestRepository extends JpaRepository<UserInterest, Long
             "ui.updatedAt = CURRENT_TIMESTAMP " +
             "WHERE ui.userId = :userId AND ui.interestTag = :interestTag " +
             "AND ui.source = 'AI_INFERRED'")
-    int confirmAiInferredInterest(@Param("userId") Long userId,
+    int confirmAiInferredInterest(@Param("userId") UUID userId,
                                   @Param("interestTag") String interestTag);
 }

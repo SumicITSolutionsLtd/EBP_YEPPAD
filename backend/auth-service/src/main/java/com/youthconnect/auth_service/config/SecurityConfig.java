@@ -3,6 +3,7 @@ package com.youthconnect.auth_service.config;
 import com.youthconnect.auth_service.security.JwtAuthenticationEntryPoint;
 import com.youthconnect.auth_service.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -29,6 +30,8 @@ import java.util.List;
 /**
  * Security Configuration for Auth Service
  *
+ * UPDATED: Added CORS configuration from application.yml
+ *
  * Configures Spring Security for JWT-based stateless authentication:
  * - Disables CSRF (not needed for stateless JWT auth)
  * - Configures CORS for cross-origin requests
@@ -37,8 +40,8 @@ import java.util.List;
  * - Integrates JWT authentication filter
  * - Configures password encoding (BCrypt)
  *
- * @author Youth Connect Uganda Development Team
- * @version 1.0.0
+ * @author Douglas Kings Kato
+ * @version 2.0.0
  */
 @Configuration
 @EnableWebSecurity
@@ -49,6 +52,24 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final UserDetailsService userDetailsService;
+
+    @Value("${app.security.allowed-origins}")
+    private List<String> allowedOrigins;
+
+    @Value("${app.security.allowed-methods}")
+    private List<String> allowedMethods;
+
+    @Value("${app.security.allowed-headers}")
+    private List<String> allowedHeaders;
+
+    @Value("${app.security.exposed-headers}")
+    private List<String> exposedHeaders;
+
+    @Value("${app.security.allow-credentials}")
+    private boolean allowCredentials;
+
+    @Value("${app.security.max-age}")
+    private long maxAge;
 
     /**
      * Configure Security Filter Chain
@@ -83,6 +104,8 @@ public class SecurityConfig {
                                 "/health/**",
                                 "/actuator/**",
                                 "/actuator/health/**",
+                                "/actuator/prometheus",
+                                "/actuator/info",
                                 "/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
@@ -119,44 +142,31 @@ public class SecurityConfig {
      * Allows the frontend application to make requests to this service
      * from different origins (domains/ports).
      *
+     * Configuration is loaded from application.yml
+     *
      * @return CorsConfigurationSource CORS configuration
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Allow specific origins (frontend applications)
-        configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:3000",      // React dev server
-                "http://localhost:3001",      // Alternative React port
-                "https://youthconnect.ug",    // Production domain
-                "https://www.youthconnect.ug" // Production www subdomain
-        ));
+        // Allow specific origins from configuration
+        configuration.setAllowedOrigins(allowedOrigins);
 
         // Allow specific HTTP methods
-        configuration.setAllowedMethods(Arrays.asList(
-                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
-        ));
+        configuration.setAllowedMethods(allowedMethods);
 
         // Allow specific headers
-        configuration.setAllowedHeaders(Arrays.asList(
-                "Authorization",
-                "Content-Type",
-                "Accept",
-                "Origin",
-                "X-Requested-With"
-        ));
+        configuration.setAllowedHeaders(allowedHeaders);
 
         // Expose specific headers to the client
-        configuration.setExposedHeaders(List.of(
-                "Authorization"
-        ));
+        configuration.setExposedHeaders(exposedHeaders);
 
         // Allow credentials (cookies, authorization headers)
-        configuration.setAllowCredentials(true);
+        configuration.setAllowCredentials(allowCredentials);
 
-        // Cache preflight response for 1 hour
-        configuration.setMaxAge(3600L);
+        // Cache preflight response
+        configuration.setMaxAge(maxAge);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
@@ -194,6 +204,7 @@ public class SecurityConfig {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
         authProvider.setUserDetailsService(userDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder());
+        authProvider.setHideUserNotFoundExceptions(false);
         return authProvider;
     }
 

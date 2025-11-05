@@ -11,7 +11,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * Minimal internal API interceptor for user-service
  * Only validates internal API keys, doesn't handle JWT
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
  */
 @Slf4j

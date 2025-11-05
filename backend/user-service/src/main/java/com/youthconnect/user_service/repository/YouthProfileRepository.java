@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Spring Data JPA repository for the YouthProfile entity.
@@ -27,5 +28,5 @@ public interface YouthProfileRepository extends JpaRepository<YouthProfile, Long
      * @param userId The primary key of the User entity.
      * @return An Optional containing the YouthProfile if found.
      */
-    Optional<YouthProfile> findByUser_Id(Long userId);
+    Optional<YouthProfile> findByUser_Id(UUID userId);
 }

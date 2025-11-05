@@ -1,5 +1,5 @@
 # ================================================================================
-# Service Registry (Eureka Server) - PRODUCTION Configuration
+# Service Registry (Eureka Server) - PRODUCTION Configuration - FIXED
 # ================================================================================
 
 spring:
@@ -18,7 +18,7 @@ server:
     accept-count: 100
 
 # ================================================================================
-# Eureka Server Configuration - PRODUCTION
+# Eureka Server Configuration - PRODUCTION (FIXED - merged into single block)
 # ================================================================================
 eureka:
   instance:
@@ -48,13 +48,13 @@ eureka:
     rate-limiter-registry-fetch-average-rate: 500
     rate-limiter-full-fetch-average-rate: 100
 
-# ================================================================================
-# Security - PRODUCTION
-# ================================================================================
-eureka:
+  # Security configuration (moved here to be part of eureka block)
   security:
-    username: ${EUREKA_USERNAME:admin}
-    password: ${EUREKA_PASSWORD:changeme_in_production}
+    basic:
+      enabled: true
+    user:
+      name: ${EUREKA_USERNAME:admin}
+      password: ${EUREKA_PASSWORD:changeme_in_production}
 
 # ================================================================================
 # Management - PRODUCTION
@@ -86,3 +86,16 @@ logging:
     max-size: 100MB
     max-history: 60
     total-size-cap: 5GB
+
+# ================================================================================
+# Application Info
+# ================================================================================
+info:
+  app:
+    name: ${spring.application.name}
+    description: Service Registry for YouthConnect Uganda Platform (Production)
+    version: '@project.version@'
+    encoding: '@project.build.sourceEncoding@'
+    java:
+      version: '@java.version@'
+  environment: production

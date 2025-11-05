@@ -4,6 +4,7 @@ import com.youthconnect.user_service.entity.MentorProfile;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Repository interface for managing MentorProfile entities.
@@ -21,5 +22,5 @@ public interface MentorProfileRepository extends JpaRepository<MentorProfile, Lo
      * @param userId The ID of the user to search for.
      * @return An Optional containing the MentorProfile if found.
      */
-    Optional<MentorProfile> findByUser_Id(Long userId);
+    Optional<MentorProfile> findByUser_Id(UUID userId);
 }

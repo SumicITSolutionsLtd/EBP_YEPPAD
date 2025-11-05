@@ -6,30 +6,26 @@ import com.youthconnect.auth_service.dto.response.UserInfoResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 /**
  * Feign Client for User Service Communication
  *
- * Handles all inter-service HTTP communication with {@code user-service} for:
- * <ul>
- *     <li>User registration and profile creation</li>
- *     <li>User lookup by email, phone number, or ID</li>
- *     <li>User data retrieval for authentication and verification</li>
- *     <li>Validation of existing user accounts (email or phone)</li>
- * </ul>
+ * UPDATED: Fixed type parameter to use UUID consistently
  *
- * Configuration:
- * <ul>
- *     <li>Service discovery via Eureka for dynamic endpoint resolution</li>
- *     <li>Load-balanced calls across user-service instances</li>
- *     <li>Circuit breaker and fallback factory for fault tolerance</li>
- * </ul>
+ * Handles inter-service communication with user-service for:
+ * - User retrieval by various identifiers
+ * - User registration
+ * - Email/phone existence checks
+ * - Password updates
  *
- * Base Path: {@code /api/v1/users/internal}
+ * Features:
+ * - Service discovery via Eureka
+ * - Circuit breaker fallback support
+ * - Automatic retry on failures
  *
- * @version 1.2.0
- * @since 2025-10
- * @author
- *     Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
+ * @version 2.0.0
  */
 @FeignClient(
         name = "user-service",
@@ -39,90 +35,76 @@ import org.springframework.web.bind.annotation.*;
 public interface UserServiceClient {
 
     /**
-     * Retrieve user by email or phone number.
-     * <p>
-     * Used during login or authentication workflows to obtain user details
-     * based on a single identifier (either email or phone number).
-     * </p>
+     * Get user by identifier (email or phone)
      *
-     * Endpoint: {@code GET /api/v1/users/internal/by-identifier?identifier={value}}
-     *
-     * @param identifier Email address or phone number
-     * @return ApiResponse containing {@link UserInfoResponse} or error if not found
+     * @param identifier Email or phone number
+     * @return User information
      */
     @GetMapping("/by-identifier")
     ApiResponse<UserInfoResponse> getUserByIdentifier(@RequestParam("identifier") String identifier);
 
     /**
-     * Retrieve user by phone number only.
-     * <p>
-     * Commonly used for USSD or SMS-based authentication where only
-     * a phone number is available.
-     * </p>
+     * Get user by phone number
      *
-     * Endpoint: {@code GET /api/v1/users/internal/by-phone?phoneNumber={value}}
-     *
-     * @param phoneNumber User’s phone number (international or Ugandan format)
-     * @return ApiResponse containing {@link UserInfoResponse} or error if not found
+     * @param phoneNumber Phone number in Uganda format
+     * @return User information
      */
     @GetMapping("/by-phone")
     ApiResponse<UserInfoResponse> getUserByPhone(@RequestParam("phoneNumber") String phoneNumber);
 
     /**
-     * Retrieve complete user details by user ID.
-     * <p>
-     * Typically used for profile updates, token refresh operations,
-     * or internal data synchronization.
-     * </p>
+     * Get user by UUID
      *
-     * Endpoint: {@code GET /api/v1/users/internal/{userId}}
-     *
-     * @param userId User’s unique database identifier
-     * @return ApiResponse containing {@link UserInfoResponse}
+     * @param userId User UUID
+     * @return User information
      */
     @GetMapping("/{userId}")
-    ApiResponse<UserInfoResponse> getUserById(@PathVariable("userId") Long userId);
+    ApiResponse<UserInfoResponse> getUserById(@PathVariable("userId") UUID userId);
 
     /**
-     * Register a new user.
-     * <p>
-     * Delegates registration and profile creation to user-service.
-     * The service handles validation, persistence, and post-registration setup.
-     * </p>
+     * Register new user
      *
-     * Endpoint: {@code POST /api/v1/users/internal/register}
-     *
-     * @param request Registration request containing user details
-     * @return ApiResponse containing the newly created {@link UserInfoResponse}
+     * @param request Registration details
+     * @return Created user information
      */
     @PostMapping("/register")
     ApiResponse<UserInfoResponse> registerUser(@RequestBody RegisterRequest request);
 
     /**
-     * Check if an email address already exists in the system.
-     * <p>
-     * Useful during registration and account recovery workflows.
-     * </p>
+     * Check if email exists
      *
-     * Endpoint: {@code GET /api/v1/users/internal/exists/email?email={value}}
-     *
-     * @param email User’s email address
-     * @return ApiResponse containing {@code true} if the email exists, {@code false} otherwise
+     * @param email Email to check
+     * @return True if email exists
      */
     @GetMapping("/exists/email")
     ApiResponse<Boolean> checkEmailExists(@RequestParam("email") String email);
 
     /**
-     * Check if a phone number already exists in the system.
-     * <p>
-     * Used for preventing duplicate accounts and validating phone-based users.
-     * </p>
+     * Check if phone number exists
      *
-     * Endpoint: {@code GET /api/v1/users/internal/exists/phone?phoneNumber={value}}
-     *
-     * @param phoneNumber User’s phone number
-     * @return ApiResponse containing {@code true} if the phone exists, {@code false} otherwise
+     * @param phoneNumber Phone number to check
+     * @return True if phone exists
      */
     @GetMapping("/exists/phone")
     ApiResponse<Boolean> checkPhoneExists(@RequestParam("phoneNumber") String phoneNumber);
+
+    /**
+     * Update user password
+     * Required for password reset functionality
+     *
+     * @param userId User UUID
+     * @param request New password hash
+     * @return Success response
+     */
+    @PutMapping("/{userId}/password")
+    ApiResponse<Void> updatePassword(
+            @PathVariable("userId") UUID userId,
+            @RequestBody PasswordUpdateRequest request
+    );
+
+    /**
+     * Password Update Request DTO
+     * Used internally for password reset
+     */
+    record PasswordUpdateRequest(String newPasswordHash) {}
 }

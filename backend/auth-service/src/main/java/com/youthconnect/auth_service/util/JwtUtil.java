@@ -13,12 +13,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 /**
- * JWT Utility Class - Complete Implementation
- *
- * Handles all JWT token operations for the Auth Service including:
+ * JWT Utility Class handles all JWT token operations for the Auth Service including:
  * - Access token generation (short-lived)
  * - Refresh token generation (long-lived)
  * - Token validation and parsing
@@ -31,8 +30,8 @@ import java.util.function.Function;
  * - Tokens are signed to prevent tampering
  * - Includes issuer and audience claims for additional validation
  *
- * @author Youth Connect Uganda Development Team
- * @version 1.0.0
+ * @author Douglas Kings Kato
+ * @version 2.0.0
  */
 @Slf4j
 @Component
@@ -60,13 +59,13 @@ public class JwtUtil {
      * This token is used for API authentication.
      *
      * @param username User's email or identifier
-     * @param userId User's database ID
+     * @param userId User's database ID (UUID)
      * @param role User's role (YOUTH, NGO, MENTOR, etc.)
      * @return JWT access token string
      */
-    public String generateAccessToken(String username, Long userId, String role) {
+    public String generateAccessToken(String username, UUID userId, String role) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", userId);
+        claims.put("userId", userId.toString());
         claims.put("role", role);
         claims.put("type", "ACCESS");
 
@@ -80,12 +79,12 @@ public class JwtUtil {
      * without requiring the user to log in again.
      *
      * @param username User's email or identifier
-     * @param userId User's database ID
+     * @param userId User's database ID (UUID)
      * @return JWT refresh token string
      */
-    public String generateRefreshToken(String username, Long userId) {
+    public String generateRefreshToken(String username, UUID userId) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", userId);
+        claims.put("userId", userId.toString());
         claims.put("type", "REFRESH");
 
         return createToken(claims, username, refreshTokenExpiration);
@@ -143,10 +142,11 @@ public class JwtUtil {
      * Extract User ID from Token
      *
      * @param token JWT token string
-     * @return User ID as Long
+     * @return User ID as UUID
      */
-    public Long extractUserId(String token) {
-        return extractClaim(token, claims -> claims.get("userId", Long.class));
+    public UUID extractUserId(String token) {
+        String userIdStr = extractClaim(token, claims -> claims.get("userId", String.class));
+        return UUID.fromString(userIdStr);
     }
 
     /**
@@ -324,7 +324,7 @@ public class JwtUtil {
     @Data
     public static class JwtUserInfo {
         private String username;
-        private Long userId;
+        private UUID userId;
         private String role;
         private String tokenType;
         private Date expiresAt;

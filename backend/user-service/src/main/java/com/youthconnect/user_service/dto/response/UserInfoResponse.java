@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * User Info Response DTO
@@ -16,7 +17,7 @@ import java.time.LocalDateTime;
  * SECURITY NOTE: This DTO includes password hash, which should NEVER
  * be returned to external clients. Only used for internal API responses.
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
  */
 @Data
@@ -28,7 +29,7 @@ public class UserInfoResponse {
     /**
      * User's unique identifier
      */
-    private Long userId;
+    private UUID userId;
 
     /**
      * User's email address (web login)

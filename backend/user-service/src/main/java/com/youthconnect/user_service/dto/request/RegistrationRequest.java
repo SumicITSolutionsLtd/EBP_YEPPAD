@@ -8,15 +8,6 @@ import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
-/**
- * Data Transfer Object (DTO) for user registration requests.
- * This class captures all necessary information from the client
- * to register a new user and create their associated profile,
- * accommodating all roles (YOUTH, NGO, FUNDER, SERVICE_PROVIDER, MENTOR).
- *
- * @author Youth Connect Uganda Development Team
- * @version 1.0.0
- */
 @Data
 public class RegistrationRequest {
 
@@ -34,35 +25,36 @@ public class RegistrationRequest {
     @Pattern(regexp = "^\\+?[0-9. ()-]{10,25}$", message = "Invalid phone number format")
     private String phoneNumber;
 
-    // --- Common fields ---
+    // Common fields
     private String firstName;
     private String lastName;
 
-    // --- YOUTH profile fields ---
+    // YOUTH profile fields
     private String gender;
     private String dateOfBirth;
     private String description;
-    private String district; // Added missing field
-    private String profession; // Added missing field
+    private String district;
+    private String profession;
 
-    // --- NGO profile fields ---
+    // NGO profile fields
     private String organisationName;
     private String location;
 
-    // --- FUNDER profile fields ---
+    // FUNDER profile fields
     private String funderName;
     private String fundingFocus;
 
-    // --- SERVICE_PROVIDER profile fields ---
+    // SERVICE_PROVIDER profile fields
     private String providerName;
     private String areaOfExpertise;
 
-    // --- MENTOR profile fields ---
+    // MENTOR profile fields
     private String bio;
     private Integer experienceYears;
 
     /**
-     * Validates that required fields are present based on the role
+     * FIXED: Validates required fields based on role
+     * Added default cases for ADMIN, COMPANY, RECRUITER, GOVERNMENT
      */
     public boolean hasRequiredFieldsForRole() {
         return switch (role) {
@@ -71,7 +63,7 @@ public class RegistrationRequest {
             case FUNDER -> funderName != null && fundingFocus != null;
             case SERVICE_PROVIDER -> providerName != null && areaOfExpertise != null && location != null;
             case MENTOR -> firstName != null && lastName != null && areaOfExpertise != null;
-            case ADMIN -> true;
+            case ADMIN, COMPANY, RECRUITER, GOVERNMENT -> true; // ADDED DEFAULT CASES
         };
     }
 

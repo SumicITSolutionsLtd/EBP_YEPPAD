@@ -35,7 +35,7 @@ import java.time.LocalDateTime;
  * - Content matching: Recommend opportunities aligned with interests
  * - Trend analysis: Identify popular interests across user segments
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
  * @since 2024-01-15
  */

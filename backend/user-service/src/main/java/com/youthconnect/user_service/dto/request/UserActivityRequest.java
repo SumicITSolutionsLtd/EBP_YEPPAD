@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * DTO for tracking user activities for AI-driven recommendations.
@@ -52,7 +53,7 @@ public class UserActivityRequest {
      * User ID performing the activity.
      */
     @NotNull(message = "User ID is required")
-    private Long userId;
+    private UUID userId;
 
     /**
      * Type of activity performed by the user.

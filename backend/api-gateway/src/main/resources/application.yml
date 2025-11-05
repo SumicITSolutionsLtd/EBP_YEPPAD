@@ -1,54 +1,50 @@
 # =============================================================================
-# Youth Connect Uganda - API Gateway Configuration
-# Production-Ready Configuration with All Features
+# API GATEWAY CONFIGURATION - FIXED FOR JOB SERVICE
 # =============================================================================
 
 server:
   port: 8088
   shutdown: graceful
-  error:
-    include-message: true
-    include-binding-errors: true
 
 spring:
   application:
     name: api-gateway
 
-  # ==========================================================================
-  # CLOUD GATEWAY CONFIGURATION
-  # ==========================================================================
   cloud:
     gateway:
-      # Discovery Locator (Automatic route creation from Eureka)
       discovery:
         locator:
           enabled: true
           lower-case-service-id: true
 
-      # Global CORS Configuration
       globalcors:
         cors-configurations:
           '[/**]':
             allowedOrigins:
-              - "http://localhost:3000"      # React Dev Server
-              - "http://localhost:3001"      # Mobile App Dev
-              - "https://youthconnect.ug"    # Production Frontend
+              - "http://localhost:3000"
+              - "http://localhost:3001"
+              - "http://localhost:19006"
+              - "https://youthconnect.ug"
+              - "https://www.youthconnect.ug"
             allowedMethods:
               - GET
               - POST
               - PUT
               - DELETE
-              - OPTIONS
               - PATCH
+              - OPTIONS
             allowedHeaders: "*"
+            exposedHeaders:
+              - "Authorization"
+              - "X-Total-Count"
+              - "X-User-Id"
             allowCredentials: true
             maxAge: 3600
 
-      # Manual Route Definitions
       routes:
-        # ====================================================================
-        # AUTH SERVICE ROUTES (Strictest Rate Limiting)
-        # ====================================================================
+        # ============================================================
+        # AUTH SERVICE ROUTES
+        # ============================================================
         - id: auth-service-register
           uri: lb://auth-service
           predicates:
@@ -59,14 +55,6 @@ spring:
               args:
                 name: authServiceCircuitBreaker
                 fallbackUri: forward:/fallback/auth
-            - name: Retry
-              args:
-                retries: 3
-                statuses: BAD_GATEWAY,GATEWAY_TIMEOUT
-                methods: POST
-                backoff:
-                  firstBackoff: 50ms
-                  maxBackoff: 500ms
 
         - id: auth-service-login
           uri: lb://auth-service
@@ -91,18 +79,14 @@ spring:
             - Path=/api/auth/logout
             - Method=POST
 
-        - id: auth-service-reset-password
-          uri: lb://auth-service
-          predicates:
-            - Path=/api/auth/reset-password/**
-
-        # ====================================================================
+        # ============================================================
         # USER SERVICE ROUTES
-        # ====================================================================
-        - id: user-service
+        # ============================================================
+        - id: user-service-public
           uri: lb://user-service
           predicates:
-            - Path=/api/users/**
+            - Path=/api/v1/users/mentors/**, /api/v1/users/profile/**
+            - Method=GET
           filters:
             - name: CircuitBreaker
               args:
@@ -110,9 +94,176 @@ spring:
                 fallbackUri: forward:/fallback/users
             - StripPrefix=1
 
-        # ====================================================================
-        # OPPORTUNITY SERVICE ROUTES
-        # ====================================================================
+        - id: user-service-authenticated
+          uri: lb://user-service
+          predicates:
+            - Path=/api/v1/users/me/**
+            - Method=GET,PUT,PATCH
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+                fallbackUri: forward:/fallback/users
+            - StripPrefix=1
+
+        # ============================================================
+        # JOB SERVICE ROUTES - FIXED & EXPANDED
+        # ============================================================
+
+        # Public Job Endpoints (No Authentication Required)
+        - id: job-service-public-search
+          uri: lb://job-services
+          predicates:
+            - Path=/api/v1/jobs/search
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: jobServiceCircuitBreaker
+                fallbackUri: forward:/fallback/jobs
+          # ⚠️ NO AddRequestHeader filter - public endpoint
+
+        - id: job-service-public-featured
+          uri: lb://job-services
+          predicates:
+            - Path=/api/v1/jobs/featured
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: jobServiceCircuitBreaker
+
+        - id: job-service-public-recent
+          uri: lb://job-services
+          predicates:
+            - Path=/api/v1/jobs/recent
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: jobServiceCircuitBreaker
+
+        # Job Details (Public - optional authentication)
+        - id: job-service-job-details
+          uri: lb://job-services
+          predicates:
+            - Path=/api/v1/jobs/{jobId}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: jobServiceCircuitBreaker
+          # ⚠️ Authentication is optional - headers added if JWT present
+
+        # Job Categories (Public)
+        - id: job-service-categories
+          uri: lb://job-services
+          predicates:
+            - Path=/api/v1/categories, /api/v1/categories/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: jobServiceCircuitBreaker
+
+        # Authenticated Job Management
+        - id: job-service-create
+          uri: lb://job-services
+          predicates:
+            - Path=/api/v1/jobs
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: jobServiceCircuitBreaker
+                fallbackUri: forward:/fallback/jobs
+            # ✅ Authentication required - headers added by gateway
+
+        - id: job-service-update
+          uri: lb://job-services
+          predicates:
+            - Path=/api/v1/jobs/{jobId}
+            - Method=PUT,PATCH
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: jobServiceCircuitBreaker
+
+        - id: job-service-delete
+          uri: lb://job-services
+          predicates:
+            - Path=/api/v1/jobs/{jobId}
+            - Method=DELETE
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: jobServiceCircuitBreaker
+
+        - id: job-service-publish
+          uri: lb://job-services
+          predicates:
+            - Path=/api/v1/jobs/{jobId}/publish
+            - Method=PUT
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: jobServiceCircuitBreaker
+
+        - id: job-service-close
+          uri: lb://job-services
+          predicates:
+            - Path=/api/v1/jobs/{jobId}/close
+            - Method=PUT
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: jobServiceCircuitBreaker
+
+        # User-specific Job Endpoints
+        - id: job-service-my-jobs
+          uri: lb://job-services
+          predicates:
+            - Path=/api/v1/jobs/my-jobs
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: jobServiceCircuitBreaker
+
+        - id: job-service-recommended
+          uri: lb://job-services
+          predicates:
+            - Path=/api/v1/jobs/recommended
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: jobServiceCircuitBreaker
+
+        # Job Applications
+        - id: job-service-apply
+          uri: lb://job-services
+          predicates:
+            - Path=/api/v1/applications
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: jobServiceCircuitBreaker
+
+        - id: job-service-applications-manage
+          uri: lb://job-services
+          predicates:
+            - Path=/api/v1/applications, /api/v1/applications/**
+            - Method=GET,PUT,DELETE
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: jobServiceCircuitBreaker
+
+        # ============================================================
+        # OTHER SERVICES (Simplified)
+        # ============================================================
         - id: opportunity-service
           uri: lb://opportunity-service
           predicates:
@@ -121,35 +272,8 @@ spring:
             - name: CircuitBreaker
               args:
                 name: opportunityServiceCircuitBreaker
-                fallbackUri: forward:/fallback/opportunities
             - StripPrefix=1
 
-        # ====================================================================
-        # CONTENT SERVICE ROUTES
-        # ====================================================================
-        - id: content-service-learning
-          uri: lb://content-service
-          predicates:
-            - Path=/api/learning/**
-          filters:
-            - name: CircuitBreaker
-              args:
-                name: contentServiceCircuitBreaker
-            - StripPrefix=1
-
-        - id: content-service-feed
-          uri: lb://content-service
-          predicates:
-            - Path=/api/feed/**, /api/posts/**, /api/comments/**
-          filters:
-            - name: CircuitBreaker
-              args:
-                name: contentServiceCircuitBreaker
-            - StripPrefix=1
-
-        # ====================================================================
-        # MENTOR SERVICE ROUTES
-        # ====================================================================
         - id: mentor-service
           uri: lb://mentor-service
           predicates:
@@ -158,81 +282,21 @@ spring:
             - name: CircuitBreaker
               args:
                 name: mentorServiceCircuitBreaker
-                fallbackUri: forward:/fallback/mentorship
             - StripPrefix=1
 
-        # ====================================================================
-        # USSD SERVICE ROUTES (Moderate Rate Limiting)
-        # ====================================================================
-        - id: ussd-service
-          uri: lb://ussd-service
+        - id: content-service
+          uri: lb://content-service
           predicates:
-            - Path=/api/ussd/**
+            - Path=/api/learning/**, /api/feed/**
           filters:
             - name: CircuitBreaker
               args:
-                name: ussdServiceCircuitBreaker
+                name: contentServiceCircuitBreaker
             - StripPrefix=1
 
-        # ====================================================================
-        # AI RECOMMENDATION SERVICE ROUTES
-        # ====================================================================
-        - id: ai-recommendation-service
-          uri: lb://ai-recommendation-service
-          predicates:
-            - Path=/api/recommendations/**
-          filters:
-            - name: CircuitBreaker
-              args:
-                name: aiServiceCircuitBreaker
-            - StripPrefix=1
-
-        # ====================================================================
-        # ANALYTICS SERVICE ROUTES
-        # ====================================================================
-        - id: analytics-service
-          uri: lb://analytics-service
-          predicates:
-            - Path=/api/analytics/**, /api/reports/**
-          filters:
-            - name: CircuitBreaker
-              args:
-                name: analyticsServiceCircuitBreaker
-            - StripPrefix=1
-
-        # ====================================================================
-        # NOTIFICATION SERVICE ROUTES
-        # ====================================================================
-        - id: notification-service
-          uri: lb://notification-service
-          predicates:
-            - Path=/api/notifications/**
-          filters:
-            - name: CircuitBreaker
-              args:
-                name: notificationServiceCircuitBreaker
-            - StripPrefix=1
-
-        # ====================================================================
-        # FILE MANAGEMENT SERVICE ROUTES
-        # ====================================================================
-        - id: file-management-service
-          uri: lb://file-management-service
-          predicates:
-            - Path=/api/files/**
-          filters:
-            - name: CircuitBreaker
-              args:
-                name: fileServiceCircuitBreaker
-            - StripPrefix=1
-
-      # HTTP Client Configuration
       httpclient:
         connect-timeout: 5000
         response-timeout: 30s
-        pool:
-          type: elastic
-          max-idle-time: 30s
 
 # =============================================================================
 # EUREKA CLIENT CONFIGURATION
@@ -243,27 +307,12 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
     register-with-eureka: true
     fetch-registry: true
-    registry-fetch-interval-seconds: 5
   instance:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${random.value}
-    lease-renewal-interval-in-seconds: 5
-    lease-expiration-duration-in-seconds: 10
 
 # =============================================================================
-# RATE LIMITING CONFIGURATION
-# =============================================================================
-app:
-  security:
-    rate-limit:
-      enabled: true
-      requests-per-minute: 100
-      burst-capacity: 150
-      auth-requests-per-minute: 20
-      ussd-requests-per-minute: 50
-
-# =============================================================================
-# RESILIENCE4J CIRCUIT BREAKER CONFIGURATION
+# RESILIENCE4J - Circuit Breaker Configuration
 # =============================================================================
 resilience4j:
   circuitbreaker:
@@ -272,64 +321,27 @@ resilience4j:
         register-health-indicator: true
         sliding-window-size: 10
         minimum-number-of-calls: 5
-        permitted-number-of-calls-in-half-open-state: 3
-        automatic-transition-from-open-to-half-open-enabled: true
         wait-duration-in-open-state: 10s
         failure-rate-threshold: 50
-        slow-call-rate-threshold: 50
-        slow-call-duration-threshold: 3s
+
     instances:
-      authServiceCircuitBreaker:
+      jobServiceCircuitBreaker:
         base-config: default
-      userServiceCircuitBreaker:
-        base-config: default
-      opportunityServiceCircuitBreaker:
-        base-config: default
-      contentServiceCircuitBreaker:
-        base-config: default
-      mentorServiceCircuitBreaker:
-        base-config: default
-      ussdServiceCircuitBreaker:
-        base-config: default
-
-  timelimiter:
-    configs:
-      default:
-        timeout-duration: 3s
+        failure-rate-threshold: 60
+        slow-call-duration-threshold: 5s
 
 # =============================================================================
-# ACTUATOR & MONITORING CONFIGURATION
+# JWT CONFIGURATION
 # =============================================================================
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,prometheus,metrics,gateway
-  endpoint:
-    health:
-      show-details: always
-    gateway:
-      enabled: true
-  metrics:
-    export:
-      prometheus:
-        enabled: true
-    tags:
-      application: ${spring.application.name}
+jwt:
+  secret: ${JWT_SECRET:youth-connect-secure-secret-key-2025-minimum-256-bits-required-for-production}
+  expiration: 86400000
 
 # =============================================================================
-# LOGGING CONFIGURATION
+# LOGGING
 # =============================================================================
 logging:
   level:
     root: INFO
     com.youthconnect: DEBUG
-    org.springframework.cloud.gateway: DEBUG
-    org.springframework.web: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-  file:
-    name: logs/api-gateway.log
-    max-size: 10MB
-    max-history: 30
+    org.springframework.cloud.gateway: INFO

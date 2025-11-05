@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Repository interface for managing FunderProfile entities.
@@ -12,7 +13,7 @@ import java.util.Optional;
  *
  * FIXED: Added findByUser_Id() method required by ProfileService
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.1
  */
 @Repository
@@ -29,7 +30,7 @@ public interface FunderProfileRepository extends JpaRepository<FunderProfile, Lo
      * @param userId The ID of the user to search for
      * @return An Optional containing the FunderProfile if found
      */
-    Optional<FunderProfile> findByUser_Id(Long userId);
+    Optional<FunderProfile> findByUser_Id(UUID userId);
 
     // Optional: Add custom query methods as needed
     // Optional<FunderProfile> findByFunderName(String funderName);

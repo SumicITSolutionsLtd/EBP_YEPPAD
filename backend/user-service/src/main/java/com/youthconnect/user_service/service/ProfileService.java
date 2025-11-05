@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.UUID;
 
 /**
  * ============================================================================
@@ -45,9 +46,8 @@ import org.springframework.transaction.annotation.Transactional;
  * ✅ Removed non-existent fields (getBusinessStage from YouthProfile)
  * ✅ Fixed all profile completeness calculations
  *
- * @author Youth Connect Uganda Development Team
- * @version 1.0.1 (Bug Fix Release)
- * @since 2024-01-15
+ * @author Douglas Kings Kato
+ * @version 1.0.1
  */
 @Slf4j
 @Service
@@ -164,7 +164,7 @@ public class ProfileService {
      * @param role User's role enum value
      * @return UserProfileDTO with role-specific data populated
      */
-    public UserProfileDTO getUserProfileById(Long userId, Role role) {
+    public UserProfileDTO getUserProfileById(UUID userId, Role role) {
         log.debug("Retrieving profile for user: {} with role: {}", userId, role);
 
         return switch (role) {
@@ -196,7 +196,7 @@ public class ProfileService {
      * @param userId User's unique identifier
      * @return UserProfileDTO with youth-specific fields
      */
-    private UserProfileDTO getYouthProfile(Long userId) {
+    private UserProfileDTO getYouthProfile(UUID userId) {
         log.debug("Fetching youth profile for user: {}", userId);
 
         return youthProfileRepository.findByUser_Id(userId)
@@ -224,7 +224,7 @@ public class ProfileService {
      * @param userId User's unique identifier
      * @return UserProfileDTO with mentor-specific fields
      */
-    private UserProfileDTO getMentorProfile(Long userId) {
+    private UserProfileDTO getMentorProfile(UUID userId) {
         log.debug("Fetching mentor profile for user: {}", userId);
 
         return mentorProfileRepository.findByUser_Id(userId)
@@ -256,7 +256,7 @@ public class ProfileService {
      * @param userId User's unique identifier
      * @return UserProfileDTO with NGO-specific fields
      */
-    private UserProfileDTO getNgoProfile(Long userId) {
+    private UserProfileDTO getNgoProfile(UUID userId) {
         log.debug("Fetching NGO profile for user: {}", userId);
 
         return ngoProfileRepository.findByUser_Id(userId)
@@ -283,7 +283,7 @@ public class ProfileService {
      * @param userId User's unique identifier
      * @return UserProfileDTO with funder-specific fields
      */
-    private UserProfileDTO getFunderProfile(Long userId) {
+    private UserProfileDTO getFunderProfile(UUID userId) {
         log.debug("Fetching funder profile for user: {}", userId);
 
         return funderProfileRepository.findByUser_Id(userId)
@@ -311,7 +311,7 @@ public class ProfileService {
      * @param userId User's unique identifier
      * @return UserProfileDTO with service provider-specific fields
      */
-    private UserProfileDTO getServiceProviderProfile(Long userId) {
+    private UserProfileDTO getServiceProviderProfile(UUID userId) {
         log.debug("Fetching service provider profile for user: {}", userId);
 
         return serviceProviderProfileRepository.findByUser_Id(userId)
@@ -343,7 +343,7 @@ public class ProfileService {
      * @param userId User's unique identifier
      * @return Generic UserProfileDTO
      */
-    private UserProfileDTO getBasicProfile(Long userId) {
+    private UserProfileDTO getBasicProfile(UUID userId) {
         log.debug("Returning basic profile for user: {}", userId);
 
         return UserProfileDTO.builder()
@@ -401,7 +401,7 @@ public class ProfileService {
      * @param role User's role (determines which fields to check)
      * @return Completion percentage (0-100)
      */
-    public int calculateProfileCompleteness(Long userId, Role role) {
+    public int calculateProfileCompleteness(UUID userId, Role role) {
         log.debug("Calculating profile completeness for user: {} with role: {}", userId, role);
 
         try {
@@ -440,7 +440,7 @@ public class ProfileService {
      * @param userId User's unique identifier
      * @return Completion percentage (0-100)
      */
-    private int calculateYouthProfileCompleteness(Long userId) {
+    private int calculateYouthProfileCompleteness(UUID userId) {
         return youthProfileRepository.findByUser_Id(userId)
                 .map(profile -> {
                     int totalFields = 7;
@@ -482,7 +482,7 @@ public class ProfileService {
      * @param userId User's unique identifier
      * @return Completion percentage (0-100)
      */
-    private int calculateMentorProfileCompleteness(Long userId) {
+    private int calculateMentorProfileCompleteness(UUID userId) {
         return mentorProfileRepository.findByUser_Id(userId)
                 .map(profile -> {
                     int totalFields = 5;
@@ -516,7 +516,7 @@ public class ProfileService {
      * @param userId User's unique identifier
      * @return Completion percentage (0-100)
      */
-    private int calculateNgoProfileCompleteness(Long userId) {
+    private int calculateNgoProfileCompleteness(UUID userId) {
         return ngoProfileRepository.findByUser_Id(userId)
                 .map(profile -> {
                     int totalFields = 3;
@@ -545,7 +545,7 @@ public class ProfileService {
      * @param userId User's unique identifier
      * @return Completion percentage (0-100)
      */
-    private int calculateFunderProfileCompleteness(Long userId) {
+    private int calculateFunderProfileCompleteness(UUID userId) {
         return funderProfileRepository.findByUser_Id(userId)
                 .map(profile -> {
                     int totalFields = 2;
@@ -573,7 +573,7 @@ public class ProfileService {
      * @param userId User's unique identifier
      * @return Completion percentage (0-100)
      */
-    private int calculateServiceProviderProfileCompleteness(Long userId) {
+    private int calculateServiceProviderProfileCompleteness(UUID userId) {
         return serviceProviderProfileRepository.findByUser_Id(userId)
                 .map(profile -> {
                     int totalFields = 3;

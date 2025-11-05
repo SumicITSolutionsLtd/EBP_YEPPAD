@@ -12,8 +12,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Notification Service for Youth Connect Uganda
- *
+ * Notification Service
  * Handles SMS and Email notifications for user registration,
  * USSD interactions, and system alerts. Integrates with external
  * SMS providers and email services.
@@ -25,7 +24,7 @@ import java.util.concurrent.CompletableFuture;
  * - Retry mechanisms for failed deliveries
  * - Template-based messaging
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  */
 @Slf4j
 @Service

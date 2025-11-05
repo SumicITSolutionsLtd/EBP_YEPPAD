@@ -16,10 +16,10 @@ import java.util.Map;
 @Slf4j
 public class EmailTemplateService {
 
-    @Value("${spring.application.name:Kwetu-Hub}")
+    @Value("${spring.application.name:Entrepreneurship Booster Platform}")
     private String applicationName;
 
-    @Value("${app.web-url:https://kwetuhub.ug}")
+    @Value("${app.web-url:https://ebp.ug}")
     private String webUrl;
 
     /**

@@ -44,7 +44,7 @@ import java.util.regex.Pattern;
  *
  * @author Douglas Kings Kato
  * @version 1.0
- * @since 2025-01-20
+ * @since 2025-10-20
  */
 @Slf4j
 public class PhoneNumberValidator {

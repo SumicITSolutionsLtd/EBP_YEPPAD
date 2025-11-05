@@ -3,6 +3,7 @@ package com.youthconnect.user_service.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.util.UUID;
 
 /**
  * Entity class representing a Funder's profile information.
@@ -17,10 +18,9 @@ public class FunderProfile {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "funder_id")
-    private Long id;
+    private UUID id;
 
     @OneToOne(fetch = FetchType.LAZY)
-    // --- THIS IS THE FIX ---
     // Ensure the 'referencedColumnName' points to 'user_id' in the 'users' table.
     @JoinColumn(name = "user_id", referencedColumnName = "user_id", nullable = false, unique = true)
     private User user;

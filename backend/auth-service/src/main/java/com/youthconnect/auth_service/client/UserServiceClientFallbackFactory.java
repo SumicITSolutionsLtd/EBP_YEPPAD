@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.openfeign.FallbackFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 /**
  * Fallback Factory for UserServiceClient
  *
@@ -18,10 +20,8 @@ import org.springframework.stereotype.Component;
  * is not exposed in logs.
  * </p>
  *
- * @author
- *     Youth Connect Uganda Development Team
- * @version
- *     1.1.0
+ * @author Douglas Kings Kato
+ * @version 2.0.0
  */
 @Slf4j
 @Component
@@ -48,7 +48,7 @@ public class UserServiceClientFallbackFactory implements FallbackFactory<UserSer
             }
 
             @Override
-            public ApiResponse<UserInfoResponse> getUserById(Long userId) {
+            public ApiResponse<UserInfoResponse> getUserById(UUID userId) {
                 log.error("Fallback triggered: getUserById for [{}]. Cause: {}", userId, cause.getMessage());
                 return ApiResponse.error("Unable to retrieve user details at the moment. Please try again later.");
             }
@@ -70,6 +70,12 @@ public class UserServiceClientFallbackFactory implements FallbackFactory<UserSer
             public ApiResponse<Boolean> checkPhoneExists(String phoneNumber) {
                 log.warn("Fallback triggered: checkPhoneExists for [{}]. Cause: {}", maskPhone(phoneNumber), cause.getMessage());
                 return ApiResponse.error("Unable to verify phone number existence. Please try again later.");
+            }
+
+            @Override
+            public ApiResponse<Void> updatePassword(UUID userId, UserServiceClient.PasswordUpdateRequest request) {
+                log.error("Fallback triggered: updatePassword for [{}]. Cause: {}", userId, cause.getMessage());
+                return ApiResponse.error("Unable to update password at the moment. Please try again later.");
             }
 
             /**

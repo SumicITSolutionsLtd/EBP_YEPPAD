@@ -7,7 +7,7 @@ spring:
       on-profile: dev
 
   datasource:
-    url: jdbc:mysql://localhost:3307/youth_connect_db?useSSL=false&serverTimezone=Africa/Nairobi
+    url: jdbc:mysql://localhost:3307/ebp_db?useSSL=false&serverTimezone=Africa/Nairobi
     username: root
     password: Douglas20!
   

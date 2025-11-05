@@ -13,9 +13,10 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import java.util.UUID;
 
 /**
- * AI Recommendation Service for Youth Connect Uganda
+ * AI Recommendation Service
  *
  * Provides personalized recommendations using machine learning algorithms
  * to analyze user behavior, interests, and demographic data. This service
@@ -29,7 +30,7 @@ import java.util.stream.Collectors;
  * - Predictive analytics for success probability
  * - A/B testing support for recommendation optimization
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  */
 @Slf4j
 @Service
@@ -44,7 +45,7 @@ public class AIRecommendationService {
      * Uses collaborative filtering and content-based filtering
      */
     @Cacheable(value = "opportunityRecommendations", key = "#userId")
-    public List<OpportunityRecommendation> getPersonalizedOpportunities(Long userId) {
+    public List<OpportunityRecommendation> getPersonalizedOpportunities(UUID userId) {
         log.info("Generating opportunity recommendations for user: {}", userId);
 
         try {
@@ -89,7 +90,7 @@ public class AIRecommendationService {
      * Generate personalized learning content recommendations
      */
     @Cacheable(value = "contentRecommendations", key = "#userId")
-    public List<ContentRecommendation> getPersonalizedContent(Long userId) {
+    public List<ContentRecommendation> getPersonalizedContent(UUID userId) {
         log.info("Generating content recommendations for user: {}", userId);
 
         try {
@@ -128,7 +129,7 @@ public class AIRecommendationService {
      * Find compatible mentors for a youth user
      */
     @Cacheable(value = "mentorRecommendations", key = "#youthUserId")
-    public List<MentorRecommendation> getCompatibleMentors(Long youthUserId) {
+    public List<MentorRecommendation> getCompatibleMentors(UUID youthUserId) {
         log.info("Finding compatible mentors for youth user: {}", youthUserId);
 
         try {
@@ -179,7 +180,7 @@ public class AIRecommendationService {
     /**
      * Predict success probability for a user applying to an opportunity
      */
-    public double predictSuccessProbability(Long userId, Long opportunityId) {
+    public double predictSuccessProbability(UUID userId, Long opportunityId) {
         log.debug("Predicting success probability for user: {} applying to opportunity: {}", userId, opportunityId);
 
         try {
@@ -217,7 +218,7 @@ public class AIRecommendationService {
      * Update user activity and behavior patterns
      */
     @Async("taskExecutor")
-    public CompletableFuture<Void> recordUserActivity(Long userId, String activityType, Long targetId) {
+    public CompletableFuture<Void> recordUserActivity(UUID userId, String activityType, Long targetId) {
         log.debug("Recording user activity - User: {}, Activity: {}, Target: {}", userId, activityType, targetId);
 
         try {
@@ -457,12 +458,12 @@ public class AIRecommendationService {
         return new ArrayList<>();
     }
 
-    private List<OpportunityRecommendation> getCollaborativeFilteringOpportunities(Long userId, UserAnalysisData analysisData) {
+    private List<OpportunityRecommendation> getCollaborativeFilteringOpportunities(UUID userId, UserAnalysisData analysisData) {
         // Implementation for collaborative filtering
         return new ArrayList<>();
     }
 
-    private List<OpportunityRecommendation> getDefaultOpportunities(Long userId) {
+    private List<OpportunityRecommendation> getDefaultOpportunities(UUID userId) {
         // Fallback recommendations
         List<OpportunityRecommendation> defaults = new ArrayList<>();
         defaults.add(createOpportunityRecommendation(
@@ -503,7 +504,7 @@ public class AIRecommendationService {
         return new ArrayList<>();
     }
 
-    private List<ContentRecommendation> getDefaultContent(Long userId) {
+    private List<ContentRecommendation> getDefaultContent(UUID userId) {
         // Default content fallback
         return new ArrayList<>();
     }
@@ -534,12 +535,12 @@ public class AIRecommendationService {
         return Role.YOUTH.equals(role); // Simplified for demo
     }
 
-    private double calculateUserActivityScore(Long userId) {
+    private double calculateUserActivityScore(UUID userId) {
         // Calculate user activity score based on interactions
         return 0.6; // Simplified for demo
     }
 
-    private void updateUserBehaviorProfile(Long userId, String activityType, Long targetId) {
+    private void updateUserBehaviorProfile(UUID userId, String activityType, Long targetId) {
         // Update user behavior patterns
         log.debug("Updated behavior profile for user: {} with activity: {}", userId, activityType);
     }
@@ -548,7 +549,7 @@ public class AIRecommendationService {
         return Arrays.asList("APPLY_OPPORTUNITY", "COMPLETE_MODULE", "BOOK_MENTOR").contains(activityType);
     }
 
-    private void refreshUserRecommendations(Long userId) {
+    private void refreshUserRecommendations(UUID userId) {
         // Refresh cached recommendations
         log.debug("Refreshing recommendations for user: {}", userId);
     }
@@ -578,7 +579,7 @@ public class AIRecommendationService {
     @lombok.Data
     @lombok.Builder
     public static class MentorRecommendation {
-        private Long mentorId;
+        private UUID mentorId;
         private String mentorName;
         private double compatibilityScore;
         private List<String> expertise;
@@ -588,7 +589,7 @@ public class AIRecommendationService {
     @lombok.Data
     @lombok.Builder
     public static class UserAnalysisData {
-        private Long userId;
+        private UUID userId;
         private Role role;
         private String phoneNumber;
         private java.time.LocalDateTime createdAt;

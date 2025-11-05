@@ -8,6 +8,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 /**
  * DTO for sending SMS notification requests.
  * <p>
@@ -25,7 +27,7 @@ import lombok.NoArgsConstructor;
  * <pre>
  * {
  *   "phoneNumber": "+256701430234",
- *   "message": "Welcome to Youth Connect Uganda!",
+ *   "message": "Welcome to Entreprenuesrship Booster Platform!",
  *   "messageType": "WELCOME",
  *   "userId": 12345
  * }
@@ -69,5 +71,5 @@ public class SmsRequest {
     /**
      * Optional user ID associated with this message (for tracking or auditing).
      */
-    private Long userId;
+    private UUID userId;
 }

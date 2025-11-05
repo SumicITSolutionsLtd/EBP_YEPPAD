@@ -6,19 +6,30 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * Password Reset Token Entity
- *
  * Stores password reset tokens with expiration and usage tracking.
+ * Tokens are single-use and expire after 15 minutes (configurable).
+ *
+ * Security Features:
+ * - Secure random token (UUID format)
+ * - Short expiration time
+ * - One-time use only
+ * - Attempt tracking
+ * - IP and user agent logging
  *
  * Table: {@code password_reset_tokens}
  *
- * @author Youth Connect Uganda Development Team
- * @version 1.0.0
+ * @author DOUGLAS KINGS KATO
+ * @version 2.0.0
  */
 @Entity
-@Table(name = "password_reset_tokens")
+@Table(name = "password_reset_tokens", indexes = {
+        @Index(name = "idx_token", columnList = "token"),
+        @Index(name = "idx_user_id_used", columnList = "user_id, used, expires_at")
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -36,10 +47,10 @@ public class PasswordResetToken {
     private String token;
 
     /**
-     * User ID who requested password reset
+     * User ID who requested password reset (UUID)
      */
-    @Column(name = "user_id", nullable = false)
-    private Long userId;
+    @Column(name = "user_id", nullable = false, columnDefinition = "uuid")
+    private UUID userId;
 
     /**
      * User email for confirmation
@@ -96,4 +107,57 @@ public class PasswordResetToken {
      */
     @Column(name = "max_attempts", nullable = false)
     private int maxAttempts = 3;
+
+    /**
+     * Pre-persist lifecycle hook
+     * Sets creation timestamp
+     */
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+    }
+
+    /**
+     * Check if token is expired
+     *
+     * @return true if expired
+     */
+    public boolean isExpired() {
+        return expiresAt.isBefore(LocalDateTime.now());
+    }
+
+    /**
+     * Check if token has reached max attempts
+     *
+     * @return true if max attempts reached
+     */
+    public boolean hasReachedMaxAttempts() {
+        return attempts >= maxAttempts;
+    }
+
+    /**
+     * Check if token is valid (not used, not expired, attempts available)
+     *
+     * @return true if valid
+     */
+    public boolean isValid() {
+        return !used && !isExpired() && !hasReachedMaxAttempts();
+    }
+
+    /**
+     * Increment attempt counter
+     */
+    public void incrementAttempts() {
+        this.attempts++;
+    }
+
+    /**
+     * Mark token as used
+     */
+    public void markAsUsed() {
+        this.used = true;
+        this.usedAt = LocalDateTime.now();
+    }
 }

@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.util.UUID;
 
 /**
  * DTO for sending welcome notifications to new users.
@@ -47,7 +48,7 @@ public class WelcomeNotificationRequest {
      * Unique ID of the newly registered user.
      */
     @NotNull(message = "User ID is required")
-    private Long userId;
+    private UUID userId;
 
     /**
      * User's email address (optional for SMS-only users).

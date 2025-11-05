@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
 		 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
 
 	<modelVersion>4.0.0</modelVersion>
 
@@ -9,81 +10,108 @@
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
 		<version>3.1.5</version>
-		<relativePath/> <!-- lookup parent from repository -->
+		<relativePath/>
 	</parent>
 
-	<groupId>youthconnect</groupId>
+	<groupId>com.youthconnect</groupId>
 	<artifactId>ai-recommendation-service</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name>ai-recommendation-service</name>
-	<description>Demo project for Spring Boot</description>
+	<version>1.0.0</version>
+	<name>AI Recommendation Service</name>
+	<description>Intelligent recommendation engine for Youth Entrepreneurship Platform</description>
 
 	<properties>
 		<java.version>21</java.version>
 		<spring-cloud.version>2023.0.0</spring-cloud.version>
 		<lombok.version>1.18.30</lombok.version>
-		<commons-lang3.version>3.13.0</commons-lang3.version>
 		<commons-math3.version>3.6.1</commons-math3.version>
-		<!-- ✅ Added this missing property -->
-		<itext.version>7.2.5</itext.version>
 	</properties>
 
-	<repositories>
-		<!-- Needed for iText -->
-		<repository>
-			<id>itext</id>
-			<name>iText Repository</name>
-			<url>https://repo.itextsupport.com/releases</url>
-		</repository>
-	</repositories>
-
 	<dependencies>
-		<!-- Spring Boot Starters -->
+
+		<!-- ==================================================== -->
+		<!-- SPRING BOOT CORE STARTERS -->
+		<!-- ==================================================== -->
+
+		<!-- Web (REST APIs, JSON, MVC) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
 
+		<!-- Data JPA (Hibernate + ORM) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-cache</artifactId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
 
+		<!-- Validation (Jakarta Bean Validation API) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+
+		<!-- Actuator (Health, Metrics, Monitoring) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
+		<!-- ==================================================== -->
+		<!-- DATABASE & CACHING -->
+		<!-- ==================================================== -->
+
+		<!-- MySQL Database Driver -->
+		<dependency>
+			<groupId>com.mysql</groupId>
+			<artifactId>mysql-connector-j</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+		<!-- Spring Boot Cache abstraction -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-redis</artifactId>
+			<artifactId>spring-boot-starter-cache</artifactId>
 		</dependency>
 
-		<!-- Spring Cloud -->
-		<dependency>
-			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
-		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-starter-openfeign</artifactId>
-		</dependency>
-
-		<!-- Caching -->
+		<!-- Caffeine (In-memory cache) -->
 		<dependency>
 			<groupId>com.github.ben-manes.caffeine</groupId>
 			<artifactId>caffeine</artifactId>
 		</dependency>
 
-		<!-- Math libraries for ML algorithms -->
+		<!-- Redis (Optional distributed cache) -->
 		<dependency>
-			<groupId>org.apache.commons</groupId>
-			<artifactId>commons-math3</artifactId>
-			<version>${commons-math3.version}</version>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis</artifactId>
 		</dependency>
 
-		<!-- Utilities -->
+		<!-- ==================================================== -->
+		<!-- SPRING CLOUD & MICROSERVICES -->
+		<!-- ==================================================== -->
+
+		<!-- Eureka Client (Service Discovery) -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+		</dependency>
+
+		<!-- OpenFeign (Declarative REST Client) -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-openfeign</artifactId>
+		</dependency>
+
+		<!-- Circuit Breaker / Resilience4j -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
+		</dependency>
+
+		<!-- ==================================================== -->
+		<!-- UTILITIES & JSON -->
+		<!-- ==================================================== -->
+
+		<!-- Lombok (Reduce boilerplate code) -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
@@ -91,34 +119,64 @@
 			<optional>true</optional>
 		</dependency>
 
-		<dependency>
-			<groupId>org.apache.commons</groupId>
-			<artifactId>commons-lang3</artifactId>
-			<version>${commons-lang3.version}</version>
-		</dependency>
-
-		<!-- JSON Processing -->
+		<!-- Jackson Databind (JSON processing) -->
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
 		</dependency>
 
-		<!-- iText 7 Core -->
+		<!-- Jackson Datatype for Java Time (LocalDateTime, etc.) -->
 		<dependency>
-			<groupId>com.itextpdf</groupId>
-			<artifactId>itext7-core</artifactId>
-			<version>${itext.version}</version>
-			<type>pom</type>
+			<groupId>com.fasterxml.jackson.datatype</groupId>
+			<artifactId>jackson-datatype-jsr310</artifactId>
 		</dependency>
 
-		<!-- Test Dependencies -->
+		<!-- Apache Commons Lang (Utility functions) -->
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+		</dependency>
+
+		<!-- Apache Commons Math (AI/ML utilities) -->
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-math3</artifactId>
+			<version>${commons-math3.version}</version>
+		</dependency>
+
+		<!-- ==================================================== -->
+		<!-- MONITORING & METRICS -->
+		<!-- ==================================================== -->
+
+		<!-- Micrometer Prometheus (Metrics export) -->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+
+		<!-- ==================================================== -->
+		<!-- TESTING -->
+		<!-- ==================================================== -->
+
+		<!-- Spring Boot Test Starter -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- H2 In-Memory Database (for testing) -->
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>test</scope>
+		</dependency>
+
 	</dependencies>
 
+	<!-- ==================================================== -->
+	<!-- DEPENDENCY MANAGEMENT -->
+	<!-- ==================================================== -->
 	<dependencyManagement>
 		<dependencies>
 			<dependency>
@@ -131,12 +189,25 @@
 		</dependencies>
 	</dependencyManagement>
 
+	<!-- ==================================================== -->
+	<!-- BUILD CONFIGURATION -->
+	<!-- ==================================================== -->
 	<build>
 		<plugins>
+			<!-- Spring Boot Maven Plugin -->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>
+
 </project>

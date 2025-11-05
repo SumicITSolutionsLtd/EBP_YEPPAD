@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  *
  * Pattern: Circuit Breaker with Fallback
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
  */
 @Slf4j

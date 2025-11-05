@@ -1,0 +1,179 @@
+{
+  "service": "auth-service",
+  "baseUrl": "http://auth-service:8083",
+  "routes": [
+    {
+      "id": "auth-service-register",
+      "uri": "lb://auth-service",
+      "predicates": [
+        "Path=/api/auth/register",
+        "Method=POST"
+      ],
+      "filters": [
+        {
+          "name": "CircuitBreaker",
+          "args": {
+            "name": "authServiceCircuitBreaker",
+            "fallbackUri": "forward:/fallback/auth"
+          }
+        },
+        {
+          "name": "Retry",
+          "args": {
+            "retries": 3,
+            "statuses": ["BAD_GATEWAY", "GATEWAY_TIMEOUT"],
+            "methods": ["POST"],
+            "backoff": {
+              "firstBackoff": "50ms",
+              "maxBackoff": "500ms"
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "public": true,
+        "description": "User registration endpoint"
+      }
+    },
+    {
+      "id": "auth-service-login",
+      "uri": "lb://auth-service",
+      "predicates": [
+        "Path=/api/auth/login",
+        "Method=POST"
+      ],
+      "filters": [
+        {
+          "name": "CircuitBreaker",
+          "args": {
+            "name": "authServiceCircuitBreaker",
+            "fallbackUri": "forward:/fallback/auth"
+          }
+        }
+      ],
+      "metadata": {
+        "public": true,
+        "description": "User login endpoint"
+      }
+    },
+    {
+      "id": "auth-service-ussd-login",
+      "uri": "lb://auth-service",
+      "predicates": [
+        "Path=/api/auth/ussd/login",
+        "Method=POST"
+      ],
+      "filters": [
+        {
+          "name": "CircuitBreaker",
+          "args": {
+            "name": "authServiceCircuitBreaker",
+            "fallbackUri": "forward:/fallback/auth"
+          }
+        }
+      ],
+      "metadata": {
+        "public": true,
+        "description": "USSD login endpoint"
+      }
+    },
+    {
+      "id": "auth-service-refresh",
+      "uri": "lb://auth-service",
+      "predicates": [
+        "Path=/api/auth/refresh",
+        "Method=POST"
+      ],
+      "filters": [
+        {
+          "name": "CircuitBreaker",
+          "args": {
+            "name": "authServiceCircuitBreaker",
+            "fallbackUri": "forward:/fallback/auth"
+          }
+        }
+      ],
+      "metadata": {
+        "public": true,
+        "description": "Refresh token endpoint"
+      }
+    },
+    {
+      "id": "auth-service-logout",
+      "uri": "lb://auth-service",
+      "predicates": [
+        "Path=/api/auth/logout",
+        "Method=POST"
+      ],
+      "filters": [
+        {
+          "name": "JwtAuthentication"
+        }
+      ],
+      "metadata": {
+        "public": false,
+        "requiresAuth": true,
+        "description": "User logout endpoint"
+      }
+    },
+    {
+      "id": "auth-service-validate",
+      "uri": "lb://auth-service",
+      "predicates": [
+        "Path=/api/auth/validate",
+        "Method=GET"
+      ],
+      "filters": [],
+      "metadata": {
+        "internal": true,
+        "description": "Token validation endpoint for internal services"
+      }
+    },
+    {
+      "id": "auth-service-password-reset",
+      "uri": "lb://auth-service",
+      "predicates": [
+        "Path=/api/auth/password/**"
+      ],
+      "filters": [
+        {
+          "name": "CircuitBreaker",
+          "args": {
+            "name": "authServiceCircuitBreaker",
+            "fallbackUri": "forward:/fallback/auth"
+          }
+        }
+      ],
+      "metadata": {
+        "public": true,
+        "description": "Password reset workflow endpoints"
+      }
+    },
+    {
+      "id": "auth-service-health",
+      "uri": "lb://auth-service",
+      "predicates": [
+        "Path=/api/auth/health",
+        "Method=GET"
+      ],
+      "filters": [],
+      "metadata": {
+        "public": true,
+        "description": "Health check endpoint"
+      }
+    }
+  ],
+  "healthCheck": {
+    "enabled": true,
+    "endpoint": "/api/auth/health",
+    "interval": "30s",
+    "timeout": "5s"
+  },
+  "circuitBreaker": {
+    "name": "authServiceCircuitBreaker",
+    "slidingWindowSize": 10,
+    "minimumNumberOfCalls": 5,
+    "failureRateThreshold": 50,
+    "waitDurationInOpenState": "10s"
+  }
+}

@@ -18,25 +18,28 @@ import org.springframework.web.client.RestTemplate;
 
 import jakarta.mail.internet.MimeMessage;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * NOTIFICATION SERVICE - PRODUCTION-READY IMPLEMENTATION
+ * UNIFIED NOTIFICATION SERVICE - PRODUCTION-READY IMPLEMENTATION
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Core notification delivery service handling:
+ * Comprehensive notification delivery service handling:
  * - SMS via Africa's Talking API
  * - Email via SMTP (Gmail/Custom)
  * - Multi-language support (English, Luganda, Lugbara, Alur)
+ * - Job application lifecycle notifications
+ * - Welcome and onboarding notifications
  * - Automatic retry with exponential backoff
  * - Delivery tracking and analytics
  * - Rate limiting protection
  *
  * @author Douglas Kings Kato
- * @version 2.0
- * @since 2025-01-18
+ * @version 3.0.0 (Unified)
+ * @since 2025-10-20
  */
 @Service
 @Slf4j
@@ -75,6 +78,9 @@ public class NotificationService {
 
     @Value("${app.notification.batch-size:100}")
     private int batchSize;
+
+    @Value("${app.base-url:https://kwetuhub.ug}")
+    private String baseUrl;
 
     // =========================================================================
     // SMS DELIVERY - AFRICA'S TALKING API
@@ -213,15 +219,253 @@ public class NotificationService {
         }
     }
 
+    // ═════════════════════════════════════════════════════════════════════════
+    // JOB APPLICATION NOTIFICATIONS
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Send job application confirmation (SMS + Email)
+     *
+     * Comprehensive notification sent when user submits job application.
+     * Includes reference number, job details, and tracking information.
+     *
+     * @param dto JobNotificationDto with application details
+     * @return CompletableFuture with delivery status for both channels
+     */
+    @Async("notificationTaskExecutor")
+    public CompletableFuture<Map<String, Object>> sendJobApplicationConfirmation(
+            JobNotificationDto dto) {
+
+        log.info("📋 Sending job application confirmation: userId={}, jobId={}, appId={}",
+                dto.getUserId(), dto.getJobId(), dto.getApplicationId());
+
+        try {
+            Map<String, Object> results = new HashMap<>();
+
+            // Send SMS confirmation
+            String smsMessage = buildApplicationConfirmationSms(dto);
+            SmsRequest smsRequest = SmsRequest.builder()
+                    .userId(dto.getUserId())
+                    .recipient(dto.getPhoneNumber())
+                    .message(smsMessage)
+                    .messageType("TRANSACTIONAL")
+                    .priority(1)
+                    .build();
+
+            CompletableFuture<Map<String, Object>> smsFuture = sendSms(smsRequest);
+
+            // Send email confirmation
+            String emailHtml = buildApplicationConfirmationEmail(dto);
+            EmailRequest emailRequest = EmailRequest.builder()
+                    .userId(dto.getUserId())
+                    .recipient(dto.getEmail())
+                    .subject(String.format("✅ Application Confirmed: %s", dto.getJobTitle()))
+                    .htmlContent(emailHtml)
+                    .textContent(String.format(
+                            "Your application for %s at %s has been submitted. Reference: #%d",
+                            dto.getJobTitle(), dto.getCompanyName(), dto.getApplicationId()))
+                    .build();
+
+            CompletableFuture<Map<String, Object>> emailFuture = sendEmail(emailRequest);
+
+            results.put("sms", smsFuture.get());
+            results.put("email", emailFuture.get());
+            results.put("success", true);
+            results.put("notificationType", "JOB_APPLICATION_CONFIRMATION");
+
+            log.info("✅ Job application confirmation sent: userId={}, appId={}",
+                    dto.getUserId(), dto.getApplicationId());
+
+            return CompletableFuture.completedFuture(results);
+
+        } catch (Exception e) {
+            log.error("❌ Failed to send job application confirmation: {}", e.getMessage());
+            return CompletableFuture.completedFuture(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Send application status update (approved/rejected)
+     *
+     * Notifies applicant when their application status changes.
+     *
+     * @param dto JobNotificationDto with status and feedback
+     * @return CompletableFuture with delivery status
+     */
+    @Async("notificationTaskExecutor")
+    public CompletableFuture<Map<String, Object>> sendApplicationStatusUpdate(
+            JobNotificationDto dto) {
+
+        log.info("📬 Sending status update: userId={}, appId={}, status={}",
+                dto.getUserId(), dto.getApplicationId(), dto.getApplicationStatus());
+
+        try {
+            Map<String, Object> results = new HashMap<>();
+            boolean isApproved = "APPROVED".equalsIgnoreCase(dto.getApplicationStatus()) ||
+                    "ACCEPTED".equalsIgnoreCase(dto.getApplicationStatus());
+
+            // Send SMS
+            String smsMessage = buildStatusUpdateSms(dto, isApproved);
+            SmsRequest smsRequest = SmsRequest.builder()
+                    .userId(dto.getUserId())
+                    .recipient(dto.getPhoneNumber())
+                    .message(smsMessage)
+                    .messageType("TRANSACTIONAL")
+                    .priority(1)
+                    .build();
+
+            CompletableFuture<Map<String, Object>> smsFuture = sendSms(smsRequest);
+
+            // Send Email
+            String emailHtml = buildStatusUpdateEmail(dto, isApproved);
+            EmailRequest emailRequest = EmailRequest.builder()
+                    .userId(dto.getUserId())
+                    .recipient(dto.getEmail())
+                    .subject(String.format("%s Application %s: %s",
+                            isApproved ? "🎉" : "📋",
+                            isApproved ? "Approved" : "Update",
+                            dto.getJobTitle()))
+                    .htmlContent(emailHtml)
+                    .textContent(String.format(
+                            "Your application for %s has been %s.",
+                            dto.getJobTitle(), dto.getApplicationStatus().toLowerCase()))
+                    .build();
+
+            CompletableFuture<Map<String, Object>> emailFuture = sendEmail(emailRequest);
+
+            results.put("sms", smsFuture.get());
+            results.put("email", emailFuture.get());
+            results.put("success", true);
+            results.put("notificationType", "APPLICATION_STATUS_UPDATE");
+
+            log.info("✅ Status update sent: userId={}, status={}",
+                    dto.getUserId(), dto.getApplicationStatus());
+
+            return CompletableFuture.completedFuture(results);
+
+        } catch (Exception e) {
+            log.error("❌ Failed to send status update: {}", e.getMessage());
+            return CompletableFuture.completedFuture(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Send job deadline reminder
+     *
+     * @param dto JobNotificationDto with deadline information
+     * @return CompletableFuture with delivery status
+     */
+    @Async("notificationTaskExecutor")
+    public CompletableFuture<Map<String, Object>> sendDeadlineReminder(
+            JobNotificationDto dto) {
+
+        log.info("⏰ Sending deadline reminder: userId={}, jobId={}, days={}",
+                dto.getUserId(), dto.getJobId(), dto.getDaysRemaining());
+
+        try {
+            Map<String, Object> results = new HashMap<>();
+
+            // Send SMS
+            String smsMessage = buildDeadlineReminderSms(dto);
+            SmsRequest smsRequest = SmsRequest.builder()
+                    .userId(dto.getUserId())
+                    .recipient(dto.getPhoneNumber())
+                    .message(smsMessage)
+                    .messageType("MARKETING")
+                    .priority(dto.isUrgent() ? 1 : 2)
+                    .build();
+
+            CompletableFuture<Map<String, Object>> smsFuture = sendSms(smsRequest);
+
+            // Send Email
+            String emailHtml = buildDeadlineReminderEmail(dto);
+            EmailRequest emailRequest = EmailRequest.builder()
+                    .userId(dto.getUserId())
+                    .recipient(dto.getEmail())
+                    .subject(String.format("⏰ Deadline %s: %s - %d days left!",
+                            dto.isUrgent() ? "URGENT" : "Reminder",
+                            dto.getJobTitle(),
+                            dto.getDaysRemaining()))
+                    .htmlContent(emailHtml)
+                    .textContent(String.format(
+                            "Reminder: Deadline for %s is in %d days.",
+                            dto.getJobTitle(), dto.getDaysRemaining()))
+                    .build();
+
+            CompletableFuture<Map<String, Object>> emailFuture = sendEmail(emailRequest);
+
+            results.put("sms", smsFuture.get());
+            results.put("email", emailFuture.get());
+            results.put("success", true);
+            results.put("notificationType", "DEADLINE_REMINDER");
+
+            return CompletableFuture.completedFuture(results);
+
+        } catch (Exception e) {
+            log.error("❌ Failed to send deadline reminder: {}", e.getMessage());
+            return CompletableFuture.completedFuture(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Notify job poster of new application
+     *
+     * @param dto JobNotificationDto with poster and applicant details
+     * @return CompletableFuture with delivery status
+     */
+    @Async("notificationTaskExecutor")
+    public CompletableFuture<Map<String, Object>> sendNewApplicationAlert(
+            JobNotificationDto dto) {
+
+        log.info("🔔 New application alert: posterId={}, jobId={}",
+                dto.getUserId(), dto.getJobId());
+
+        try {
+            String emailHtml = buildNewApplicationAlertEmail(dto);
+
+            EmailRequest emailRequest = EmailRequest.builder()
+                    .userId(dto.getUserId())
+                    .recipient(dto.getEmail())
+                    .subject(String.format("🔔 New Application: %s", dto.getJobTitle()))
+                    .htmlContent(emailHtml)
+                    .textContent(String.format(
+                            "New application for %s from %s.",
+                            dto.getJobTitle(), dto.getFirstName()))
+                    .build();
+
+            Map<String, Object> result = sendEmail(emailRequest).get();
+
+            log.info("✅ New application alert sent: posterId={}", dto.getUserId());
+
+            return CompletableFuture.completedFuture(result);
+
+        } catch (Exception e) {
+            log.error("❌ Failed to send new application alert: {}", e.getMessage());
+            return CompletableFuture.completedFuture(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
     // =========================================================================
-    // WELCOME NOTIFICATIONS (Multi-Channel)
+    // WELCOME NOTIFICATIONS
     // =========================================================================
 
     @Async("notificationTaskExecutor")
     public CompletableFuture<Map<String, Object>> sendWelcomeNotification(
             WelcomeNotificationRequest request) {
 
-        log.info("🎉 Welcome notification for user: id={}, role={}",
+        log.info("🎉 Welcome notification: userId={}, role={}",
                 request.getUserId(), request.getUserRole());
 
         Map<String, Object> results = new HashMap<>();
@@ -231,6 +475,7 @@ public class NotificationService {
         Map<String, Object> smsResult = new HashMap<>();
         Map<String, Object> emailResult = new HashMap<>();
 
+        // Send SMS if phone provided
         if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank()) {
             String smsMessage = buildWelcomeSmsMessage(
                     request.getFirstName(),
@@ -255,6 +500,7 @@ public class NotificationService {
             }
         }
 
+        // Send Email if email provided
         if (request.getEmail() != null && !request.getEmail().isBlank()) {
             String emailHtml = buildWelcomeEmailHtml(
                     request.getFirstName(),
@@ -294,7 +540,7 @@ public class NotificationService {
 
         String message = String.format(
                 "✅ Welcome %s! Your Kwetu-Hub registration via USSD is complete. " +
-                        "Confirmation code: %s. Access anytime by dialing *256# or visit kwetuhub.ug.",
+                        "Code: %s. Access: *256# or kwetuhub.ug.",
                 request.getUserName(),
                 request.getConfirmationCode()
         );
@@ -307,6 +553,232 @@ public class NotificationService {
                 .build();
 
         return sendSms(smsRequest);
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // SMS MESSAGE BUILDERS
+    // ═════════════════════════════════════════════════════════════════════════
+
+    private String buildApplicationConfirmationSms(JobNotificationDto dto) {
+        return String.format(
+                "✅ Applied to '%s' at %s. Ref: #%d. Track: %s/applications or *256#",
+                truncate(dto.getJobTitle(), 30),
+                truncate(dto.getCompanyName(), 25),
+                dto.getApplicationId(),
+                baseUrl
+        );
+    }
+
+    private String buildStatusUpdateSms(JobNotificationDto dto, boolean isApproved) {
+        String emoji = isApproved ? "🎉" : "📋";
+        String status = dto.getApplicationStatus().replace("_", " ");
+
+        StringBuilder sms = new StringBuilder();
+        sms.append(emoji).append(" ").append(status)
+                .append(" - '").append(truncate(dto.getJobTitle(), 30)).append("'");
+
+        if (dto.getReviewNotes() != null && !dto.getReviewNotes().isBlank()) {
+            sms.append(". ").append(truncate(dto.getReviewNotes(), 50));
+        }
+
+        sms.append(". View: ").append(baseUrl).append("/applications/")
+                .append(dto.getApplicationId());
+
+        return sms.toString();
+    }
+
+    private String buildDeadlineReminderSms(JobNotificationDto dto) {
+        String emoji = dto.isUrgent() ? "🚨" : "⏰";
+        return String.format(
+                "%s %d days left: '%s' at %s! Apply: %s/jobs/%d or *256#",
+                emoji,
+                dto.getDaysRemaining(),
+                truncate(dto.getJobTitle(), 30),
+                truncate(dto.getCompanyName(), 20),
+                baseUrl,
+                dto.getJobId()
+        );
+    }
+
+    private String buildWelcomeSmsMessage(String name, String role, String language) {
+        Map<String, String> templates = Map.of(
+                "en", String.format("Welcome %s! Joined Kwetu-Hub as %s. Explore: kwetuhub.ug or *256#", name, role),
+                "lg", String.format("Tukusiimye %s! Oyingidde mu Kwetu-Hub nga %s. kwetuhub.ug oba *256#", name, role),
+                "lur", String.format("Pito %s! Kwetu-Hub calo %s. kwetuhub.ug onyo *256#", name, role),
+                "lgb", String.format("Candiru %s! Kwetu-Hub 'diyi ria %s. kwetuhub.ug ote *256#", name, role)
+        );
+        return templates.getOrDefault(language != null ? language.toLowerCase() : "en", templates.get("en"));
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // EMAIL TEMPLATE BUILDERS
+    // ═════════════════════════════════════════════════════════════════════════
+
+    private String buildApplicationConfirmationEmail(JobNotificationDto dto) {
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MMMM dd, yyyy 'at' HH:mm");
+
+        return String.format("""
+            <!DOCTYPE html>
+            <html><head><meta charset="UTF-8"></head>
+            <body style="font-family:Arial;margin:0;padding:20px;background:#f4f4f4;">
+                <div style="max-width:600px;margin:auto;background:white;padding:30px;border-radius:10px;">
+                    <h1 style="color:#2E7D32;text-align:center;">✅ Application Received</h1>
+                    <p>Hi %s,</p>
+                    <p>Your application has been successfully submitted!</p>
+                    <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin:20px 0;">
+                        <p style="margin:5px 0;"><strong>Position:</strong> %s</p>
+                        <p style="margin:5px 0;"><strong>Company:</strong> %s</p>
+                        <p style="margin:5px 0;"><strong>Application ID:</strong> #%d</p>
+                        <p style="margin:5px 0;"><strong>Submitted:</strong> %s</p>
+                        <p style="margin:5px 0;"><strong>Status:</strong> <span style="color:#FFA000;">Under Review</span></p>
+                    </div>
+                    <p>The employer will review your application soon.</p>
+                    <div style="text-align:center;margin:30px 0;">
+                        <a href="%s/applications/%d" style="display:inline-block;background:#2E7D32;color:white;padding:14px 28px;text-decoration:none;border-radius:6px;">Track Application</a>
+                    </div>
+                    <p style="text-align:center;color:#666;font-size:14px;">No smartphone? Dial <strong>*256#</strong></p>
+                </div>
+            </body></html>
+            """,
+                dto.getFirstName(),
+                dto.getJobTitle(),
+                dto.getCompanyName(),
+                dto.getApplicationId(),
+                dto.getSubmittedAt().format(dateFormatter),
+                baseUrl,
+                dto.getApplicationId()
+        );
+    }
+
+    private String buildStatusUpdateEmail(JobNotificationDto dto, boolean isApproved) {
+        String statusColor = isApproved ? "#2E7D32" : "#FFA000";
+        String emoji = isApproved ? "🎉" : "📋";
+        String header = isApproved ? "Congratulations!" : "Application Update";
+
+        return String.format("""
+            <!DOCTYPE html>
+            <html><head><meta charset="UTF-8"></head>
+            <body style="font-family:Arial;margin:0;padding:20px;background:#f4f4f4;">
+                <div style="max-width:600px;margin:auto;background:white;padding:30px;border-radius:10px;">
+                    <h1 style="color:%s;text-align:center;">%s %s</h1>
+                    <p>Hi %s,</p>
+                    <p>Your application status has been updated.</p>
+                    <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin:20px 0;border-left:4px solid %s;">
+                        <p style="margin:8px 0;"><strong>Position:</strong> %s</p>
+                        <p style="margin:8px 0;"><strong>Status:</strong> <span style="color:%s;font-weight:bold;">%s</span></p>
+                        %s
+                    </div>
+                    %s
+                    <div style="text-align:center;margin:30px 0;">
+                        <a href="%s/applications/%d" style="display:inline-block;background:%s;color:white;padding:14px 28px;text-decoration:none;border-radius:6px;">View Details</a>
+                    </div>
+                    <p style="text-align:center;color:#666;font-size:14px;">© 2025 Kwetu-Hub Uganda 🇺🇬</p>
+                </div>
+            </body></html>
+            """,
+                statusColor, emoji, header,
+                dto.getFirstName(),
+                statusColor,
+                dto.getJobTitle(),
+                statusColor, dto.getApplicationStatus().toUpperCase(),
+                dto.getReviewNotes() != null && !dto.getReviewNotes().isBlank() ?
+                        String.format("<p style='margin:8px 0;'><strong>Feedback:</strong> %s</p>", dto.getReviewNotes()) : "",
+                isApproved ?
+                        "<p style='color:#2E7D32;font-weight:bold;'>The employer will contact you with next steps!</p>" :
+                        "<p style='color:#555;'>Keep applying to other opportunities!</p>",
+                baseUrl, dto.getApplicationId(),
+                statusColor
+        );
+    }
+
+    private String buildDeadlineReminderEmail(JobNotificationDto dto) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMMM dd, yyyy 'at' HH:mm");
+        String urgency = dto.isUrgent() ? "🚨 URGENT" : "⏰ Reminder";
+
+        return String.format("""
+            <!DOCTYPE html>
+            <html><head><meta charset="UTF-8"></head>
+            <body style="font-family:Arial;margin:0;padding:20px;background:#f4f4f4;">
+                <div style="max-width:600px;margin:auto;background:white;padding:30px;border-radius:10px;">
+                    <h1 style="color:#FF6F00;text-align:center;">%s: Application Deadline</h1>
+                    <p>Hi %s,</p>
+                    <p><strong>Only %d days left</strong> to apply for this opportunity!</p>
+                    <div style="background:#fff3e0;padding:20px;border-radius:8px;margin:20px 0;border-left:4px solid #FF6F00;">
+                        <p style="margin:8px 0;"><strong>Position:</strong> %s</p>
+                        <p style="margin:8px 0;"><strong>Company:</strong> %s</p>
+                        <p style="margin:8px 0;"><strong>Deadline:</strong> %s</p>
+                        <p style="margin:8px 0;"><strong>Time Remaining:</strong> <span style="color:#FF6F00;font-weight:bold;">%d days</span></p>
+                    </div>
+                    <p>Don't miss this opportunity! Apply now before the deadline.</p>
+                    <div style="text-align:center;margin:30px 0;">
+                        <a href="%s/jobs/%d" style="display:inline-block;background:#FF6F00;color:white;padding:14px 28px;text-decoration:none;border-radius:6px;">Apply Now</a>
+                    </div>
+                    <p style="text-align:center;color:#666;font-size:14px;">© 2025 Kwetu-Hub Uganda 🇺🇬</p>
+                </div>
+            </body></html>
+            """,
+                urgency,
+                dto.getFirstName(),
+                dto.getDaysRemaining(),
+                dto.getJobTitle(),
+                dto.getCompanyName(),
+                dto.getDeadline().format(formatter),
+                dto.getDaysRemaining(),
+                baseUrl,
+                dto.getJobId()
+        );
+    }
+
+    private String buildNewApplicationAlertEmail(JobNotificationDto dto) {
+        return String.format("""
+            <!DOCTYPE html>
+            <html><head><meta charset="UTF-8"></head>
+            <body style="font-family:Arial;margin:0;padding:20px;background:#f4f4f4;">
+                <div style="max-width:600px;margin:auto;background:white;padding:30px;border-radius:10px;">
+                    <h1 style="color:#1976D2;text-align:center;">🔔 New Application</h1>
+                    <p>Hi %s,</p>
+                    <p>You have a new application for your job posting!</p>
+                    <div style="background:#e3f2fd;padding:20px;border-radius:8px;margin:20px 0;border-left:4px solid #1976D2;">
+                        <p style="margin:8px 0;"><strong>Applicant:</strong> %s</p>
+                        <p style="margin:8px 0;"><strong>Position:</strong> %s</p>
+                        <p style="margin:8px 0;"><strong>Job ID:</strong> #%d</p>
+                        <p style="margin:8px 0;"><strong>Applied:</strong> Just now</p>
+                    </div>
+                    <p>Review the application promptly to attract top talent.</p>
+                    <div style="text-align:center;margin:30px 0;">
+                        <a href="%s/jobs/%d/applications/%d" style="display:inline-block;background:#1976D2;color:white;padding:14px 28px;text-decoration:none;border-radius:6px;">Review Application</a>
+                    </div>
+                    <p style="text-align:center;color:#666;font-size:14px;">© 2025 Kwetu-Hub Uganda 🇺🇬</p>
+                </div>
+            </body></html>
+            """,
+                dto.getFirstName(),
+                dto.getFirstName(),
+                dto.getJobTitle(),
+                dto.getJobId(),
+                baseUrl,
+                dto.getJobId(),
+                dto.getApplicationId()
+        );
+    }
+
+    private String buildWelcomeEmailHtml(String name, String role) {
+        return String.format("""
+            <!DOCTYPE html>
+            <html><head><meta charset="UTF-8"></head>
+            <body style="font-family:Arial;margin:0;padding:20px;background:#f4f4f4;">
+                <div style="max-width:600px;margin:auto;background:white;padding:30px;border-radius:10px;">
+                    <h1 style="color:#2E7D32;text-align:center;">Welcome to Kwetu-Hub! 🇺🇬</h1>
+                    <p>Hello %s!</p>
+                    <p>You've successfully joined as <strong>%s</strong>. Start exploring opportunities today!</p>
+                    <div style="text-align:center;margin:30px 0;">
+                        <a href="%s/dashboard" style="display:inline-block;background:#2E7D32;color:white;padding:14px 28px;text-decoration:none;border-radius:6px;">Go to Dashboard</a>
+                    </div>
+                    <p style="text-align:center;color:#666;font-size:14px;">No smartphone? Dial <strong>*256#</strong></p>
+                    <p style="text-align:center;color:#666;font-size:14px;">© 2025 Kwetu-Hub Uganda</p>
+                </div>
+            </body></html>
+            """, name, role, baseUrl);
     }
 
     // =========================================================================
@@ -506,32 +978,6 @@ public class NotificationService {
         }
     }
 
-    private String buildWelcomeSmsMessage(String name, String role, String language) {
-        Map<String, String> templates = Map.of(
-                "en", String.format("Welcome %s! You've joined Kwetu-Hub as %s. Explore opportunities at kwetuhub.ug or dial *256#.", name, role),
-                "lg", String.format("Tukusiimye %s! Oyingidde mu Kwetu-Hub nga %s. Lambula kwetuhub.ug oba yingiza *256#.", name, role),
-                "lur", String.format("Pito %s! In donyo Kwetu-Hub calo %s. Yab kwetuhub.ug onyo col *256#.", name, role),
-                "lgb", String.format("Candiru %s! E yo Kwetu-Hub 'diyi ria %s. Kal kwetuhub.ug ote drial *256#.", name, role)
-        );
-        return templates.getOrDefault(language != null ? language.toLowerCase() : "en", templates.get("en"));
-    }
-
-    private String buildWelcomeEmailHtml(String name, String role) {
-        return String.format("""
-            <!DOCTYPE html>
-            <html><head><meta charset="UTF-8"><title>Welcome</title></head>
-            <body style="font-family:Arial;margin:0;padding:20px;background:#f4f4f4;">
-                <div style="max-width:600px;margin:auto;background:white;padding:30px;border-radius:10px;">
-                    <h1 style="color:#2E7D32;">Welcome to Kwetu-Hub! 🇺🇬</h1>
-                    <p>Hello %s!</p>
-                    <p>You've joined as <strong>%s</strong>. Start exploring opportunities today!</p>
-                    <a href="https://kwetuhub.ug/dashboard" style="display:inline-block;background:#2E7D32;color:white;padding:12px 24px;text-decoration:none;border-radius:5px;">Go to Dashboard</a>
-                    <p style="margin-top:20px;">No smartphone? Dial <strong>*256#</strong></p>
-                </div>
-            </body></html>
-            """, name, role);
-    }
-
     private NotificationLog createNotificationLog(Long userId, NotificationLog.NotificationType type,
                                                   String recipient, String subject, String content) {
         NotificationLog log = NotificationLog.builder()
@@ -596,5 +1042,11 @@ public class NotificationService {
         int keepStart = Math.min(4, length / 3);
         int keepEnd = Math.min(4, length / 3);
         return phoneNumber.substring(0, keepStart) + "****" + phoneNumber.substring(length - keepEnd);
+    }
+
+    private String truncate(String text, int maxLength) {
+        if (text == null) return "";
+        if (text.length() <= maxLength) return text;
+        return text.substring(0, maxLength - 3) + "...";
     }
 }

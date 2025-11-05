@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * UserActivityLog Entity - User Interaction Tracking
@@ -39,9 +40,8 @@ import java.time.LocalDateTime;
  *
  * Privacy Note: Contains user interaction data - handle according to GDPR/data protection laws
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
- * @since 2024-01-15
  */
 @Entity
 @Table(
@@ -69,7 +69,7 @@ public class UserActivityLog {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "log_id")
-    private Long id;
+    private UUID id;
 
     /**
      * User ID who performed the activity
@@ -78,7 +78,7 @@ public class UserActivityLog {
      * Avoids lazy loading issues and circular dependencies
      */
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private UUID userId;
 
     /**
      * Activity type classification
@@ -199,7 +199,7 @@ public class UserActivityLog {
      * @param sessionId Current session ID
      * @return UserActivityLog instance
      */
-    public static UserActivityLog viewOpportunity(Long userId, Long opportunityId, String sessionId) {
+    public static UserActivityLog viewOpportunity(UUID userId, Long opportunityId, String sessionId) {
         return UserActivityLog.builder()
                 .userId(userId)
                 .activityType("VIEW_OPPORTUNITY")
@@ -217,7 +217,7 @@ public class UserActivityLog {
      * @param sessionId Current session ID
      * @return UserActivityLog instance
      */
-    public static UserActivityLog applyOpportunity(Long userId, Long opportunityId, String sessionId) {
+    public static UserActivityLog applyOpportunity(UUID userId, Long opportunityId, String sessionId) {
         return UserActivityLog.builder()
                 .userId(userId)
                 .activityType("APPLY_OPPORTUNITY")
@@ -235,7 +235,7 @@ public class UserActivityLog {
      * @param sessionId Current session ID
      * @return UserActivityLog instance
      */
-    public static UserActivityLog listenAudio(Long userId, Long moduleId, String sessionId) {
+    public static UserActivityLog listenAudio(UUID userId, Long moduleId, String sessionId) {
         return UserActivityLog.builder()
                 .userId(userId)
                 .activityType("LISTEN_AUDIO")
@@ -253,7 +253,7 @@ public class UserActivityLog {
      * @param sessionId Current session ID
      * @return UserActivityLog instance
      */
-    public static UserActivityLog completeModule(Long userId, Long moduleId, String sessionId) {
+    public static UserActivityLog completeModule(UUID userId, Long moduleId, String sessionId) {
         return UserActivityLog.builder()
                 .userId(userId)
                 .activityType("COMPLETE_MODULE")
@@ -271,7 +271,7 @@ public class UserActivityLog {
      * @param sessionId Current session ID
      * @return UserActivityLog instance
      */
-    public static UserActivityLog bookMentor(Long userId, Long mentorId, String sessionId) {
+    public static UserActivityLog bookMentor(UUID userId, Long mentorId, String sessionId) {
         return UserActivityLog.builder()
                 .userId(userId)
                 .activityType("BOOK_MENTOR")
@@ -290,7 +290,7 @@ public class UserActivityLog {
      * @param userAgent Login device/browser
      * @return UserActivityLog instance
      */
-    public static UserActivityLog login(Long userId, String sessionId, String ipAddress, String userAgent) {
+    public static UserActivityLog login(UUID userId, String sessionId, String ipAddress, String userAgent) {
         return UserActivityLog.builder()
                 .userId(userId)
                 .activityType("LOGIN")
@@ -308,7 +308,7 @@ public class UserActivityLog {
      * @param sessionId Current session ID
      * @return UserActivityLog instance
      */
-    public static UserActivityLog searchContent(Long userId, String searchQuery, String sessionId) {
+    public static UserActivityLog searchContent(UUID userId, String searchQuery, String sessionId) {
         return UserActivityLog.builder()
                 .userId(userId)
                 .activityType("SEARCH_CONTENT")

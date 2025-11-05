@@ -62,6 +62,7 @@
         <module>ai-recommendation-service</module>
         <module>analytics-service</module>
         <module>edge_functions</module>
+        <module>job-services</module>
     </modules>
 
     <!-- ================================================================== -->

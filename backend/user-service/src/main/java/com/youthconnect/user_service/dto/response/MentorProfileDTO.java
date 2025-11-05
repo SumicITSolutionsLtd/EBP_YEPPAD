@@ -5,13 +5,15 @@ import com.youthconnect.user_service.entity.MentorProfile;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.UUID;
+
 /**
  * DTO for sending a combined view of a Mentor's User and Profile data.
  */
 @Data
 @Builder
 public class MentorProfileDTO {
-    // Include the core user object to get the ID and email
+    private UUID mentorId;
     private User user;
     // Include all the fields from the mentor profile
     private String firstName;

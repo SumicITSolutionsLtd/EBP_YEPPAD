@@ -1,4 +1,0 @@
-package com.youthconnect.notification.service.dto;
-
-public class PushNotificationRequest {
-}

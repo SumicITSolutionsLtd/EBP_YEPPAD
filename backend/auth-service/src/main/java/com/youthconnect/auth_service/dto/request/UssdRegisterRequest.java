@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
  * Used for registering new users via USSD interface.
  * Contains simplified fields suitable for USSD step-by-step input.
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
  */
 @Data

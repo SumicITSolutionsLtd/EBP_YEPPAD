@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * UserActivityLogRepository - User Activity Tracking Data Layer
@@ -37,9 +38,8 @@ import java.util.List;
  * Retention: 90 days (configurable)
  * Partitioning: By created_at for performance
  *
- * @author Youth Connect Uganda Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
- * @since 2024-01-15
  */
 @Repository
 public interface UserActivityLogRepository extends JpaRepository<UserActivityLog, Long> {
@@ -58,7 +58,7 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
      * @param pageable Pagination parameters
      * @return Page of activity logs
      */
-    Page<UserActivityLog> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+    Page<UserActivityLog> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 
     /**
      * Find activities by type for a user
@@ -72,7 +72,7 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
      * @return Page of matching activity logs
      */
     Page<UserActivityLog> findByUserIdAndActivityTypeOrderByCreatedAtDesc(
-            Long userId, String activityType, Pageable pageable);
+            UUID userId, String activityType, Pageable pageable);
 
     /**
      * Find recent activities within time window
@@ -84,7 +84,7 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
      */
     @Query("SELECT ual FROM UserActivityLog ual WHERE ual.userId = :userId " +
             "AND ual.createdAt >= :since ORDER BY ual.createdAt DESC")
-    List<UserActivityLog> findRecentActivities(@Param("userId") Long userId,
+    List<UserActivityLog> findRecentActivities(@Param("userId") UUID userId,
                                                @Param("since") LocalDateTime since);
 
     // ========================================================================
@@ -131,7 +131,7 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
      * @return true if interaction exists
      */
     boolean existsByUserIdAndActivityTypeAndTargetTypeAndTargetId(
-            Long userId, String activityType, String targetType, Long targetId);
+            UUID userId, String activityType, String targetType, Long targetId);
 
     // ========================================================================
     // AI RECOMMENDATION QUERIES
@@ -160,7 +160,7 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
             "ORDER BY common_interactions DESC " +
             "LIMIT :limit",
             nativeQuery = true)
-    List<Object[]> findSimilarUsers(@Param("userId") Long userId,
+    List<Object[]> findSimilarUsers(@Param("userId") UUID userId,
                                     @Param("activityType") String activityType,
                                     @Param("limit") int limit);
 
@@ -198,7 +198,7 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
             "WHERE ual.userId = :userId " +
             "AND ual.targetType = :targetType " +
             "AND ual.targetId IN :allTargetIds")
-    List<Long> findInteractedTargets(@Param("userId") Long userId,
+    List<Long> findInteractedTargets(@Param("userId") UUID userId,
                                      @Param("targetType") String targetType,
                                      @Param("allTargetIds") List<Long> allTargetIds);
 
@@ -221,7 +221,7 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
             "GROUP BY activity_type " +
             "ORDER BY count DESC",
             nativeQuery = true)
-    List<Object[]> countActivitiesByType(@Param("userId") Long userId,
+    List<Object[]> countActivitiesByType(@Param("userId") UUID userId,
                                          @Param("since") LocalDateTime since);
 
     /**
@@ -234,7 +234,7 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
      */
     @Query("SELECT COUNT(ual) FROM UserActivityLog ual " +
             "WHERE ual.userId = :userId AND ual.createdAt >= :since")
-    long calculateEngagementScore(@Param("userId") Long userId,
+    long calculateEngagementScore(@Param("userId") UUID userId,
                                   @Param("since") LocalDateTime since);
 
     /**
@@ -272,7 +272,7 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
             "WHERE user_id = :userId " +
             "AND created_at >= :since",
             nativeQuery = true)
-    Double calculateConversionRate(@Param("userId") Long userId,
+    Double calculateConversionRate(@Param("userId") UUID userId,
                                    @Param("since") LocalDateTime since);
 
     // ========================================================================
@@ -300,7 +300,7 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
     @Query("SELECT ual FROM UserActivityLog ual WHERE ual.userId = :userId " +
             "AND ual.activityType = 'LOGIN' " +
             "ORDER BY ual.createdAt DESC LIMIT 1")
-    UserActivityLog findLastLogin(@Param("userId") Long userId);
+    UserActivityLog findLastLogin(@Param("userId") UUID userId);
 
     // ========================================================================
     // MAINTENANCE QUERIES

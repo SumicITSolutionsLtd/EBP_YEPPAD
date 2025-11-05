@@ -30,8 +30,8 @@ import java.util.UUID;
  *     <li>Rate limiting on reset requests</li>
  * </ul>
  *
- * @author Youth Connect Uganda Development Team
- * @version 1.0.0
+ * @author Douglas Kings Kato
+ * @version 2.0.0
  */
 @Slf4j
 @Service
@@ -166,8 +166,9 @@ public class PasswordResetService {
             String hashedPassword = passwordEncoder.encode(newPassword);
 
             // Update password in user-service
-            // NOTE: You'll need to add this endpoint to UserServiceClient
-            // userServiceClient.updatePassword(resetToken.getUserId(), hashedPassword);
+            UserServiceClient.PasswordUpdateRequest request =
+                    new UserServiceClient.PasswordUpdateRequest(hashedPassword);
+            userServiceClient.updatePassword(resetToken.getUserId(), request);
 
             // Mark token as used
             resetToken.setUsed(true);

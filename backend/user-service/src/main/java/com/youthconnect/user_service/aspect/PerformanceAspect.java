@@ -40,19 +40,19 @@ public class PerformanceAspect {
     /**
      * Pointcut for critical business methods that need performance monitoring
      */
-    @Pointcut("execution(* com.entrepreneurshipboosterplatform.user_service.service.UserService.*(..))")
+    @Pointcut("execution(* com.youthconnect.user_service.service.UserService.*(..))")
     public void userServiceMethods() {}
 
     /**
      * Pointcut for database repository methods
      */
-    @Pointcut("execution(* com.entrepreneurshipboosterplatform.user_service.repository..*(..))")
+    @Pointcut("execution(* com.youthconnect.user_service.repository..*(..))")
     public void repositoryMethods() {}
 
     /**
      * Pointcut for external service calls
      */
-    @Pointcut("execution(* com.entrepreneurshipboosterplatform.user_service.client..*(..))")
+    @Pointcut("execution(* com.youthconnect.user_service.client..*(..))")
     public void externalServiceCalls() {}
 
     /**
@@ -62,7 +62,7 @@ public class PerformanceAspect {
     public Object monitorPerformance(ProceedingJoinPoint joinPoint) throws Throwable {
         String methodName = joinPoint.getSignature().getName();
         String className = joinPoint.getTarget().getClass().getSimpleName();
-        String metricName = "entrepreneurshipboosterplatform.method.execution";
+        String metricName = "com.youthconnect.method.execution";
 
         // Get or create timer for this method
         Timer timer = timerCache.computeIfAbsent(className + "." + methodName,
@@ -86,7 +86,7 @@ public class PerformanceAspect {
 
             } catch (Throwable e) {
                 // Record failure in metrics
-                meterRegistry.counter("entrepreneurshipboosterplatform.method.errors",
+                meterRegistry.counter("youthconnect.method.errors",
                         "class", className,
                         "method", methodName,
                         "exception", e.getClass().getSimpleName()
@@ -134,7 +134,7 @@ public class PerformanceAspect {
         }
 
         // Record metrics based on category
-        meterRegistry.counter("entrepreneurshipboosterplatform.performance.category",
+        meterRegistry.counter("youthconnect.performance.category",
                 "class", className,
                 "method", methodName,
                 "category", category.name()

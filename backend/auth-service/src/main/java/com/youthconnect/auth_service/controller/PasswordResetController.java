@@ -4,127 +4,163 @@ import com.youthconnect.auth_service.dto.request.PasswordResetRequest;
 import com.youthconnect.auth_service.dto.request.PasswordResetRequestDto;
 import com.youthconnect.auth_service.dto.response.ApiResponse;
 import com.youthconnect.auth_service.service.PasswordResetService;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * Password Reset Controller
+ * ============================================================================
+ *  PASSWORD RESET CONTROLLER
+ * ============================================================================
+ * Manages the secure password reset flow:
  *
- * Handles password reset workflow:
- * 1. User requests password reset (provides email)
- * 2. System generates secure token and sends email
- * 3. User clicks link with token
- * 4. User submits new password with token
+ * 1. User requests password reset via email
+ * 2. System generates a secure, time-limited token
+ * 3. User receives reset link via email
+ * 4. User submits new password using token
  * 5. System validates token and updates password
  *
- * @author Youth Connect Uganda Development Team
- * @version 1.0.0
+ * SECURITY FEATURES:
+ * - Tokens expire after a configurable duration (default 15 minutes)
+ * - Tokens are single-use only
+ * - Prevents email enumeration (always returns success)
+ * - Audit logging for reset events
+ *
+ * @author
+ *     Douglas Kings Kato
+ * @version
+ *     2.0.0 (Refined Edition)
  */
 @Slf4j
 @RestController
-@RequestMapping("/password")
+@RequestMapping("/api/auth/password")
 @RequiredArgsConstructor
 @Tag(name = "Password Reset", description = "Password reset and recovery APIs")
 public class PasswordResetController {
 
     private final PasswordResetService passwordResetService;
 
+    // =========================================================================
+    // 1️⃣  REQUEST PASSWORD RESET
+    // =========================================================================
     /**
-     * Request Password Reset
+     * Initiates the password reset process by sending a secure token to user's email.
      *
-     * Initiates password reset process:
-     * - Generates secure token
-     * - Stores token in database with expiration
-     * - Sends email with reset link
+     * SECURITY NOTE:
+     * Always returns success to prevent revealing if the email exists in the system.
      *
-     * Endpoint: {@code POST /api/auth/password/forgot}
-     *
-     * @param request Request containing user email
-     * @return Success message (always returns success for security)
+     * @param request DTO containing user's email address
+     * @return Generic success response
      */
     @PostMapping("/forgot")
+    @ResponseStatus(HttpStatus.OK)
     @Operation(
             summary = "Request Password Reset",
-            description = "Sends password reset email if account exists"
+            description = "Sends password reset email if account exists. Always returns success for security."
     )
-    public ResponseEntity<ApiResponse<Void>> requestPasswordReset(
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Request processed successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid email format")
+    })
+    public ApiResponse<Void> requestPasswordReset(
             @Valid @RequestBody PasswordResetRequestDto request) {
 
         log.info("Password reset requested for email: {}", maskEmail(request.getEmail()));
 
         passwordResetService.initiatePasswordReset(request.getEmail());
 
-        // Always return success (don't reveal if email exists)
-        return ResponseEntity.ok(ApiResponse.success(
+        return ApiResponse.success(
                 null,
-                "If your email is registered, you will receive a password reset link."
-        ));
+                "If your email is registered, you will receive a password reset link shortly."
+        );
     }
 
+    // =========================================================================
+    // 2️⃣  VALIDATE RESET TOKEN
+    // =========================================================================
     /**
-     * Validate Reset Token
+     * Validates whether a password reset token is valid and unexpired.
      *
-     * Checks if password reset token is valid and not expired.
-     * Called before showing password reset form.
+     * This endpoint is typically called before displaying the "Reset Password" form
+     * in a frontend or mobile app.
      *
-     * Endpoint: {@code GET /api/auth/password/validate-reset-token?token={token}}
-     *
-     * @param token Reset token from email link
-     * @return Validation result
+     * @param token The reset token provided in the email link
+     * @return Boolean response indicating validity
      */
     @GetMapping("/validate-reset-token")
+    @ResponseStatus(HttpStatus.OK)
     @Operation(
             summary = "Validate Reset Token",
-            description = "Checks if password reset token is valid"
+            description = "Checks if password reset token is valid and not expired"
     )
-    public ResponseEntity<ApiResponse<Boolean>> validateResetToken(
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Token validation complete"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Token is missing or invalid format")
+    })
+    public ApiResponse<Boolean> validateResetToken(
             @RequestParam("token") String token) {
 
         log.debug("Validating password reset token");
 
         boolean isValid = passwordResetService.validateResetToken(token);
 
-        return ResponseEntity.ok(ApiResponse.success(
+        return ApiResponse.success(
                 isValid,
                 isValid ? "Token is valid" : "Token is invalid or expired"
-        ));
+        );
     }
 
+    // =========================================================================
+    // 3️⃣  RESET PASSWORD
+    // =========================================================================
     /**
-     * Reset Password
+     * Completes the password reset process by setting a new password
+     * after token validation.
      *
-     * Completes password reset with new password.
-     *
-     * Endpoint: {@code POST /api/auth/password/reset}
-     *
-     * @param request Request containing token and new password
-     * @return Success or error message
+     * @param request DTO containing reset token and new password
+     * @return Success message
      */
     @PostMapping("/reset")
+    @ResponseStatus(HttpStatus.OK)
     @Operation(
             summary = "Reset Password",
-            description = "Sets new password using reset token"
+            description = "Sets new password using a valid reset token"
     )
-    public ResponseEntity<ApiResponse<Void>> resetPassword(
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Password reset successful"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request or password requirements not met"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Invalid or expired token")
+    })
+    public ApiResponse<Void> resetPassword(
             @Valid @RequestBody PasswordResetRequest request) {
 
-        log.info("Password reset attempt with token");
+        log.info("Password reset attempt using token");
 
         passwordResetService.resetPassword(request.getToken(), request.getNewPassword());
 
-        return ResponseEntity.ok(ApiResponse.success(
+        return ApiResponse.success(
                 null,
-                "Password has been reset successfully. You can now login with your new password."
-        ));
+                "Password has been reset successfully. You can now log in with your new password."
+        );
     }
 
+    // =========================================================================
+    // PRIVATE UTILITIES
+    // =========================================================================
+
     /**
-     * Mask email for privacy in logs
+     * Mask email for privacy in logs.
+     * Example: john@example.com → joh***@example.com
+     *
+     * @param email The email address to mask
+     * @return Masked email string
      */
     private String maskEmail(String email) {
         if (email == null || !email.contains("@")) {
