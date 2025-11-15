@@ -18,4 +18,5 @@ public interface ServiceProviderRepository extends JpaRepository<ServiceProvider
     Optional<ServiceProvider> findByProviderName(String providerName);
     Page<ServiceProvider> findAll(Pageable pageable);
     Page<ServiceProvider>findByStatus(Status status, Pageable pageable);
+    Boolean existsByEmail(String email);
 }

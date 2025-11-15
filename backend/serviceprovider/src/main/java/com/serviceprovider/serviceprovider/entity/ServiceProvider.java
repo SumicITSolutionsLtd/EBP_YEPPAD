@@ -4,15 +4,13 @@ package com.serviceprovider.serviceprovider.entity;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import com.serviceprovider.serviceprovider.model.ProviderType;
 import com.serviceprovider.serviceprovider.model.Status;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.NonNull;
+
 
 @Entity
 @NoArgsConstructor
@@ -20,22 +18,29 @@ import lombok.NonNull;
 @AllArgsConstructor
 public class ServiceProvider {
     @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
-    @NonNull
+    @Column(nullable = false)
     private String providerName;
 
+    @Column(nullable = false)
     private String email;
 
+    @Column(nullable = false)
     private String password;
 
     private String AreaOfExpertise;
 
     private String location;
 
-    @NonNull
+//    @NonNull
     @Enumerated(EnumType.STRING)
     private Status status;
+
+//    @NonNull
+    @Enumerated(EnumType.STRING)
+    private ProviderType type;
 
     private Long Description;
 
