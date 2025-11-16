@@ -1,119 +1,334 @@
-# =================================================================================
-# File Management Service Configuration
-# =================================================================================
+# ═══════════════════════════════════════════════════════════════════════════
+# FILE MANAGEMENT SERVICE - Complete Configuration (PostgreSQL)
+# ═══════════════════════════════════════════════════════════════════════════
+# Version: 2.1.0 (PostgreSQL + JJWT 0.12.x Fixed - All YAML Issues Resolved)
+# Author: Douglas Kings Kato
+# Database: PostgreSQL 15+ (Production-ready)
+# ═══════════════════════════════════════════════════════════════════════════
 
+# =============================================================================
+# SERVER CONFIGURATION
+# =============================================================================
 server:
+  # Port for file management service
   port: 8089
+
+  # Graceful shutdown - waits for active requests to complete
+  shutdown: graceful
+
+  # Error handling
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: on_param  # Include stacktrace when ?trace=true
+    include-exception: false
+
+  # ✅ FIXED: Moved multipart configuration under servlet (was duplicated)
   servlet:
     context-path: /
+    multipart:
+      enabled: true
+      max-file-size: 50MB        # Maximum single file size
+      max-request-size: 100MB    # Maximum total request size
+      file-size-threshold: 2MB   # Files larger than this are written to disk
+      location: ${java.io.tmpdir}/file-uploads  # Temp directory for large uploads
 
+# =============================================================================
+# SPRING CONFIGURATION
+# =============================================================================
 spring:
+  # Application identification
   application:
     name: file-management-service
 
-  # Database Configuration
+  # ✅ PostgreSQL Database Configuration
   datasource:
-    url: jdbc:mysql://localhost:3307/epb_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-    username: root
-    password: your_password
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 5
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
+    # JDBC URL with PostgreSQL-specific parameters
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:epb_file}?currentSchema=public&stringtype=unspecified
+    username: ${DB_USER:epb_app_user}
+    password: ${DB_PASSWORD:changeme}
+    driver-class-name: org.postgresql.Driver
 
-  # JPA Configuration
+    # HikariCP Connection Pool Configuration
+    hikari:
+      # Pool sizing
+      maximum-pool-size: 10                  # Maximum connections in pool
+      minimum-idle: 5                        # Minimum idle connections
+
+      # Timeouts (milliseconds)
+      connection-timeout: 30000              # Wait 30s for connection
+      idle-timeout: 600000                   # 10 minutes idle timeout
+      max-lifetime: 1800000                  # 30 minutes max connection lifetime
+
+      # Connection testing
+      connection-test-query: SELECT 1
+      validation-timeout: 5000               # 5s validation timeout
+
+      # Pool name for logging
+      pool-name: FileServiceHikariPool
+
+      # Leak detection (helps find connection leaks in dev)
+      leak-detection-threshold: 60000        # 60s - warn if connection held too long
+
+      # Performance tuning
+      auto-commit: true
+
+  # ✅ JPA/Hibernate Configuration for PostgreSQL
   jpa:
+    # Schema management strategy
     hibernate:
-      ddl-auto: validate
+      ddl-auto: validate  # ⚠️ IMPORTANT: Never auto-create in production! Use Flyway instead.
+
+      # Naming strategy (matches database conventions)
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyJpaCompliantImpl
+
+    # SQL logging (disable in production)
     show-sql: false
+
+    # Hibernate properties
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQL8Dialect
+        # PostgreSQL dialect (enables PostgreSQL-specific features)
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+        # SQL formatting
         format_sql: true
         use_sql_comments: true
 
-  # Multipart File Upload Configuration
-  servlet:
-    multipart:
-      enabled: true
-      max-file-size: 50MB
-      max-request-size: 100MB
-      file-size-threshold: 2MB
+        # Performance optimizations
+        jdbc:
+          batch_size: 20                     # Batch inserts/updates
+          fetch_size: 50                     # JDBC fetch size
+          lob:
+            non_contextual_creation: true    # Fix for PostgreSQL LOB handling
 
-# Eureka Client Configuration
+        # Query optimization
+        order_inserts: true                  # Order inserts for better batching
+        order_updates: true                  # Order updates for better batching
+
+        # Statistics (enable in dev for performance analysis)
+        generate_statistics: false
+
+        # PostgreSQL-specific
+        temp:
+          use_jdbc_metadata_defaults: false
+
+    # Open EntityManager in view (generally false for REST APIs)
+    open-in-view: false
+
+  # ✅ FIXED: Async task execution configuration (moved from bottom)
+  task:
+    execution:
+      pool:
+        core-size: 5          # Minimum threads
+        max-size: 10          # Maximum threads
+        queue-capacity: 25    # Queue size before rejecting
+        keep-alive: 60s       # Thread keep-alive time
+      thread-name-prefix: file-async-
+
+# =============================================================================
+# EUREKA CLIENT CONFIGURATION
+# =============================================================================
 eureka:
   client:
+    # Eureka server connection
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: http://${EUREKA_USERNAME:admin}:${EUREKA_PASSWORD:changeme}@${EUREKA_HOST:localhost}:${EUREKA_PORT:8761}/eureka/
+
+    # Registration settings
     register-with-eureka: true
     fetch-registry: true
-  instance:
-    prefer-ip-address: true
-    lease-renewal-interval-in-seconds: 30
-    lease-expiration-duration-in-seconds: 90
 
-# File Storage Configuration
+    # Registry refresh interval (faster in dev, slower in prod)
+    registry-fetch-interval-seconds: 5
+
+    # Health check
+    healthcheck:
+      enabled: true
+
+  instance:
+    # Use IP address instead of hostname
+    prefer-ip-address: true
+
+    # Instance ID format: service-name:port
+    instance-id: ${spring.application.name}:${server.port}
+
+    # Heartbeat settings (faster in dev for quick detection)
+    lease-renewal-interval-in-seconds: 5        # Heartbeat every 5s
+    lease-expiration-duration-in-seconds: 10    # Consider dead after 10s
+
+    # Metadata for API Gateway routing
+    metadata-map:
+      version: 2.1.0
+      description: File Management Service with PostgreSQL
+
+# =============================================================================
+# JWT CONFIGURATION (Must match API Gateway exactly!)
+# =============================================================================
+jwt:
+  # ⚠️ CRITICAL: This secret MUST match the API Gateway secret exactly
+  # Minimum 256 bits (32 characters) for HS256 algorithm
+  # Production: Load from secure vault (AWS Secrets Manager, HashiCorp Vault)
+  secret: ${JWT_SECRET:youth-connect-secure-secret-key-2025-minimum-256-bits-required-for-production}
+
+  # Token expiration (24 hours in milliseconds)
+  expiration: 86400000
+
+  # Authorization header configuration
+  tokenPrefix: "Bearer "
+  headerString: "Authorization"
+
+# =============================================================================
+# FILE STORAGE CONFIGURATION
+# =============================================================================
 app:
   file:
     storage:
-      type: LOCAL  # LOCAL, S3, MINIO
-      path: uploads/
-      base-url: http://localhost:8089
+      # Storage type: LOCAL, S3, MINIO
+      type: ${STORAGE_TYPE:LOCAL}
 
-    upload:
-      max-file-size: 52428800  # 50MB in bytes
-      max-request-size: 104857600  # 100MB in bytes
-      allowed-image-types:
-        - jpg
-        - jpeg
-        - png
-        - gif
-      allowed-document-types:
-        - pdf
-        - doc
-        - docx
-        - txt
-      allowed-audio-types:
-        - mp3
-        - wav
-        - m4a
-        - mp4
+      # Local filesystem path (absolute or relative)
+      path: ${STORAGE_PATH:uploads/}
 
-    audio:
-      processing-enabled: true
-      max-size: 104857600  # 100MB
+      # Base URL for file access (used in file URLs)
+      base-url: ${BASE_URL:http://localhost:8089}
 
-    security:
-      virus-scan-enabled: false  # Enable in production with ClamAV
-      encryption-enabled: false
+      # File size limits (bytes)
+      max-file-size: 52428800        # 50MB
+      max-request-size: 104857600    # 100MB
 
-# Actuator Configuration
+      # Allowed file types
+      allowed-image-types: jpg,jpeg,png,gif
+      allowed-document-types: pdf,doc,docx,txt
+      allowed-audio-types: mp3,wav,m4a,mp4
+
+# =============================================================================
+# ACTUATOR ENDPOINTS (Health Checks & Monitoring)
+# =============================================================================
 management:
   endpoints:
     web:
+      # Expose specific endpoints
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,metrics,prometheus,env,loggers
+
+      # Base path for actuator endpoints
+      base-path: /actuator
+
+      # CORS configuration for actuator
+      cors:
+        allowed-origins: "*"
+        allowed-methods: "GET,POST"
+
   endpoint:
+    # Health endpoint configuration
     health:
-      show-details: always
+      show-details: always        # Always show health details
+      show-components: always     # Show component health
+      probes:
+        enabled: true             # Enable liveness/readiness probes for Kubernetes
+
+    # Enable/disable specific endpoints
+    env:
+      enabled: true
+    loggers:
+      enabled: true
+
+  # Health indicators
+  health:
+    # Database health check
+    db:
+      enabled: true
+
+    # Disk space health check
+    diskspace:
+      enabled: true
+      threshold: 100MB            # Warn if less than 100MB free
+
+    # Custom health checks
+    defaults:
+      enabled: true
+
+  # Metrics export
   metrics:
     export:
+      # Prometheus metrics
       prometheus:
         enabled: true
 
-# Logging Configuration
+    # Additional metric tags
+    tags:
+      application: ${spring.application.name}
+      environment: ${spring.profiles.active:default}
+
+# =============================================================================
+# SPRINGDOC OPENAPI (SWAGGER) CONFIGURATION
+# =============================================================================
+springdoc:
+  # API documentation JSON endpoint
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+
+  # Swagger UI configuration
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+
+    # Sorting
+    tags-sorter: alpha
+    operations-sorter: alpha
+
+    # UI customization
+    display-request-duration: true
+    display-operation-id: false
+
+    # Try it out feature
+    try-it-out-enabled: true
+
+  # Show actuator endpoints in Swagger
+  show-actuator: true
+
+  # Package to scan for API documentation
+  packages-to-scan: com.youthconnect.file.service.controller
+
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
 logging:
+  # Log levels
   level:
     root: INFO
+
+    # Application-specific logging
     com.youthconnect.file.service: DEBUG
+
+    # Spring framework logging
     org.springframework.web: INFO
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.security: INFO
+    org.springframework.data.jpa: INFO
+
+    # Database logging
+    org.hibernate.SQL: DEBUG                    # Show SQL statements
+    org.hibernate.type.descriptor.sql: TRACE    # Show SQL parameters
+    org.hibernate.orm.jdbc.bind: TRACE          # Show bind parameters
+
+    # Connection pool logging
+    com.zaxxer.hikari: INFO
+
+    # PostgreSQL driver logging
+    org.postgresql: INFO
+
+  # Log pattern
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(${LOG_LEVEL_PATTERN:%5p}) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:%wEx}"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+  # Log file configuration
   file:
     name: logs/file-service.log
+    max-size: 10MB          # Rotate after 10MB
+    max-history: 30         # Keep 30 days of logs
+    total-size-cap: 1GB     # Max total log size

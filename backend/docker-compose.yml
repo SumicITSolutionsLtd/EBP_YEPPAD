@@ -1,172 +1,409 @@
-# =================================================================================
-# Entrepreneurship Booster Platform - Complete Docker Compose Configuration
-# Version: 2.0 - Production Ready with Monitoring
-# Last Updated: January 2025
-# =================================================================================
+# =============================================================================
+# ENTREPRENEURSHIP BOOSTER PLATFORM (EPB) - docker-compose.yml
+# =============================================================================
+# File: backend/docker-compose.yml
+# Version: 3.0 - PostgreSQL Production Ready
+# Last Updated: 2025-11-08
 #
-# QUICK START:
-#   Development: ./scripts/setup.sh dev && docker-compose up -d
-#   Production:  ./scripts/setup.sh prod && docker-compose -f docker-compose.yml up -d
-#   Logs:        docker-compose logs -f [service-name]
-#   Stop:        docker-compose down
-#   Clean:       docker-compose down -v --remove-orphans
+# DESCRIPTION:
+#   Complete Docker Compose configuration for EPB with:
+#   - PostgreSQL with dedicated database per microservice
+#   - Redis for caching and session management
+#   - Eureka service registry
+#   - API Gateway with rate limiting
+#   - All microservices
+#   - Monitoring stack (Prometheus + Grafana)
+#   - NGINX reverse proxy
 #
-# SERVICE URLS:
-#   API Gateway:      http://localhost:8080
-#   Eureka Dashboard: http://localhost:8761
-#   Grafana:          http://localhost:3000 (admin/Admin2025Secure!)
-#   Prometheus:       http://localhost:9090
-#   MySQL:            localhost:3307
-#   Redis:            localhost:6379
+# USAGE:
+#   Development:  docker-compose up -d
+#   Production:   docker-compose --env-file .env up -d
+#   Stop:         docker-compose down
+#   Clean:        docker-compose down -v (removes volumes)
+#   Logs:         docker-compose logs -f <service-name>
 #
-# =================================================================================
+# REQUIREMENTS:
+#   - Docker Engine 20.10+
+#   - Docker Compose 2.0+
+#   - .env file with all required variables
+# =============================================================================
 
 version: '3.8'
 
-# =================================================================================
+# =============================================================================
 # NETWORKS
-# =================================================================================
+# =============================================================================
+# Custom bridge network with defined subnet for better IP management
+# and service isolation. All services communicate through this network.
 networks:
   epb-network:
     driver: bridge
     ipam:
+      driver: default
       config:
-        - subnet: 172.20.0.0/16
+        # Custom subnet prevents IP conflicts with host or other Docker networks
+        - subnet: ${DOCKER_NETWORK_SUBNET:-172.20.0.0/16}
 
-# =================================================================================
+# =============================================================================
 # VOLUMES
-# =================================================================================
+# =============================================================================
+# Named volumes for persistent data storage across container restarts
+# Data in these volumes survives even if containers are removed
 volumes:
-  mysql-data:
-    driver: local
-  redis-data:
-    driver: local
-  prometheus-data:
-    driver: local
-  grafana-data:
-    driver: local
-  file-uploads:
+  # PostgreSQL database files
+  # Stores all 12 microservice databases
+  postgres-data:
+    name: epb-postgres-data
     driver: local
 
-# =================================================================================
+  # Redis persistent storage
+  # Stores cached data and session information
+  redis-data:
+    name: epb-redis-data
+    driver: local
+
+  # Prometheus metrics storage
+  # Stores time-series metrics data
+  prometheus-data:
+    name: epb-prometheus-data
+    driver: local
+
+  # Grafana dashboard storage
+  # Stores dashboard configurations and settings
+  grafana-data:
+    name: epb-grafana-data
+    driver: local
+
+  # File uploads storage
+  # Stores user-uploaded files (documents, images, etc.)
+  file-uploads:
+    name: epb-file-uploads
+    driver: local
+
+  # Application logs
+  # Centralized log storage for all services
+  logs:
+    name: epb-logs
+    driver: local
+
+# =============================================================================
 # SERVICES
-# =================================================================================
+# =============================================================================
 services:
 
-  # -------------------------------------------------------------------------------
-  # DATABASE SERVICES
-  # -------------------------------------------------------------------------------
-
-  mysql:
-    image: mysql:8.0
-    container_name: epb-mysql
+  # ===========================================================================
+  # POSTGRESQL - Primary Database Server
+  # ===========================================================================
+  # Hosts multiple dedicated databases (one per microservice)
+  # Database initialization: backend/scripts/init-databases.sql
+  postgres:
+    # PostgreSQL 15 with Alpine Linux (lightweight)
+    image: ${POSTGRES_IMAGE:-postgres:15-alpine}
+    container_name: epb-postgres
+    hostname: postgres
+    # Always restart unless explicitly stopped
     restart: unless-stopped
+
+    # Environment variables for PostgreSQL initialization
+    # These are used during first startup to create admin user and databases
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-      TZ: Africa/Kampala
+      # Master admin user
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+      # Initialization arguments (encoding and locale)
+      POSTGRES_INITDB_ARGS: ${POSTGRES_INITDB_ARGS}
+
+      # Container timezone
+      TZ: ${TZ:-Africa/Kampala}
+
+      # Data directory inside container
+      PGDATA: /var/lib/postgresql/data/pgdata
+
+    # Expose PostgreSQL port to host (host:container)
+    # Change host port if 5432 is already in use
     ports:
-      - "3307:3306"
+      - "${POSTGRES_PORT:-5432}:5432"
+
+    # Volume mounts
     volumes:
-      - mysql-data:/var/lib/mysql
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
-      - ./logs/mysql:/var/log/mysql
+      # Persistent data storage
+      - postgres-data:/var/lib/postgresql/data
+
+      # Database initialization script (runs on first startup)
+      # Creates all 12 microservice databases
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+
+      # PostgreSQL logs
+      - ./logs/postgres:/var/log/postgres
+
+    # Network configuration
     networks:
       - epb-network
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-      - --max_connections=500
-      - --log-error=/var/log/mysql/error.log
-      - --slow_query_log=1
-      - --slow_query_log_file=/var/log/mysql/slow-query.log
-      - --long_query_time=2
 
+    # Health check configuration
+    # Docker uses this to determine if the container is healthy
+    healthcheck:
+      # Check if PostgreSQL is ready to accept connections
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB_AUTH}"]
+      interval: 10s          # Check every 10 seconds
+      timeout: 5s            # Timeout after 5 seconds
+      retries: 5             # Retry 5 times before marking unhealthy
+      start_period: 20s      # Grace period for startup
+
+    # Performance tuning via PostgreSQL command-line parameters
+    # These settings optimize for typical microservices workload
+    command:
+      - "postgres"
+
+      # Connection settings
+      - "-c"
+      - "max_connections=200"           # Max simultaneous connections
+
+      # Memory settings
+      - "-c"
+      - "shared_buffers=256MB"          # Shared memory for caching
+      - "-c"
+      - "effective_cache_size=1GB"      # OS cache estimate
+      - "-c"
+      - "maintenance_work_mem=64MB"     # Memory for maintenance operations
+      - "-c"
+      - "work_mem=4MB"                  # Memory per query operation
+
+      # Write-ahead log (WAL) settings
+      - "-c"
+      - "wal_buffers=16MB"              # WAL buffer size
+      - "-c"
+      - "min_wal_size=1GB"              # Minimum WAL size
+      - "-c"
+      - "max_wal_size=4GB"              # Maximum WAL size
+
+      # Checkpoint settings
+      - "-c"
+      - "checkpoint_completion_target=0.9"  # Spread checkpoint writes
+
+      # Query planner settings
+      - "-c"
+      - "default_statistics_target=100"  # Statistics collection target
+      - "-c"
+      - "random_page_cost=1.1"          # Cost of random page access (SSD)
+      - "-c"
+      - "effective_io_concurrency=200"  # Concurrent I/O operations (SSD)
+
+      # Logging settings
+      - "-c"
+      - "log_destination=stderr"        # Log to standard error
+      - "-c"
+      - "logging_collector=on"          # Enable log collection
+      - "-c"
+      - "log_directory=/var/log/postgres"  # Log directory
+
+    # Resource limits (Docker Swarm mode)
+    # These limits prevent one service from consuming all host resources
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'      # Maximum 2 CPU cores
+          memory: 3G       # Maximum 3GB RAM
+        reservations:
+          cpus: '1.0'      # Guaranteed 1 CPU core
+          memory: 1.5G     # Guaranteed 1.5GB RAM
+
+  # ===========================================================================
+  # REDIS - Cache and Session Store
+  # ===========================================================================
+  # Used for: session management, caching, rate limiting
   redis:
-    image: redis:7.0-alpine
+    # Redis 7 with Alpine Linux
+    image: ${REDIS_IMAGE:-redis:7-alpine}
     container_name: epb-redis
+    hostname: redis
     restart: unless-stopped
+
+    # Redis configuration via command line
+    # Enables persistence, memory limits, and security
     command: >
       redis-server
-      --requirepass ${REDIS_PASSWORD}
-      --maxmemory 512mb
-      --maxmemory-policy allkeys-lru
-      --appendonly yes
-      --appendfilename "redis-aof.aof"
+      --requirepass ${REDIS_PASSWORD}              # Require password authentication
+      --appendonly yes                             # Enable AOF persistence
+      --appendfilename "appendonly.aof"            # AOF filename
+      --maxmemory ${REDIS_MAXMEM:-512mb}          # Maximum memory usage
+      --maxmemory-policy allkeys-lru              # Eviction policy (least recently used)
+      --save 900 1                                 # Save if 1 key changed in 15 min
+      --save 300 10                                # Save if 10 keys changed in 5 min
+      --save 60 10000                              # Save if 10000 keys changed in 1 min
+
+    # Expose Redis port to host
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
+
+    # Volume mounts
     volumes:
+      # Persistent data storage (AOF and RDB files)
       - redis-data:/data
+
+      # Redis logs
       - ./logs/redis:/var/log/redis
+
+    # Network configuration
     networks:
       - epb-network
+
+    # Health check
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      # Ping Redis with password authentication
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
 
-  # -------------------------------------------------------------------------------
-  # INFRASTRUCTURE SERVICES
-  # -------------------------------------------------------------------------------
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
 
+  # ===========================================================================
+  # SERVICE REGISTRY (Eureka)
+  # ===========================================================================
+  # Central service discovery for all microservices
+  # Allows services to find each other without hardcoded IPs
   service-registry:
+    # Build from local Dockerfile
     build:
       context: ./service-registry
       dockerfile: Dockerfile
     container_name: epb-service-registry
+    hostname: service-registry
     restart: unless-stopped
+
+    # Environment variables
     environment:
-      SPRING_PROFILES_ACTIVE: ${APP_ENV:-dev}
+      # Spring profile (production settings)
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-production}
+
+      # Server port
       SERVER_PORT: 8761
+
+      # Eureka authentication (protect registry from unauthorized access)
+      SPRING_SECURITY_USER_NAME: ${EUREKA_ADMIN_USER}
+      SPRING_SECURITY_USER_PASSWORD: ${EUREKA_ADMIN_PASSWORD}
+
+      # Eureka instance settings
       EUREKA_INSTANCE_HOSTNAME: service-registry
+
+      # In standalone mode, Eureka doesn't register itself
+      EUREKA_CLIENT_REGISTER_WITH_EUREKA: "false"
+      EUREKA_CLIENT_FETCH_REGISTRY: "false"
+
+      # Timezone
+      TZ: ${TZ:-Africa/Kampala}
+
+      # JVM options (memory and garbage collection)
+      JAVA_OPTS: -Xms256m -Xmx512m -XX:+UseG1GC -Duser.timezone=${TZ}
+
+    # Expose Eureka dashboard and API
     ports:
-      - "8761:8761"
+      - "${EUREKA_PORT:-8761}:8761"
+
+    # Volume mounts
     volumes:
+      # Service logs
       - ./logs/service-logs:/app/logs
+
+    # Network configuration
     networks:
       - epb-network
+
+    # Health check (Spring Boot Actuator)
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 60s
+      retries: 6
+      start_period: 60s    # Eureka takes time to start
 
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ===========================================================================
+  # API GATEWAY
+  # ===========================================================================
+  # Single entry point - handles routing, authentication, rate limiting
+  # All external requests go through the gateway
   api-gateway:
     build:
       context: ./api-gateway
       dockerfile: Dockerfile
     container_name: epb-api-gateway
+    hostname: api-gateway
     restart: unless-stopped
+
+    # Environment variables
     environment:
-      SPRING_PROFILES_ACTIVE: ${APP_ENV:-dev}
+      # Spring profile
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-production}
+
+      # Server configuration
       SERVER_PORT: 8080
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
+      SPRING_APPLICATION_NAME: api-gateway
+
+      # Eureka client configuration (service discovery)
+      # Builds URL with authentication: http://user:pass@host:port/eureka/
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://${EUREKA_ADMIN_USER}:${EUREKA_ADMIN_PASSWORD}@service-registry:8761/eureka/
+
+      # Redis configuration (for rate limiting and session management)
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
       SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+      # JWT configuration (for token validation)
+      JWT_SECRET: ${JWT_SECRET}
+
+      # CORS configuration
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+
+      # Rate limiting
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
       RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-100}
+
+      # Logging
+      LOGGING_LEVEL_ROOT: ${LOG_LEVEL_ROOT:-INFO}
+
+      # Timezone
+      TZ: ${TZ:-Africa/Kampala}
+
+      # JVM options
+      JAVA_OPTS: -Xms${JAVA_XMS} -Xmx${JAVA_XMX} -XX:+UseG1GC -Duser.timezone=${TZ}
+
+    # Expose API Gateway port
     ports:
       - "8080:8080"
+
+    # Volume mounts
     volumes:
       - ./logs/service-logs:/app/logs
+
+    # Network configuration
     networks:
       - epb-network
+
+    # Dependencies (wait for these services to be healthy)
     depends_on:
       service-registry:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+    # Health check
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -174,39 +411,132 @@ services:
       retries: 5
       start_period: 60s
 
-  # -------------------------------------------------------------------------------
-  # CORE BUSINESS SERVICES
-  # -------------------------------------------------------------------------------
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
 
-  user-service:
+  # ===========================================================================
+  # AUTH SERVICE
+  # ===========================================================================
+  # Handles user authentication, authorization, and JWT token management
+  # Database: epb_auth
+  auth-service:
     build:
-      context: ./user-service
+      context: ./auth-service
       dockerfile: Dockerfile
-    container_name: epb-user-service
+    container_name: epb-auth-service
+    hostname: auth-service
     restart: unless-stopped
+
     environment:
-      SPRING_PROFILES_ACTIVE: ${APP_ENV:-dev}
-      SERVER_PORT: 8081
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true
+      # Spring configuration
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-production}
+      SERVER_PORT: 8082
+      SPRING_APPLICATION_NAME: auth-service
+
+      # Eureka client
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://${EUREKA_ADMIN_USER}:${EUREKA_ADMIN_PASSWORD}@service-registry:8761/eureka/
+
+      # Database connection (PostgreSQL with dedicated database)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB_AUTH}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+
+      # Redis (for token blacklist and session management)
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
       SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+      # JWT configuration
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-900}
+      JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-604800}
+
+      # Timezone and JVM
+      TZ: ${TZ:-Africa/Kampala}
+      JAVA_OPTS: -Xms${JAVA_XMS} -Xmx${JAVA_XMX} -XX:+UseG1GC -Duser.timezone=${TZ}
+
     ports:
-      - "8081:8081"
+      - "8082:8082"
+
     volumes:
       - ./logs/service-logs:/app/logs
+
     networks:
       - epb-network
+
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       service-registry:
         condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s    # Longer startup time for DB migrations
+
+  # ===========================================================================
+  # USER SERVICE
+  # ===========================================================================
+  # Manages user profiles, interests, and activity tracking
+  # Database: epb_user
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: epb-user-service
+    hostname: user-service
+    restart: unless-stopped
+
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-production}
+      SERVER_PORT: 8081
+      SPRING_APPLICATION_NAME: user-service
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://${EUREKA_ADMIN_USER}:${EUREKA_ADMIN_PASSWORD}@service-registry:8761/eureka/
+
+      # Database: epb_user
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB_USER}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+
+      # Redis (for profile caching)
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+      # JWT (for authentication validation)
+      JWT_SECRET: ${JWT_SECRET}
+
+      TZ: ${TZ:-Africa/Kampala}
+      JAVA_OPTS: -Xms${JAVA_XMS} -Xmx${JAVA_XMX} -XX:+UseG1GC -Duser.timezone=${TZ}
+
+    ports:
+      - "8081:8081"
+
+    volumes:
+      - ./logs/service-logs:/app/logs
+
+    networks:
+      - epb-network
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
       interval: 30s
@@ -214,69 +544,49 @@ services:
       retries: 5
       start_period: 90s
 
-  auth-service:
-    build:
-      context: ./auth-service
-      dockerfile: Dockerfile
-    container_name: epb-auth-service
-    restart: unless-stopped
-    environment:
-      SPRING_PROFILES_ACTIVE: ${APP_ENV:-dev}
-      SERVER_PORT: 8082
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: ${DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
-      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-900}
-      JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-604800}
-    ports:
-      - "8082:8082"
-    volumes:
-      - ./logs/service-logs:/app/logs
-    networks:
-      - epb-network
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      service-registry:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 90s
-
+  # ===========================================================================
+  # OPPORTUNITY SERVICE
+  # ===========================================================================
+  # Manages grants, loans, and training opportunities
+  # Database: epb_opportunity
   opportunity-service:
     build:
       context: ./opportunity-service
       dockerfile: Dockerfile
     container_name: epb-opportunity-service
+    hostname: opportunity-service
     restart: unless-stopped
+
     environment:
-      SPRING_PROFILES_ACTIVE: ${APP_ENV:-dev}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-production}
       SERVER_PORT: 8083
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_APPLICATION_NAME: opportunity-service
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://${EUREKA_ADMIN_USER}:${EUREKA_ADMIN_PASSWORD}@service-registry:8761/eureka/
+
+      # Database: epb_opportunity
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB_OPPORTUNITY}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+
+      TZ: ${TZ:-Africa/Kampala}
+      JAVA_OPTS: -Xms${JAVA_XMS} -Xmx${JAVA_XMX} -XX:+UseG1GC -Duser.timezone=${TZ}
+
     ports:
       - "8083:8083"
+
     volumes:
       - ./logs/service-logs:/app/logs
+
     networks:
       - epb-network
+
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       service-registry:
         condition: service_healthy
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
       interval: 30s
@@ -284,296 +594,659 @@ services:
       retries: 5
       start_period: 90s
 
+  # ===========================================================================
+  # CONTENT SERVICE
+  # ===========================================================================
+  # Manages educational content and community posts
+  # Database: epb_content
   content-service:
     build:
       context: ./content-service
       dockerfile: Dockerfile
     container_name: epb-content-service
+    hostname: content-service
     restart: unless-stopped
+
     environment:
-      SPRING_PROFILES_ACTIVE: ${APP_ENV:-dev}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-production}
       SERVER_PORT: 8084
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_APPLICATION_NAME: content-service
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://${EUREKA_ADMIN_USER}:${EUREKA_ADMIN_PASSWORD}@service-registry:8761/eureka/
+
+      # Database: epb_content
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB_CONTENT}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+
+      # File storage configuration
+      STORAGE_TYPE: ${STORAGE_TYPE:-local}
+      STORAGE_PATH: ${STORAGE_PATH:-/app/uploads}
+
+      TZ: ${TZ:-Africa/Kampala}
+      JAVA_OPTS: -Xms${JAVA_XMS} -Xmx${JAVA_XMX} -XX:+UseG1GC -Duser.timezone=${TZ}
+
     ports:
       - "8084:8084"
+
     volumes:
-      - ./logs/service-logs:/app/logs
+      # File uploads storage
       - file-uploads:/app/uploads
+      # Service logs
+      - ./logs/service-logs:/app/logs
+
     networks:
       - epb-network
+
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       service-registry:
         condition: service_healthy
 
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ===========================================================================
+  # MENTOR SERVICE
+  # ===========================================================================
+  # Manages mentorship sessions and schedules
+  # Database: epb_mentor
   mentor-service:
     build:
       context: ./mentor-service
       dockerfile: Dockerfile
     container_name: epb-mentor-service
+    hostname: mentor-service
     restart: unless-stopped
+
     environment:
-      SPRING_PROFILES_ACTIVE: ${APP_ENV:-dev}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-production}
       SERVER_PORT: 8085
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_APPLICATION_NAME: mentor-service
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://${EUREKA_ADMIN_USER}:${EUREKA_ADMIN_PASSWORD}@service-registry:8761/eureka/
+
+      # Database: epb_mentor
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB_MENTOR}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+
+      TZ: ${TZ:-Africa/Kampala}
+      JAVA_OPTS: -Xms${JAVA_XMS} -Xmx${JAVA_XMX} -XX:+UseG1GC -Duser.timezone=${TZ}
+
     ports:
       - "8085:8085"
+
     volumes:
       - ./logs/service-logs:/app/logs
+
     networks:
       - epb-network
+
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       service-registry:
         condition: service_healthy
 
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ===========================================================================
+  # NOTIFICATION SERVICE
+  # ===========================================================================
+  # Handles email, SMS, and push notifications
+  # Database: epb_notification
   notification-service:
     build:
       context: ./notification-service
       dockerfile: Dockerfile
     container_name: epb-notification-service
+    hostname: notification-service
     restart: unless-stopped
+
     environment:
-      SPRING_PROFILES_ACTIVE: ${APP_ENV:-dev}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-production}
       SERVER_PORT: 8086
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_APPLICATION_NAME: notification-service
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://${EUREKA_ADMIN_USER}:${EUREKA_ADMIN_PASSWORD}@service-registry:8761/eureka/
+
+      # Database: epb_notification
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB_NOTIFICATION}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-      AFRICAS_TALKING_USERNAME: ${AFRICAS_TALKING_USERNAME}
-      AFRICAS_TALKING_API_KEY: ${AFRICAS_TALKING_API_KEY}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+
+      # Africa's Talking (SMS/USSD)
+      AFRICASTALKING_USERNAME: ${AFRICASTALKING_USERNAME}
+      AFRICASTALKING_API_KEY: ${AFRICASTALKING_API_KEY}
+
+      # SMTP (Email)
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USERNAME: ${SMTP_USERNAME}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
+
+      TZ: ${TZ:-Africa/Kampala}
+      # Smaller memory footprint for notification service
+      JAVA_OPTS: -Xms256m -Xmx512m -XX:+UseG1GC -Duser.timezone=${TZ}
+
     ports:
       - "8086:8086"
+
     volumes:
       - ./logs/service-logs:/app/logs
+
     networks:
       - epb-network
+
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       service-registry:
         condition: service_healthy
 
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ===========================================================================
+  # FILE MANAGEMENT SERVICE
+  # ===========================================================================
+  # Manages file uploads and storage metadata
+  # Database: epb_file
+  file-management-service:
+    build:
+      context: ./file-management-service
+      dockerfile: Dockerfile
+    container_name: epb-file-management-service
+    hostname: file-management-service
+    restart: unless-stopped
+
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-production}
+      SERVER_PORT: 8088
+      SPRING_APPLICATION_NAME: file-management-service
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://${EUREKA_ADMIN_USER}:${EUREKA_ADMIN_PASSWORD}@service-registry:8761/eureka/
+
+      # Database: epb_file
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB_FILE}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+
+      # Storage configuration
+      STORAGE_TYPE: ${STORAGE_TYPE:-local}
+      STORAGE_PATH: ${STORAGE_PATH:-/app/uploads}
+
+      # AWS S3 (if STORAGE_TYPE=s3)
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+
+      TZ: ${TZ:-Africa/Kampala}
+      JAVA_OPTS: -Xms${JAVA_XMS} -Xmx${JAVA_XMX} -XX:+UseG1GC -Duser.timezone=${TZ}
+
+    ports:
+      - "8088:8088"
+
+    volumes:
+      # File uploads storage
+      - file-uploads:/app/uploads
+      # Service logs
+      - ./logs/service-logs:/app/logs
+
+    networks:
+      - epb-network
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ===========================================================================
+  # AI RECOMMENDATION SERVICE
+  # ===========================================================================
+  # Provides AI-powered recommendations for users
+  # Database: epb_ai
+  ai-recommendation-service:
+    build:
+      context: ./ai-recommendation-service
+      dockerfile: Dockerfile
+    container_name: epb-ai-recommendation-service
+    hostname: ai-recommendation-service
+    restart: unless-stopped
+
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-production}
+      SERVER_PORT: 8089
+      SPRING_APPLICATION_NAME: ai-recommendation-service
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://${EUREKA_ADMIN_USER}:${EUREKA_ADMIN_PASSWORD}@service-registry:8761/eureka/
+
+      # Database: epb_ai
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB_AI}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+
+      # OpenAI API (for AI features)
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+
+      TZ: ${TZ:-Africa/Kampala}
+      JAVA_OPTS: -Xms${JAVA_XMS} -Xmx${JAVA_XMX} -XX:+UseG1GC -Duser.timezone=${TZ}
+
+    ports:
+      - "8089:8089"
+
+    volumes:
+      - ./logs/service-logs:/app/logs
+
+    networks:
+      - epb-network
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8089/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ===========================================================================
+  # ANALYTICS SERVICE
+  # ===========================================================================
+  # Provides analytics, reporting, and business intelligence
+  # Database: epb_analytics
+  analytics-service:
+    build:
+      context: ./analytics-service
+      dockerfile: Dockerfile
+    container_name: epb-analytics-service
+    hostname: analytics-service
+    restart: unless-stopped
+
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-production}
+      SERVER_PORT: 8090
+      SPRING_APPLICATION_NAME: analytics-service
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://${EUREKA_ADMIN_USER}:${EUREKA_ADMIN_PASSWORD}@service-registry:8761/eureka/
+
+      # Database: epb_analytics
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB_ANALYTICS}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+
+      TZ: ${TZ:-Africa/Kampala}
+      JAVA_OPTS: -Xms${JAVA_XMS} -Xmx${JAVA_XMX} -XX:+UseG1GC -Duser.timezone=${TZ}
+
+    ports:
+      - "8090:8090"
+
+    volumes:
+      - ./logs/service-logs:/app/logs
+
+    networks:
+      - epb-network
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ===========================================================================
+  # USSD SERVICE
+  # ===========================================================================
+  # Manages USSD sessions and menu navigation
+  # Database: epb_ussd
   ussd-service:
     build:
       context: ./ussd-service
       dockerfile: Dockerfile
     container_name: epb-ussd-service
+    hostname: ussd-service
     restart: unless-stopped
+
     environment:
-      SPRING_PROFILES_ACTIVE: ${APP_ENV:-dev}
-      SERVER_PORT: 8087
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-production}
+      SERVER_PORT: 8091
+      SPRING_APPLICATION_NAME: ussd-service
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://${EUREKA_ADMIN_USER}:${EUREKA_ADMIN_PASSWORD}@service-registry:8761/eureka/
+
+      # Database: epb_ussd
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB_USSD}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+
+      # Redis (for session state management)
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
       SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+      # USSD configuration
       USSD_SHORT_CODE: ${USSD_SHORT_CODE}
+
+      # Africa's Talking
+      AFRICASTALKING_USERNAME: ${AFRICASTALKING_USERNAME}
+      AFRICASTALKING_API_KEY: ${AFRICASTALKING_API_KEY}
+
+      TZ: ${TZ:-Africa/Kampala}
+      JAVA_OPTS: -Xms${JAVA_XMS} -Xmx${JAVA_XMX} -XX:+UseG1GC -Duser.timezone=${TZ}
+
     ports:
-      - "8087:8087"
+      - "8091:8091"
+
     volumes:
       - ./logs/service-logs:/app/logs
+
     networks:
       - epb-network
+
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       service-registry:
         condition: service_healthy
 
-  file-management-service:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8091/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ===========================================================================
+  # JOB SERVICE
+  # ===========================================================================
+  # Manages job postings and applications
+  # Database: epb_job
+  job-service:
     build:
-      context: ./file-management-service
+      context: ./job-service
       dockerfile: Dockerfile
-    container_name: epb-file-management-service
+    container_name: epb-job-service
+    hostname: job-service
     restart: unless-stopped
+
     environment:
-      SPRING_PROFILES_ACTIVE: ${APP_ENV:-dev}
-      SERVER_PORT: 8088
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-production}
+      SERVER_PORT: 8092
+      SPRING_APPLICATION_NAME: job-service
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://${EUREKA_ADMIN_USER}:${EUREKA_ADMIN_PASSWORD}@service-registry:8761/eureka/
+
+      # Database: epb_job
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB_JOB}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-      STORAGE_TYPE: ${STORAGE_TYPE:-local}
-      STORAGE_PATH: ${STORAGE_PATH:-/app/uploads}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+
+      TZ: ${TZ:-Africa/Kampala}
+      JAVA_OPTS: -Xms${JAVA_XMS} -Xmx${JAVA_XMX} -XX:+UseG1GC -Duser.timezone=${TZ}
+
     ports:
-      - "8088:8088"
+      - "8092:8092"
+
     volumes:
       - ./logs/service-logs:/app/logs
-      - file-uploads:/app/uploads
+
     networks:
       - epb-network
+
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       service-registry:
         condition: service_healthy
 
-  ai-recommendation-service:
-    build:
-      context: ./ai-recommendation-service
-      dockerfile: Dockerfile
-    container_name: epb-ai-recommendation-service
-    restart: unless-stopped
-    environment:
-      SPRING_PROFILES_ACTIVE: ${APP_ENV:-dev}
-      SERVER_PORT: 8089
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: ${DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "8089:8089"
-    volumes:
-      - ./logs/service-logs:/app/logs
-    networks:
-      - epb-network
-    depends_on:
-      mysql:
-        condition: service_healthy
-      service-registry:
-        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8092/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
 
-  analytics-service:
-    build:
-      context: ./analytics-service
-      dockerfile: Dockerfile
-    container_name: epb-analytics-service
-    restart: unless-stopped
-    environment:
-      SPRING_PROFILES_ACTIVE: ${APP_ENV:-dev}
-      SERVER_PORT: 8090
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: ${DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "8090:8090"
-    volumes:
-      - ./logs/service-logs:/app/logs
-    networks:
-      - epb-network
-    depends_on:
-      mysql:
-        condition: service_healthy
-      service-registry:
-        condition: service_healthy
-
-  edge-functions:
-    build:
-      context: ./edge_functions
-      dockerfile: Dockerfile
-    container_name: epb-edge-functions
-    restart: unless-stopped
-    environment:
-      SPRING_PROFILES_ACTIVE: ${APP_ENV:-dev}
-      SERVER_PORT: 8091
-      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
-    ports:
-      - "8091:8091"
-    volumes:
-      - ./logs/service-logs:/app/logs
-    networks:
-      - epb-network
-    depends_on:
-      service-registry:
-        condition: service_healthy
-
-  # -------------------------------------------------------------------------------
-  # MONITORING SERVICES
-  # -------------------------------------------------------------------------------
-
+  # ===========================================================================
+  # PROMETHEUS (Monitoring)
+  # ===========================================================================
+  # Time-series database for metrics collection and monitoring
   prometheus:
     image: prom/prometheus:latest
     container_name: epb-prometheus
+    hostname: prometheus
     restart: unless-stopped
+
+    # Prometheus command-line configuration
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
+      - '--config.file=/etc/prometheus/prometheus.yml'     # Main config file
+      - '--storage.tsdb.path=/prometheus'                  # Data storage path
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--storage.tsdb.retention.time=30d'
-      - '--web.enable-lifecycle'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'  # Data retention
+      - '--web.enable-lifecycle'                           # Enable reload API
+
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_PORT:-9090}:9090"
+
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./monitoring/rules:/etc/prometheus/rules
+      # Prometheus configuration file
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+      # Alert rules
+      - ./monitoring/rules:/etc/prometheus/rules:ro
+
+      # Time-series data storage
       - prometheus-data:/prometheus
+
+      # Logs
       - ./logs/monitoring:/var/log/prometheus
+
     networks:
       - epb-network
+
+    # Health check
     healthcheck:
       test: ["CMD", "wget", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
       interval: 30s
       timeout: 10s
       retries: 3
 
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ===========================================================================
+  # GRAFANA (Monitoring Dashboards)
+  # ===========================================================================
+  # Visualization and dashboarding for Prometheus metrics
   grafana:
     image: grafana/grafana:latest
     container_name: epb-grafana
+    hostname: grafana
     restart: unless-stopped
+
+    # Grafana configuration via environment variables
     environment:
+      # Admin credentials
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+
+      # Install additional plugins
       GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+
+      # Server configuration (if behind reverse proxy)
       GF_SERVER_ROOT_URL: http://localhost:3000/grafana
       GF_SERVER_SERVE_FROM_SUB_PATH: 'true'
+
+      # Disable user sign-up
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT:-3000}:3000"
+
     volumes:
+      # Persistent dashboard and settings storage
       - grafana-data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+
+      # Provisioning configuration (auto-configure datasources and dashboards)
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+
+      # Dashboard JSON files
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+      # Logs
       - ./logs/monitoring/grafana:/var/log/grafana
+
     networks:
       - epb-network
+
+    # Wait for Prometheus to be ready
     depends_on:
       - prometheus
+
+    # Health check
     healthcheck:
       test: ["CMD", "wget", "--tries=1", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  # -------------------------------------------------------------------------------
-  # REVERSE PROXY
-  # -------------------------------------------------------------------------------
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
+  # ===========================================================================
+  # NGINX (Reverse Proxy)
+  # ===========================================================================
+  # Web server and reverse proxy
+  # - Serves static frontend files
+  # - Routes API requests to API Gateway
+  # - Handles SSL/TLS termination
   nginx:
     image: nginx:alpine
     container_name: epb-nginx
+    hostname: nginx
     restart: unless-stopped
+
     ports:
-      - "80:80"
-      - "443:443"
+      # HTTP
+      - "${NGINX_HTTP_PORT:-80}:80"
+
+      # HTTPS
+      - "${NGINX_HTTPS_PORT:-443}:443"
+
     volumes:
+      # Nginx configuration
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+
+      # SSL certificates
       - ./nginx/ssl:/etc/nginx/ssl:ro
+
+      # Nginx logs
       - ./logs/nginx:/var/log/nginx
+
+      # Frontend static files
       - ./frontend/build:/var/www/html:ro
+
     networks:
       - epb-network
+
+    # Wait for API Gateway to be ready
     depends_on:
       - api-gateway
+
+    # Health check
     healthcheck:
       test: ["CMD", "wget", "--tries=1", "--spider", "http://localhost/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+# =============================================================================
+# USAGE COMMANDS
+# =============================================================================
+#
+# Start all services:
+#   docker-compose up -d
+#
+# Start specific service:
+#   docker-compose up -d postgres redis service-registry
+#
+# View logs:
+#   docker-compose logs -f
+#   docker-compose logs -f auth-service
+#
+# Stop services:
+#   docker-compose down
+#
+# Stop and remove volumes (⚠️ DELETES ALL DATA):
+#   docker-compose down -v
+#
+# Rebuild services:
+#   docker-compose up -d --build
+#
+# Scale services:
+#   docker-compose up -d --scale user-service=3
+#
+# Check service status:
+#   docker-compose ps
+#
+# Execute commands in container:
+#   docker-compose exec postgres psql -U epb_admin -d epb_auth
+#   docker-compose exec redis redis-cli -a ${REDIS_PASSWORD}
+#
+# View resource usage:
+#   docker-compose stats
+#
+# Restart specific service:
+#   docker-compose restart auth-service
+#
+# =============================================================================

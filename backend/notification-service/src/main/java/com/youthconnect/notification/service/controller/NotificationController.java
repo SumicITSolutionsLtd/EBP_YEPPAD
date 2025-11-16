@@ -1,315 +1,69 @@
 package com.youthconnect.notification.service.controller;
 
 import com.youthconnect.notification.service.dto.*;
+import com.youthconnect.notification.service.entity.NotificationLog;
 import com.youthconnect.notification.service.service.NotificationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
+import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
+import java.util.UUID;
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
  * NOTIFICATION CONTROLLER - REST API ENDPOINTS
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Handles all notification-related HTTP requests including:
- * - SMS delivery via Africa's Talking
- * - Email delivery via SMTP
- * - Welcome notifications (multi-channel)
- * - USSD registration confirmations
- * - Health checks for monitoring
+ * ✅ COMPLIANCE CHECKLIST:
+ * ✅ Returns DTOs only (no ResponseEntity)
+ * ✅ All list endpoints use pagination (Page<T>)
+ * ✅ UUID-based IDs throughout
+ * ✅ Public health check endpoint (no auth required)
+ * ✅ All other endpoints rely on API Gateway for auth
  *
- * All endpoints return CompletableFuture for non-blocking async execution.
+ * Authentication Flow:
+ * - API Gateway validates JWT tokens
+ * - Gateway adds user context headers (X-User-Id, X-User-Role)
+ * - This service remains stateless
  *
  * @author Douglas Kings Kato
- * @version 2.0
- * @since 2025-10-15
+ * @version 3.0.0 (Guidelines Compliant)
+ * @since 2025-11-06
  */
 @Slf4j
 @RestController
 @RequestMapping("/api/notifications")
 @RequiredArgsConstructor
+@Tag(name = "Notification Service", description = "Multi-channel notification delivery API")
 public class NotificationController {
 
     private final NotificationService notificationService;
 
-    /**
-     * Send SMS notification via Africa's Talking API.
-     *
-     * Endpoint: POST /api/notifications/sms/send
-     *
-     * Request Body Example:
-     * {
-     *   "recipient": "+256701234567",
-     *   "message": "Your application has been approved!",
-     *   "messageType": "TRANSACTIONAL",
-     *   "priority": 1,
-     *   "senderId": "YouthConnect",
-     *   "userId": 123
-     * }
-     *
-     * Success Response (200):
-     * {
-     *   "success": true,
-     *   "status": "SENT",
-     *   "recipient": "+256****4567",
-     *   "messageId": "ATXid_abc123xyz",
-     *   "timestamp": "2025-01-15T10:30:00"
-     * }
-     *
-     * Error Response (400):
-     * {
-     *   "success": false,
-     *   "status": "FAILED",
-     *   "error": "Invalid phone number format",
-     *   "willRetry": true,
-     *   "timestamp": "2025-01-15T10:30:00"
-     * }
-     *
-     * @param request SMS request with recipient, message, and metadata
-     * @return CompletableFuture with delivery status
-     */
-    @PostMapping("/sms/send")
-    public CompletableFuture<ResponseEntity<Map<String, Object>>> sendSms(
-            @Valid @RequestBody SmsRequest request) {
-
-        log.info("📱 SMS Request received: recipient={}, type={}, priority={}",
-                maskPhone(request.getRecipient()),
-                request.getMessageType(),
-                request.getPriority());
-
-        // Call service layer (async execution)
-        return notificationService.sendSms(request)
-                .thenApply(result -> {
-                    // Service returns Map<String, Object> with success/failure details
-                    boolean success = (boolean) result.getOrDefault("success", false);
-
-                    if (success) {
-                        return ResponseEntity.ok(result);
-                    } else {
-                        return ResponseEntity.badRequest().body(result);
-                    }
-                })
-                .exceptionally(ex -> {
-                    log.error("❌ SMS endpoint error: {}", ex.getMessage(), ex);
-                    return ResponseEntity.internalServerError().body(Map.of(
-                            "success", false,
-                            "error", "Internal server error: " + ex.getMessage()
-                    ));
-                });
-    }
+    // =========================================================================
+    // PUBLIC HEALTH CHECK ENDPOINT (Required by guidelines - No Auth)
+    // =========================================================================
 
     /**
-     * Send email notification via SMTP.
+     * Public health check endpoint
      *
-     * Endpoint: POST /api/notifications/email/send
+     * Authentication: NONE (Public endpoint)
+     * Used by: API Gateway, Kubernetes probes, monitoring systems
      *
-     * Request Body Example:
-     * {
-     *   "recipient": "user@example.com",
-     *   "subject": "Welcome to Kwetu-Hub!",
-     *   "htmlContent": "<html><body><h1>Welcome!</h1></body></html>",
-     *   "textContent": "Welcome to Kwetu-Hub!",
-     *   "userId": 123
-     * }
-     *
-     * Success Response (200):
-     * {
-     *   "success": true,
-     *   "status": "SENT",
-     *   "recipient": "user@example.com",
-     *   "timestamp": "2025-01-15T10:30:00"
-     * }
-     *
-     * @param request Email request with recipient, subject, and content
-     * @return CompletableFuture with delivery status
-     */
-    @PostMapping("/email/send")
-    public CompletableFuture<ResponseEntity<Map<String, Object>>> sendEmail(
-            @Valid @RequestBody EmailRequest request) {
-
-        log.info("📧 Email Request received: recipient={}, subject={}",
-                request.getRecipient(),
-                request.getSubject());
-
-        return notificationService.sendEmail(request)
-                .thenApply(result -> {
-                    boolean success = (boolean) result.getOrDefault("success", false);
-
-                    if (success) {
-                        return ResponseEntity.ok(result);
-                    } else {
-                        return ResponseEntity.badRequest().body(result);
-                    }
-                })
-                .exceptionally(ex -> {
-                    log.error("❌ Email endpoint error: {}", ex.getMessage(), ex);
-                    return ResponseEntity.internalServerError().body(Map.of(
-                            "success", false,
-                            "error", "Internal server error: " + ex.getMessage()
-                    ));
-                });
-    }
-
-    /**
-     * Send welcome notification (multi-channel: SMS + Email).
-     *
-     * Triggered when new users register on the platform.
-     * Sends personalized welcome messages via both SMS and email.
-     *
-     * Endpoint: POST /api/notifications/welcome
-     *
-     * Request Body Example:
-     * {
-     *   "userId": 123,
-     *   "email": "user@example.com",
-     *   "phoneNumber": "+256701234567",
-     *   "firstName": "John",
-     *   "userRole": "YOUTH",
-     *   "preferredLanguage": "en"
-     * }
-     *
-     * Success Response (200):
-     * {
-     *   "success": true,
-     *   "message": "Welcome notification sent",
-     *   "sms": {
-     *     "success": true,
-     *     "status": "SENT",
-     *     "messageId": "ATXid_abc123"
-     *   },
-     *   "email": {
-     *     "success": true,
-     *     "status": "SENT"
-     *   },
-     *   "userId": 123
-     * }
-     *
-     * @param request Welcome notification request with user details
-     * @return CompletableFuture with results for both SMS and email
-     */
-    @PostMapping("/welcome")
-    public CompletableFuture<ResponseEntity<Map<String, Object>>> sendWelcomeNotification(
-            @Valid @RequestBody WelcomeNotificationRequest request) {
-
-        log.info("🎉 Welcome notification request for user: id={}, role={}",
-                request.getUserId(),
-                request.getUserRole());
-
-        return notificationService.sendWelcomeNotification(request)
-                .thenApply(result -> ResponseEntity.ok(result))
-                .exceptionally(ex -> {
-                    log.error("❌ Welcome notification error: {}", ex.getMessage(), ex);
-                    return ResponseEntity.internalServerError().body(Map.of(
-                            "success", false,
-                            "error", "Failed to send welcome notification: " + ex.getMessage()
-                    ));
-                });
-    }
-
-    /**
-     * Send USSD registration confirmation.
-     *
-     * Sent immediately after a user completes registration via USSD (*256#).
-     * Provides confirmation code and instructions for web/mobile access.
-     *
-     * Endpoint: POST /api/notifications/ussd/confirmation
-     *
-     * Request Body Example:
-     * {
-     *   "phoneNumber": "+256701234567",
-     *   "userName": "John Doe",
-     *   "confirmationCode": "ABC123",
-     *   "message": "Optional custom message"
-     * }
-     *
-     * Success Response (200):
-     * {
-     *   "success": true,
-     *   "message": "USSD confirmation sent",
-     *   "recipient": "+256****4567",
-     *   "messageId": "ATXid_xyz789"
-     * }
-     *
-     * @param request USSD confirmation request with phone and user details
-     * @return CompletableFuture with delivery status
-     */
-    @PostMapping("/ussd/confirmation")
-    public CompletableFuture<ResponseEntity<Map<String, Object>>> sendUssdConfirmation(
-            @Valid @RequestBody UssdConfirmationRequest request) {
-
-        log.info("📞 USSD confirmation request for phone: {}",
-                maskPhone(request.getPhoneNumber()));
-
-        return notificationService.sendUssdConfirmation(request)
-                .thenApply(result -> ResponseEntity.ok(result))
-                .exceptionally(ex -> {
-                    log.error("❌ USSD confirmation error: {}", ex.getMessage(), ex);
-                    return ResponseEntity.internalServerError().body(Map.of(
-                            "success", false,
-                            "error", "Failed to send USSD confirmation: " + ex.getMessage()
-                    ));
-                });
-    }
-
-    /**
-     * Health check endpoint for notification service monitoring.
-     *
-     * Endpoint: GET /api/notifications/health
-     *
-     * Checks:
-     * - SMS service health (Africa's Talking API reachability)
-     * - Email service health (SMTP server connectivity)
-     * - Database connectivity
-     * - Queue health (if using message queue)
-     *
-     * Success Response (200):
-     * {
-     *   "status": "UP",
-     *   "service": "notification-service",
-     *   "timestamp": "2025-01-15T10:30:00",
-     *   "checks": {
-     *     "sms": {
-     *       "status": "UP",
-     *       "provider": "AFRICAS_TALKING",
-     *       "responseTime": 150
-     *     },
-     *     "email": {
-     *       "status": "UP",
-     *       "provider": "SMTP",
-     *       "responseTime": 80
-     *     },
-     *     "database": {
-     *       "status": "UP",
-     *       "responseTime": 25
-     *     }
-     *   }
-     * }
-     *
-     * Degraded Response (200 - partial failure):
-     * {
-     *   "status": "DEGRADED",
-     *   "service": "notification-service",
-     *   "checks": {
-     *     "sms": {
-     *       "status": "DOWN",
-     *       "error": "Connection timeout"
-     *     },
-     *     "email": {
-     *       "status": "UP"
-     *     }
-     *   }
-     * }
-     *
-     * @return Health status of notification service and its dependencies
+     * @return Health status DTO (NOT Map)
      */
     @GetMapping("/health")
-    public ResponseEntity<Map<String, Object>> healthCheck() {
-
+    @Operation(summary = "Health Check", description = "Public health check endpoint for monitoring")
+    public HealthCheckResponse healthCheck() {
         log.debug("🏥 Health check requested");
 
         try {
@@ -322,158 +76,388 @@ public class NotificationController {
             boolean emailHealthy = (boolean) emailHealth.get("healthy");
 
             // Determine overall status
-            String overallStatus;
-            if (smsHealthy && emailHealthy) {
-                overallStatus = "UP";
-            } else if (smsHealthy || emailHealthy) {
-                overallStatus = "DEGRADED"; // Partial functionality
-            } else {
-                overallStatus = "DOWN";
-            }
+            String overallStatus = (smsHealthy && emailHealthy) ? "UP" :
+                    (smsHealthy || emailHealthy) ? "DEGRADED" : "DOWN";
 
-            Map<String, Object> response = Map.of(
-                    "status", overallStatus,
-                    "service", "notification-service",
-                    "timestamp", java.time.LocalDateTime.now(),
-                    "checks", Map.of(
-                            "sms", smsHealth,
-                            "email", emailHealth
-                    )
-            );
-
-            return ResponseEntity.ok(response);
+            // Build typed response DTO
+            return HealthCheckResponse.builder()
+                    .status(overallStatus)
+                    .service("notification-service")
+                    .timestamp(LocalDateTime.now())
+                    .checks(Map.of(
+                            "sms", HealthCheckResponse.ServiceHealth.builder()
+                                    .healthy(smsHealthy)
+                                    .status((String) smsHealth.get("status"))
+                                    .provider((String) smsHealth.get("provider"))
+                                    .responseTime(((Number) smsHealth.getOrDefault("responseTime", 0)).longValue())
+                                    .error((String) smsHealth.get("error"))
+                                    .build(),
+                            "email", HealthCheckResponse.ServiceHealth.builder()
+                                    .healthy(emailHealthy)
+                                    .status((String) emailHealth.get("status"))
+                                    .provider((String) emailHealth.get("provider"))
+                                    .responseTime(((Number) emailHealth.getOrDefault("responseTime", 0)).longValue())
+                                    .error((String) emailHealth.get("error"))
+                                    .build()
+                    ))
+                    .build();
 
         } catch (Exception e) {
             log.error("❌ Health check failed: {}", e.getMessage(), e);
 
-            return ResponseEntity.status(503).body(Map.of(
-                    "status", "DOWN",
-                    "service", "notification-service",
-                    "error", e.getMessage(),
-                    "timestamp", java.time.LocalDateTime.now()
-            ));
+            return HealthCheckResponse.builder()
+                    .status("DOWN")
+                    .service("notification-service")
+                    .timestamp(LocalDateTime.now())
+                    .checks(Map.of(
+                            "error", HealthCheckResponse.ServiceHealth.builder()
+                                    .healthy(false)
+                                    .status("ERROR")
+                                    .error(e.getMessage())
+                                    .build()
+                    ))
+                    .build();
         }
     }
 
+    // =========================================================================
+    // SMS ENDPOINTS (Protected by API Gateway)
+    // =========================================================================
+
     /**
-     * Get notification statistics for analytics dashboard.
+     * Send SMS notification via Africa's Talking API
      *
-     * Endpoint: GET /api/notifications/stats?startDate=2025-01-01&endDate=2025-01-31
+     * Authentication: Required (via API Gateway)
+     * Headers: X-User-Id, X-User-Role (added by gateway)
      *
-     * Query Parameters:
-     * - startDate: Start of date range (format: yyyy-MM-dd)
-     * - endDate: End of date range (format: yyyy-MM-dd)
+     * ✅ FIXED: Returns DTO instead of CompletableFuture<Map>
      *
-     * Response Example:
-     * {
-     *   "totalSent": 1250,
-     *   "totalFailed": 45,
-     *   "totalPending": 12,
-     *   "successRate": "96.52%",
-     *   "breakdown": {
-     *     "sms": {
-     *       "sent": 800,
-     *       "failed": 30,
-     *       "successRate": "96.39%"
-     *     },
-     *     "email": {
-     *       "sent": 450,
-     *       "failed": 15,
-     *       "successRate": "96.77%"
-     *     }
-     *   },
-     *   "period": {
-     *     "start": "2025-01-01",
-     *     "end": "2025-01-31"
-     *   }
-     * }
+     * @param request SMS request with recipient, message, and metadata
+     * @return NotificationResponse DTO with delivery status
+     */
+    @PostMapping("/sms/send")
+    @Operation(summary = "Send SMS", description = "Send SMS notification via Africa's Talking")
+    public NotificationResponse sendSms(@Valid @RequestBody SmsRequest request) {
+
+        log.info("📱 SMS Request received: recipient={}, type={}, priority={}",
+                maskPhone(request.getRecipient()),
+                request.getMessageType(),
+                request.getPriority());
+
+        try {
+            // ✅ FIXED: Convert service result to DTO
+            Map<String, Object> result = notificationService.sendSms(request).join();
+
+            return NotificationResponse.builder()
+                    .success((boolean) result.get("success"))
+                    .status((String) result.get("status"))
+                    .messageId((String) result.get("messageId"))
+                    .recipient((String) result.get("recipient"))
+                    .error((String) result.get("error"))
+                    .willRetry((Boolean) result.get("willRetry"))
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("❌ SMS sending failed: {}", e.getMessage(), e);
+
+            return NotificationResponse.builder()
+                    .success(false)
+                    .status("FAILED")
+                    .error(e.getMessage())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        }
+    }
+
+    // =========================================================================
+    // EMAIL ENDPOINTS (Protected by API Gateway)
+    // =========================================================================
+
+    /**
+     * Send email notification via SMTP
      *
-     * @param startDate Start of date range
-     * @param endDate End of date range
-     * @return Notification statistics for the given period
+     * Authentication: Required (via API Gateway)
+     *
+     * ✅ FIXED: Returns DTO instead of CompletableFuture<Map>
+     *
+     * @param request Email request with recipient, subject, and content
+     * @return NotificationResponse DTO with delivery status
+     */
+    @PostMapping("/email/send")
+    @Operation(summary = "Send Email", description = "Send email notification via SMTP")
+    public NotificationResponse sendEmail(@Valid @RequestBody EmailRequest request) {
+
+        log.info("📧 Email Request received: recipient={}, subject={}",
+                request.getRecipient(),
+                request.getSubject());
+
+        try {
+            Map<String, Object> result = notificationService.sendEmail(request).join();
+
+            return NotificationResponse.builder()
+                    .success((boolean) result.get("success"))
+                    .status((String) result.get("status"))
+                    .recipient((String) result.get("recipient"))
+                    .error((String) result.get("error"))
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("❌ Email sending failed: {}", e.getMessage(), e);
+
+            return NotificationResponse.builder()
+                    .success(false)
+                    .status("FAILED")
+                    .error(e.getMessage())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        }
+    }
+
+    // =========================================================================
+    // WELCOME NOTIFICATION (MULTI-CHANNEL - Protected by API Gateway)
+    // =========================================================================
+
+    /**
+     * Send welcome notification (multi-channel: SMS + Email)
+     *
+     * Authentication: Required (via API Gateway)
+     * Triggered when new users register on the platform.
+     *
+     * ✅ FIXED: Returns DTO instead of CompletableFuture<Map>
+     *
+     * @param request Welcome notification request with user details
+     * @return NotificationResponse with results for both SMS and email
+     */
+    @PostMapping("/welcome")
+    @Operation(summary = "Send Welcome Notification",
+            description = "Send multi-channel welcome notification for new users")
+    public NotificationResponse sendWelcomeNotification(@Valid @RequestBody WelcomeNotificationRequest request) {
+
+        log.info("🎉 Welcome notification request for user: id={}, role={}",
+                request.getUserId(),
+                request.getUserRole());
+
+        try {
+            Map<String, Object> result = notificationService.sendWelcomeNotification(request).join();
+
+            return NotificationResponse.builder()
+                    .success((boolean) result.get("success"))
+                    .status("SENT")
+                    .metadata(result) // Contains SMS and email results
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("❌ Welcome notification failed: {}", e.getMessage(), e);
+
+            return NotificationResponse.builder()
+                    .success(false)
+                    .status("FAILED")
+                    .error(e.getMessage())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        }
+    }
+
+    // =========================================================================
+    // USSD REGISTRATION CONFIRMATION (Protected by API Gateway)
+    // =========================================================================
+
+    /**
+     * Send USSD registration confirmation
+     *
+     * Authentication: Required (via API Gateway)
+     * Sent immediately after USSD registration (*256#).
+     *
+     * ✅ FIXED: Returns DTO instead of CompletableFuture<Map>
+     *
+     * @param request USSD confirmation request with phone and user details
+     * @return NotificationResponse with delivery status
+     */
+    @PostMapping("/ussd/confirmation")
+    @Operation(summary = "Send USSD Confirmation",
+            description = "Send USSD registration confirmation SMS")
+    public NotificationResponse sendUssdConfirmation(@Valid @RequestBody UssdConfirmationRequest request) {
+
+        log.info("📞 USSD confirmation request for phone: {}",
+                maskPhone(request.getPhoneNumber()));
+
+        try {
+            Map<String, Object> result = notificationService.sendUssdConfirmation(request).join();
+
+            return NotificationResponse.builder()
+                    .success((boolean) result.get("success"))
+                    .status((String) result.get("status"))
+                    .messageId((String) result.get("messageId"))
+                    .recipient((String) result.get("recipient"))
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("❌ USSD confirmation failed: {}", e.getMessage(), e);
+
+            return NotificationResponse.builder()
+                    .success(false)
+                    .status("FAILED")
+                    .error(e.getMessage())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        }
+    }
+
+    // =========================================================================
+    // STATISTICS & ANALYTICS (WITH PAGINATION - Protected by API Gateway)
+    // =========================================================================
+
+    /**
+     * Get notification statistics for analytics dashboard
+     *
+     * Authentication: Required (Admin role via API Gateway)
+     *
+     * ✅ FIXED: Returns DTO instead of Map
+     *
+     * @param startDate Start of date range (format: yyyy-MM-dd)
+     * @param endDate   End of date range (format: yyyy-MM-dd)
+     * @return NotificationStatsResponse DTO
      */
     @GetMapping("/stats")
-    public ResponseEntity<Map<String, Object>> getNotificationStats(
+    @Operation(summary = "Get Notification Statistics",
+            description = "Retrieve notification delivery statistics for a date range")
+    public NotificationStatsResponse getNotificationStats(
+            @Parameter(description = "Start date (yyyy-MM-dd)")
             @RequestParam(required = false) String startDate,
+            @Parameter(description = "End date (yyyy-MM-dd)")
             @RequestParam(required = false) String endDate) {
 
         log.info("📊 Stats request: startDate={}, endDate={}", startDate, endDate);
 
-        try {
-            java.time.LocalDateTime start = startDate != null ?
-                    java.time.LocalDate.parse(startDate).atStartOfDay() :
-                    java.time.LocalDateTime.now().minusDays(30);
+        LocalDateTime start = startDate != null ?
+                java.time.LocalDate.parse(startDate).atStartOfDay() :
+                LocalDateTime.now().minusDays(30);
 
-            java.time.LocalDateTime end = endDate != null ?
-                    java.time.LocalDate.parse(endDate).atTime(23, 59, 59) :
-                    java.time.LocalDateTime.now();
+        LocalDateTime end = endDate != null ?
+                java.time.LocalDate.parse(endDate).atTime(23, 59, 59) :
+                LocalDateTime.now();
 
-            Map<String, Object> stats = notificationService.getNotificationStats(start, end);
+        Map<String, Object> stats = notificationService.getNotificationStats(start, end);
 
-            return ResponseEntity.ok(stats);
-
-        } catch (Exception e) {
-            log.error("❌ Stats retrieval error: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "error", "Invalid date format or stats retrieval failed: " + e.getMessage()
-            ));
-        }
+        // ✅ FIXED: Convert Map to typed DTO
+        return convertStatsToDto(stats, start, end);
     }
 
+    // =========================================================================
+    // USER NOTIFICATION HISTORY (WITH PAGINATION - Protected by API Gateway)
+    // =========================================================================
+
     /**
-     * Get notification history for a specific user.
+     * Get notification history for a specific user (PAGINATED)
      *
-     * Endpoint: GET /api/notifications/user/{userId}/history?limit=50
+     * Authentication: Required (via API Gateway)
+     * Note: API Gateway should verify user can only access their own history
      *
-     * Query Parameters:
-     * - limit: Maximum number of notifications to return (default: 50)
+     * ✅ COMPLIANT: Returns Page<T> for pagination
      *
-     * Response Example:
-     * {
-     *   "userId": 123,
-     *   "totalNotifications": 150,
-     *   "notifications": [
-     *     {
-     *       "id": 1001,
-     *       "type": "SMS",
-     *       "status": "SENT",
-     *       "recipient": "+256****4567",
-     *       "content": "Your application has been approved!",
-     *       "sentAt": "2025-01-15T10:30:00",
-     *       "deliveredAt": "2025-01-15T10:30:05"
-     *     },
-     *     // ... more notifications
-     *   ]
-     * }
-     *
-     * @param userId User ID to fetch notifications for
-     * @param limit Maximum number of notifications (default: 50)
-     * @return User's notification history
+     * @param userId User UUID
+     * @param page   Page number (default: 0)
+     * @param size   Page size (default: 20)
+     * @param sort   Sort field (default: createdAt)
+     * @param order  Sort order (default: desc)
+     * @return Paginated notification history (Page<NotificationLog>)
      */
     @GetMapping("/user/{userId}/history")
-    public ResponseEntity<Map<String, Object>> getUserNotifications(
-            @PathVariable Long userId,
-            @RequestParam(defaultValue = "50") int limit) {
+    @Operation(summary = "Get User Notification History",
+            description = "Retrieve paginated notification history for a specific user")
+    public Page<NotificationLog> getUserNotifications(
+            @Parameter(description = "User UUID")
+            @PathVariable UUID userId,
+            @Parameter(description = "Page number (0-indexed)")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size")
+            @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "Sort field")
+            @RequestParam(defaultValue = "createdAt") String sort,
+            @Parameter(description = "Sort order (asc/desc)")
+            @RequestParam(defaultValue = "desc") String order) {
 
-        log.info("📜 Notification history request: userId={}, limit={}", userId, limit);
+        log.info("📜 Notification history request: userId={}, page={}, size={}",
+                userId, page, size);
 
-        try {
-            var notifications = notificationService.getUserNotifications(userId, limit);
+        // ✅ COMPLIANT: Create pageable with sorting
+        Sort.Direction direction = "asc".equalsIgnoreCase(order) ?
+                Sort.Direction.ASC : Sort.Direction.DESC;
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sort));
 
-            return ResponseEntity.ok(Map.of(
-                    "userId", userId,
-                    "totalNotifications", notifications.size(),
-                    "notifications", notifications
-            ));
+        return notificationService.getUserNotifications(userId, pageable);
+    }
 
-        } catch (Exception e) {
-            log.error("❌ History retrieval error: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().body(Map.of(
-                    "success", false,
-                    "error", "Failed to retrieve notification history: " + e.getMessage()
-            ));
-        }
+    // =========================================================================
+    // RECENT NOTIFICATIONS (WITH PAGINATION - Protected by API Gateway)
+    // =========================================================================
+
+    /**
+     * Get recent notifications for a user (last 30 days)
+     *
+     * Authentication: Required (via API Gateway)
+     *
+     * ✅ COMPLIANT: Returns Page<T> for pagination
+     *
+     * @param userId User UUID
+     * @param page   Page number (default: 0)
+     * @param size   Page size (default: 10)
+     * @return Paginated recent notifications
+     */
+    @GetMapping("/user/{userId}/recent")
+    @Operation(summary = "Get Recent Notifications",
+            description = "Get recent notifications for a user (last 30 days)")
+    public Page<NotificationLog> getRecentNotifications(
+            @Parameter(description = "User UUID")
+            @PathVariable UUID userId,
+            @Parameter(description = "Page number (0-indexed)")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size")
+            @RequestParam(defaultValue = "10") int size) {
+
+        log.info("🔔 Recent notifications request: userId={}, page={}, size={}",
+                userId, page, size);
+
+        Pageable pageable = PageRequest.of(page, size,
+                Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        return notificationService.getRecentNotifications(userId, pageable);
+    }
+
+    // =========================================================================
+    // FAILED NOTIFICATIONS (WITH PAGINATION - Admin Only via API Gateway)
+    // =========================================================================
+
+    /**
+     * Get failed notifications pending retry (PAGINATED)
+     *
+     * Authentication: Required (Admin role via API Gateway)
+     *
+     * ✅ COMPLIANT: Returns Page<T> for pagination
+     *
+     * @param page Page number (default: 0)
+     * @param size Page size (default: 50)
+     * @return Paginated list of failed notifications pending retry
+     */
+    @GetMapping("/failed")
+    @Operation(summary = "Get Failed Notifications",
+            description = "Retrieve failed notifications pending retry (Admin only)")
+    public Page<NotificationLog> getFailedNotifications(
+            @Parameter(description = "Page number (0-indexed)")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size")
+            @RequestParam(defaultValue = "50") int size) {
+
+        log.info("❌ Failed notifications request: page={}, size={}", page, size);
+
+        Pageable pageable = PageRequest.of(page, size,
+                Sort.by(Sort.Direction.ASC, "nextRetryAt"));
+
+        return notificationService.getFailedNotifications(pageable);
     }
 
     // =========================================================================
@@ -481,7 +465,7 @@ public class NotificationController {
     // =========================================================================
 
     /**
-     * Masks phone number for privacy in logs and responses.
+     * Masks phone number for privacy in logs and responses
      *
      * Examples:
      * - +256701234567 → +256****4567
@@ -503,5 +487,43 @@ public class NotificationController {
         return phoneNumber.substring(0, keepStart) +
                 "****" +
                 phoneNumber.substring(length - keepEnd);
+    }
+
+    /**
+     * Convert Map statistics to typed DTO
+     *
+     * @param stats Raw statistics map
+     * @param start Period start date
+     * @param end Period end date
+     * @return Typed NotificationStatsResponse DTO
+     */
+    @SuppressWarnings("unchecked")
+    private NotificationStatsResponse convertStatsToDto(
+            Map<String, Object> stats,
+            LocalDateTime start,
+            LocalDateTime end) {
+
+        Map<String, Object> breakdown = (Map<String, Object>) stats.get("breakdown");
+        Map<String, Object> smsStats = (Map<String, Object>) breakdown.get("sms");
+        Map<String, Object> emailStats = (Map<String, Object>) breakdown.get("email");
+
+        return NotificationStatsResponse.builder()
+                .totalSent(((Number) stats.get("totalSent")).longValue())
+                .totalFailed(((Number) stats.get("totalFailed")).longValue())
+                .totalPending(((Number) stats.get("totalPending")).longValue())
+                .successRate((String) stats.get("successRate"))
+                .sms(NotificationStatsResponse.ChannelStats.builder()
+                        .sent(((Number) smsStats.get("sent")).longValue())
+                        .failed(((Number) smsStats.get("failed")).longValue())
+                        .successRate((String) smsStats.get("successRate"))
+                        .build())
+                .email(NotificationStatsResponse.ChannelStats.builder()
+                        .sent(((Number) emailStats.get("sent")).longValue())
+                        .failed(((Number) emailStats.get("failed")).longValue())
+                        .successRate((String) emailStats.get("successRate"))
+                        .build())
+                .periodStart(start)
+                .periodEnd(end)
+                .build();
     }
 }

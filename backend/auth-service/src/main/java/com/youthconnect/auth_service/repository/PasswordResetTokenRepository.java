@@ -12,18 +12,25 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Repository for Password Reset Token Operations
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Password Reset Token Repository
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * UPDATED: Added missing count and cleanup methods
+ * Provides database operations for password reset tokens with:
+ * - Token lookup and validation
+ * - Cleanup of expired tokens
+ * - User token management
+ * - Security audit queries
  *
  * @author Douglas Kings Kato
- * @version 2.0.0
+ * @version 2.0.0 (Complete)
  */
 @Repository
-public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, Long> {
+public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, UUID> {
 
     /**
      * Find unused token by token string
+     * Used during password reset validation
      *
      * @param token Token string
      * @return Optional containing token if found and not used
@@ -32,6 +39,7 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 
     /**
      * Find token by token string (regardless of used status)
+     * Used for audit and analytics
      *
      * @param token Token string
      * @return Optional containing token
@@ -40,22 +48,25 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 
     /**
      * Find all tokens for a user
+     * Used for security audit and cleanup
      *
      * @param userId User UUID
-     * @return List of tokens
+     * @return List of all tokens for user
      */
     List<PasswordResetToken> findByUserId(UUID userId);
 
     /**
      * Find latest token for user
+     * Used to prevent multiple concurrent reset requests
      *
      * @param userId User UUID
-     * @return Optional containing latest token
+     * @return Optional containing most recent token
      */
     Optional<PasswordResetToken> findTopByUserIdOrderByCreatedAtDesc(UUID userId);
 
     /**
      * Find all unused tokens for user
+     * Used for cleanup and validation
      *
      * @param userId User UUID
      * @return List of unused tokens
@@ -64,7 +75,7 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 
     /**
      * Delete expired unused tokens
-     * Used by cleanup scheduler
+     * Called by cleanup scheduler
      *
      * @param dateTime Cutoff datetime
      */
@@ -74,7 +85,7 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 
     /**
      * Delete old used tokens
-     * Used by cleanup scheduler
+     * Called by cleanup scheduler to free database space
      *
      * @param dateTime Cutoff datetime
      */
@@ -84,6 +95,7 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 
     /**
      * Count used tokens
+     * Used for analytics
      *
      * @return Number of used tokens
      */
@@ -91,6 +103,7 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 
     /**
      * Count expired tokens
+     * Used for monitoring cleanup effectiveness
      *
      * @param dateTime Current datetime
      * @return Number of expired tokens
@@ -99,6 +112,7 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 
     /**
      * Count tokens created after a date
+     * Used for usage analytics
      *
      * @param dateTime Cutoff datetime
      * @return Number of tokens created after date
@@ -107,6 +121,7 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 
     /**
      * Find tokens by user email
+     * Used for admin lookup
      *
      * @param email User email
      * @return List of tokens
@@ -115,6 +130,7 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 
     /**
      * Check if user has pending reset request
+     * Used to prevent spam/abuse
      *
      * @param userId User UUID
      * @param now Current timestamp
@@ -127,6 +143,7 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 
     /**
      * Delete all tokens for user
+     * Used when user account is deleted
      *
      * @param userId User UUID
      */
@@ -135,6 +152,7 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 
     /**
      * Count valid (unused, not expired) tokens for user
+     * Used for rate limiting
      *
      * @param userId User UUID
      * @param now Current timestamp

@@ -17,41 +17,14 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * ============================================================================
  * SESSION VALIDATOR
  * ============================================================================
- *
- * Validates mentorship session requests before booking.
- * Ensures:
- * - Session is during mentor's available hours
- * - No double-booking (scheduling conflicts)
- * - Session time is in the future
- * - Session duration is reasonable
- * - Minimum gap between sessions is maintained
- * - Maximum sessions per week not exceeded
- *
- * VALIDATION RULES:
- * 1. Basic Validation (DTO annotations)
- *    - Required fields present
- *    - Positive numbers for IDs and duration
- *    - Topic length within limits
- *
- * 2. Time Validation (This class)
- *    - Session in future (at least 2 hours advance)
- *    - Not more than 90 days in advance
- *    - Duration between 30-240 minutes
- *
- * 3. Availability Validation (This class)
- *    - Mentor has availability slot for day/time
- *    - No conflicting sessions
- *    - Minimum gap maintained (default 30 min)
- *    - Weekly session limit not exceeded
- *
  * @author Douglas Kings Kato
- * @version 1.0.0
- * @since 2025-01-22
+ * @since 2025-11-07
  * ============================================================================
  */
 @Component
@@ -62,7 +35,6 @@ public class SessionValidator {
     private final MentorAvailabilityRepository availabilityRepository;
     private final MentorshipSessionRepository sessionRepository;
 
-    // Configurable validation parameters
     @Value("${app.mentorship.min-advance-hours:2}")
     private int minAdvanceHours;
 
@@ -75,53 +47,28 @@ public class SessionValidator {
     @Value("${app.mentorship.max-sessions-per-week:10}")
     private int maxSessionsPerWeek;
 
-    /**
-     * Validate session request
-     * Performs comprehensive validation of all session booking rules
-     *
-     * @param request The session booking request
-     * @throws IllegalArgumentException if validation fails
-     * @throws MentorNotAvailableException if mentor not available
-     */
     public void validateSessionRequest(SessionRequest request) {
         log.debug("Validating session request for mentor {} on {}",
                 request.getMentorId(), request.getSessionDatetime());
 
-        // 1. Validate basic time constraints
         validateTimeConstraints(request);
-
-        // 2. Validate mentor availability
         validateMentorAvailability(
                 request.getMentorId(),
                 request.getSessionDatetime(),
                 request.getDurationMinutes()
         );
-
-        // 3. Check for scheduling conflicts
         validateNoConflicts(
                 request.getMentorId(),
                 request.getSessionDatetime(),
                 request.getDurationMinutes()
         );
-
-        // 4. Validate weekly session limit
         validateWeeklyLimit(request.getMentorId(), request.getSessionDatetime());
-
-        log.debug("Session request validation passed for mentor {}", request.getMentorId());
     }
 
-    /**
-     * Validate basic time constraints
-     * Ensures session time is reasonable and within acceptable range
-     *
-     * @param request The session request
-     * @throws IllegalArgumentException if time constraints violated
-     */
     private void validateTimeConstraints(SessionRequest request) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime sessionTime = request.getSessionDatetime();
 
-        // Must be in future with minimum advance notice
         LocalDateTime minBookingTime = now.plusHours(minAdvanceHours);
         if (sessionTime.isBefore(minBookingTime)) {
             throw new IllegalArgumentException(String.format(
@@ -131,7 +78,6 @@ public class SessionValidator {
             ));
         }
 
-        // Cannot be too far in advance
         LocalDateTime maxBookingTime = now.plusDays(maxAdvanceDays);
         if (sessionTime.isAfter(maxBookingTime)) {
             throw new IllegalArgumentException(String.format(
@@ -141,7 +87,6 @@ public class SessionValidator {
             ));
         }
 
-        // Validate duration
         Integer duration = request.getDurationMinutes();
         if (duration != null) {
             if (duration < 30) {
@@ -155,36 +100,10 @@ public class SessionValidator {
                 );
             }
         }
-
-        // Validate topic
-        if (request.getTopic() == null || request.getTopic().trim().isEmpty()) {
-            throw new IllegalArgumentException("Session topic is required");
-        }
-
-        if (request.getTopic().length() < 5) {
-            throw new IllegalArgumentException(
-                    "Session topic must be at least 5 characters"
-            );
-        }
-
-        if (request.getTopic().length() > 255) {
-            throw new IllegalArgumentException(
-                    "Session topic cannot exceed 255 characters"
-            );
-        }
     }
 
-    /**
-     * Validate mentor availability for requested time
-     * Checks if mentor has availability slot matching requested day and time
-     *
-     * @param mentorId The mentor's user ID
-     * @param sessionDatetime The requested session datetime
-     * @param durationMinutes The session duration
-     * @throws MentorNotAvailableException if mentor not available
-     */
     private void validateMentorAvailability(
-            Long mentorId,
+            UUID mentorId,
             LocalDateTime sessionDatetime,
             Integer durationMinutes
     ) {
@@ -192,10 +111,6 @@ public class SessionValidator {
         LocalTime startTime = sessionDatetime.toLocalTime();
         LocalTime endTime = startTime.plusMinutes(durationMinutes != null ? durationMinutes : 60);
 
-        log.debug("Checking mentor {} availability for {} from {} to {}",
-                mentorId, dayOfWeek, startTime, endTime);
-
-        // Get mentor's availability for that day
         List<MentorAvailability> availabilitySlots = availabilityRepository
                 .findByMentorIdAndDayOfWeekAndIsActiveTrue(mentorId, dayOfWeek);
 
@@ -207,7 +122,6 @@ public class SessionValidator {
             );
         }
 
-        // Check if requested time falls within any availability slot
         boolean isAvailable = availabilitySlots.stream()
                 .anyMatch(slot ->
                         !startTime.isBefore(slot.getStartTime()) &&
@@ -215,7 +129,6 @@ public class SessionValidator {
                 );
 
         if (!isAvailable) {
-            // Find closest available slot for helpful error message
             String availableTimes = availabilitySlots.stream()
                     .map(slot -> String.format("%s-%s", slot.getStartTime(), slot.getEndTime()))
                     .reduce((a, b) -> a + ", " + b)
@@ -231,35 +144,18 @@ public class SessionValidator {
                     )
             );
         }
-
-        log.debug("Mentor {} is available at requested time", mentorId);
     }
 
-    /**
-     * Validate no scheduling conflicts
-     * Ensures mentor doesn't have overlapping sessions
-     * Also enforces minimum gap between sessions
-     *
-     * @param mentorId The mentor's user ID
-     * @param sessionDatetime The requested session datetime
-     * @param durationMinutes The session duration
-     * @throws MentorNotAvailableException if conflicts exist
-     */
     private void validateNoConflicts(
-            Long mentorId,
+            UUID mentorId,
             LocalDateTime sessionDatetime,
             Integer durationMinutes
     ) {
         int duration = durationMinutes != null ? durationMinutes : 60;
 
-        // Add minimum gap to prevent back-to-back sessions
         LocalDateTime adjustedStart = sessionDatetime.minusMinutes(minSessionGapMinutes);
         LocalDateTime adjustedEnd = sessionDatetime.plusMinutes(duration + minSessionGapMinutes);
 
-        log.debug("Checking for conflicts from {} to {} (includes {}-min gap)",
-                adjustedStart, adjustedEnd, minSessionGapMinutes);
-
-        // Find any overlapping sessions
         List<MentorshipSession> conflicts = sessionRepository.findConflictingSessions(
                 mentorId,
                 adjustedStart,
@@ -274,38 +170,20 @@ public class SessionValidator {
                     conflict.getSessionId()
             );
         }
-
-        log.debug("No scheduling conflicts found for mentor {}", mentorId);
     }
 
-    /**
-     * Validate weekly session limit
-     * Ensures mentor doesn't exceed maximum sessions per week
-     *
-     * @param mentorId The mentor's user ID
-     * @param sessionDatetime The requested session datetime
-     * @throws MentorNotAvailableException if weekly limit exceeded
-     */
-    private void validateWeeklyLimit(Long mentorId, LocalDateTime sessionDatetime) {
-        // Calculate week boundaries
+    private void validateWeeklyLimit(UUID mentorId, LocalDateTime sessionDatetime) {
         LocalDateTime weekStart = sessionDatetime
                 .with(DayOfWeek.MONDAY)
                 .truncatedTo(ChronoUnit.DAYS);
         LocalDateTime weekEnd = weekStart.plusDays(7);
 
-        log.debug("Checking weekly session limit for mentor {} (week: {} to {})",
-                mentorId, weekStart, weekEnd);
-
-        // Count scheduled and in-progress sessions in that week
         long sessionsThisWeek = sessionRepository.countSessionsInDateRange(
                 mentorId,
                 weekStart,
                 weekEnd,
                 MentorshipSession.SessionStatus.SCHEDULED
         );
-
-        log.debug("Mentor {} has {} sessions scheduled this week (limit: {})",
-                mentorId, sessionsThisWeek, maxSessionsPerWeek);
 
         if (sessionsThisWeek >= maxSessionsPerWeek) {
             throw new MentorNotAvailableException(
@@ -320,24 +198,12 @@ public class SessionValidator {
         }
     }
 
-    /**
-     * Validate session status transition
-     * Ensures only valid status transitions are allowed
-     *
-     * @param session The session being updated
-     * @param newStatus The new status being set
-     * @throws InvalidSessionStatusException if transition not allowed
-     */
     public void validateStatusTransition(
             MentorshipSession session,
             MentorshipSession.SessionStatus newStatus
     ) {
         MentorshipSession.SessionStatus currentStatus = session.getStatus();
 
-        log.debug("Validating status transition from {} to {} for session {}",
-                currentStatus, newStatus, session.getSessionId());
-
-        // Define valid transitions
         boolean isValidTransition = switch (currentStatus) {
             case SCHEDULED -> newStatus == MentorshipSession.SessionStatus.IN_PROGRESS ||
                     newStatus == MentorshipSession.SessionStatus.CANCELLED ||
@@ -346,7 +212,7 @@ public class SessionValidator {
             case IN_PROGRESS -> newStatus == MentorshipSession.SessionStatus.COMPLETED ||
                     newStatus == MentorshipSession.SessionStatus.CANCELLED;
 
-            case COMPLETED, CANCELLED, NO_SHOW -> false; // Terminal states
+            case COMPLETED, CANCELLED, NO_SHOW -> false;
         };
 
         if (!isValidTransition) {
@@ -356,7 +222,5 @@ public class SessionValidator {
                     "transition to " + newStatus.name()
             );
         }
-
-        log.debug("Status transition validated successfully");
     }
 }

@@ -7,14 +7,20 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * ============================================================================
- * NOTIFICATION SERVICE FEIGN CLIENT
+ * NOTIFICATION SERVICE FEIGN CLIENT (UUID VERSION)
  * ============================================================================
  *
  * Feign client for inter-service communication with notification-service.
  * Handles all notification delivery for mentorship-related events.
+ *
+ * UPDATED TO USE UUID:
+ * - All user IDs now use UUID instead of Long
+ * - Session IDs use UUID
+ * - Review IDs use UUID
  *
  * KEY RESPONSIBILITIES:
  * - Session confirmation notifications
@@ -33,8 +39,8 @@ import java.util.Map;
  * - Load balanced across notification-service instances
  *
  * @author Douglas Kings Kato
- * @version 1.0.0
- * @since 2025-01-21
+ * @version 2.0.0 (UUID Support)
+ * @since 2025-11-06
  * ============================================================================
  */
 @FeignClient(
@@ -48,17 +54,17 @@ public interface NotificationServiceClient {
      * Send session booking confirmation notification
      * Notifies both mentor and mentee about new session
      *
-     * @param sessionId The ID of the booked session
-     * @param mentorId The mentor's user ID
-     * @param menteeId The mentee's user ID
+     * @param sessionId The UUID of the booked session
+     * @param mentorId The mentor's user UUID
+     * @param menteeId The mentee's user UUID
      * @param sessionDateTime The scheduled date/time
      * @param topic The session topic
      */
     @PostMapping("/session-booked")
     void sendSessionBookedNotification(
-            @RequestParam Long sessionId,
-            @RequestParam Long mentorId,
-            @RequestParam Long menteeId,
+            @RequestParam UUID sessionId,
+            @RequestParam UUID mentorId,
+            @RequestParam UUID menteeId,
             @RequestParam LocalDateTime sessionDateTime,
             @RequestParam String topic
     );
@@ -67,15 +73,15 @@ public interface NotificationServiceClient {
      * Send session reminder notification
      * Used for 24h, 1h, and 15min reminders
      *
-     * @param sessionId The session ID
-     * @param userId The user to notify (mentor or mentee)
+     * @param sessionId The session UUID
+     * @param userId The user UUID to notify (mentor or mentee)
      * @param reminderType Type of reminder (24_HOURS, 1_HOUR, 15_MINUTES)
      * @param sessionDateTime The session date/time
      */
     @PostMapping("/session-reminder")
     void sendSessionReminder(
-            @RequestParam Long sessionId,
-            @RequestParam Long userId,
+            @RequestParam UUID sessionId,
+            @RequestParam UUID userId,
             @RequestParam String reminderType,
             @RequestParam LocalDateTime sessionDateTime
     );
@@ -84,17 +90,17 @@ public interface NotificationServiceClient {
      * Send session cancellation notification
      * Notifies both parties when session is cancelled
      *
-     * @param sessionId The cancelled session ID
-     * @param mentorId The mentor's user ID
-     * @param menteeId The mentee's user ID
+     * @param sessionId The cancelled session UUID
+     * @param mentorId The mentor's user UUID
+     * @param menteeId The mentee's user UUID
      * @param cancelledBy Who cancelled (mentor or mentee)
      * @param reason Cancellation reason (optional)
      */
     @PostMapping("/session-cancelled")
     void sendSessionCancelledNotification(
-            @RequestParam Long sessionId,
-            @RequestParam Long mentorId,
-            @RequestParam Long menteeId,
+            @RequestParam UUID sessionId,
+            @RequestParam UUID mentorId,
+            @RequestParam UUID menteeId,
             @RequestParam String cancelledBy,
             @RequestParam(required = false) String reason
     );
@@ -103,29 +109,29 @@ public interface NotificationServiceClient {
      * Send session completion notification
      * Notifies both parties and prompts for review
      *
-     * @param sessionId The completed session ID
-     * @param mentorId The mentor's user ID
-     * @param menteeId The mentee's user ID
+     * @param sessionId The completed session UUID
+     * @param mentorId The mentor's user UUID
+     * @param menteeId The mentee's user UUID
      */
     @PostMapping("/session-completed")
     void sendSessionCompletedNotification(
-            @RequestParam Long sessionId,
-            @RequestParam Long mentorId,
-            @RequestParam Long menteeId
+            @RequestParam UUID sessionId,
+            @RequestParam UUID mentorId,
+            @RequestParam UUID menteeId
     );
 
     /**
      * Send review submission notification
      * Notifies mentor when mentee submits a review
      *
-     * @param reviewId The review ID
-     * @param mentorId The mentor being reviewed
+     * @param reviewId The review UUID
+     * @param mentorId The mentor UUID being reviewed
      * @param rating The rating given (1-5)
      */
     @PostMapping("/review-submitted")
     void sendReviewSubmittedNotification(
-            @RequestParam Long reviewId,
-            @RequestParam Long mentorId,
+            @RequestParam UUID reviewId,
+            @RequestParam UUID mentorId,
             @RequestParam Integer rating
     );
 

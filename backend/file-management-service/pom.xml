@@ -5,6 +5,7 @@
          https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
+	<!-- Spring Boot Parent - Provides dependency management -->
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
@@ -12,77 +13,195 @@
 		<relativePath/>
 	</parent>
 
+	<!-- Project Coordinates -->
 	<groupId>com.youthconnect</groupId>
 	<artifactId>file-management-service</artifactId>
-	<version>1.0.0</version>
+	<version>2.0.0</version>
 	<name>file-management-service</name>
-	<description>File Management Microservice for Youth Entrepreneurship Platform</description>
+	<description>File Management Microservice for Youth Entrepreneurship Platform with PostgreSQL</description>
 
+	<!-- Build Properties -->
 	<properties>
 		<java.version>21</java.version>
 		<spring-cloud.version>2025.0.0</spring-cloud.version>
+
+		<!-- Library Versions -->
 		<tika.version>2.9.1</tika.version>
+		<jjwt.version>0.12.3</jjwt.version>
+		<springdoc.version>2.3.0</springdoc.version>
+
+		<!-- Encoding -->
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 	</properties>
 
 	<dependencies>
-		<!-- Spring Boot Starters -->
+		<!-- ======================================== -->
+		<!-- SPRING BOOT CORE DEPENDENCIES           -->
+		<!-- ======================================== -->
+
+		<!-- Web MVC - REST API support -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
 
+		<!-- JPA/Hibernate - Database ORM -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
 
+		<!-- Validation - Bean validation (JSR-380) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
 
+		<!-- Actuator - Health checks and metrics -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
-		<!-- Spring Cloud Netflix Eureka Client -->
+		<!-- Spring Security - JWT authentication -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<!-- ======================================== -->
+		<!-- SPRING CLOUD DEPENDENCIES               -->
+		<!-- ======================================== -->
+
+		<!-- Eureka Client - Service discovery -->
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
 		</dependency>
 
-		<!-- MySQL Driver -->
+		<!-- ======================================== -->
+		<!-- DATABASE DRIVER                         -->
+		<!-- ======================================== -->
+
+		<!-- ✅ PostgreSQL Driver - Production database -->
 		<dependency>
-			<groupId>com.mysql</groupId>
-			<artifactId>mysql-connector-j</artifactId>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
 
-		<!-- Apache Tika for file type detection -->
+		<!-- HikariCP - Connection pooling (included in spring-boot-starter-jdbc) -->
+		<!-- Already provided by spring-boot-starter-data-jpa -->
+
+		<!-- ======================================== -->
+		<!-- FILE HANDLING LIBRARIES                 -->
+		<!-- ======================================== -->
+
+		<!-- Apache Tika - File type detection and content extraction -->
 		<dependency>
 			<groupId>org.apache.tika</groupId>
 			<artifactId>tika-core</artifactId>
 			<version>${tika.version}</version>
 		</dependency>
 
-		<!-- Lombok -->
+		<!-- ======================================== -->
+		<!-- JWT AUTHENTICATION                      -->
+		<!-- ======================================== -->
+
+		<!-- JJWT API - JWT token handling -->
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-api</artifactId>
+			<version>${jjwt.version}</version>
+		</dependency>
+
+		<!-- JJWT Implementation - Runtime JWT processing -->
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-impl</artifactId>
+			<version>${jjwt.version}</version>
+			<scope>runtime</scope>
+		</dependency>
+
+		<!-- JJWT Jackson - JSON processing for JWT -->
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-jackson</artifactId>
+			<version>${jjwt.version}</version>
+			<scope>runtime</scope>
+		</dependency>
+
+		<!-- ======================================== -->
+		<!-- API DOCUMENTATION                       -->
+		<!-- ======================================== -->
+
+		<!-- SpringDoc OpenAPI - Swagger UI -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>${springdoc.version}</version>
+		</dependency>
+
+		<!-- ======================================== -->
+		<!-- DEVELOPMENT TOOLS                       -->
+		<!-- ======================================== -->
+
+		<!-- Lombok - Reduces boilerplate code -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
 			<optional>true</optional>
 		</dependency>
 
-		<!-- Testing -->
+		<!-- Spring Boot DevTools - Development-time tools -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+
+		<!-- Spring Configuration Processor - IDE autocomplete for properties -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-configuration-processor</artifactId>
+			<optional>true</optional>
+		</dependency>
+
+		<!-- ======================================== -->
+		<!-- TESTING DEPENDENCIES                    -->
+		<!-- ======================================== -->
+
+		<!-- Spring Boot Test - Testing framework -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- Spring Security Test - Security testing utilities -->
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- H2 Database - In-memory database for testing -->
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
+
+	<!-- ======================================== -->
+	<!-- DEPENDENCY MANAGEMENT                   -->
+	<!-- ======================================== -->
 
 	<dependencyManagement>
 		<dependencies>
+			<!-- Spring Cloud BOM - Version management for Spring Cloud -->
 			<dependency>
 				<groupId>org.springframework.cloud</groupId>
 				<artifactId>spring-cloud-dependencies</artifactId>
@@ -93,13 +212,19 @@
 		</dependencies>
 	</dependencyManagement>
 
+	<!-- ======================================== -->
+	<!-- BUILD CONFIGURATION                     -->
+	<!-- ======================================== -->
+
 	<build>
 		<plugins>
+			<!-- Spring Boot Maven Plugin - Packaging and running -->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
 					<excludes>
+						<!-- Exclude Lombok from final JAR -->
 						<exclude>
 							<groupId>org.projectlombok</groupId>
 							<artifactId>lombok</artifactId>
@@ -108,21 +233,87 @@
 				</configuration>
 			</plugin>
 
+			<!-- Maven Compiler Plugin - Java compilation -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<configuration>
-					<source>21</source>
-					<target>21</target>
+					<source>${java.version}</source>
+					<target>${java.version}</target>
 					<annotationProcessorPaths>
+						<!-- Lombok annotation processor -->
 						<path>
 							<groupId>org.projectlombok</groupId>
 							<artifactId>lombok</artifactId>
 							<version>${lombok.version}</version>
 						</path>
+						<!-- Spring Configuration Processor -->
+						<path>
+							<groupId>org.springframework.boot</groupId>
+							<artifactId>spring-boot-configuration-processor</artifactId>
+							<version>${project.parent.version}</version>
+						</path>
 					</annotationProcessorPaths>
 				</configuration>
 			</plugin>
+
+			<!-- Maven Surefire Plugin - Unit tests -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<includes>
+						<include>**/*Test.java</include>
+						<include>**/*Tests.java</include>
+					</includes>
+				</configuration>
+			</plugin>
+
+			<!-- Maven Failsafe Plugin - Integration tests -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<configuration>
+					<includes>
+						<include>**/*IT.java</include>
+						<include>**/*IntegrationTest.java</include>
+					</includes>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 	</build>
+
+	<!-- ======================================== -->
+	<!-- PROFILES                                -->
+	<!-- ======================================== -->
+
+	<profiles>
+		<!-- Development Profile -->
+		<profile>
+			<id>dev</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+			<properties>
+				<spring.profiles.active>dev</spring.profiles.active>
+			</properties>
+		</profile>
+
+		<!-- Production Profile -->
+		<profile>
+			<id>prod</id>
+			<properties>
+				<spring.profiles.active>prod</spring.profiles.active>
+			</properties>
+		</profile>
+	</profiles>
+
 </project>

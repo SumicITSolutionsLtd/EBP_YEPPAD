@@ -2,6 +2,7 @@ package com.youthconnect.auth_service.config;
 
 import com.youthconnect.auth_service.security.JwtAuthenticationEntryPoint;
 import com.youthconnect.auth_service.security.JwtAuthenticationFilter;
+import com.youthconnect.auth_service.security.OAuth2SuccessHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -16,7 +17,6 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -28,20 +28,15 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
+ * ═══════════════════════════════════════════════════════════════════════════
  * Security Configuration for Auth Service
- *
- * UPDATED: Added CORS configuration from application.yml
- *
- * Configures Spring Security for JWT-based stateless authentication:
- * - Disables CSRF (not needed for stateless JWT auth)
- * - Configures CORS for cross-origin requests
- * - Sets session management to STATELESS
- * - Defines public and protected endpoints
- * - Integrates JWT authentication filter
- * - Configures password encoding (BCrypt)
+ * ═══════════════════════════════════════════════════════════════════════════
+
+ * SOLUTION: Use simple String injection with default values, then split into arrays
  *
  * @author Douglas Kings Kato
- * @version 2.0.0
+ * @since 2025-11-16
+ * ═══════════════════════════════════════════════════════════════════════════
  */
 @Configuration
 @EnableWebSecurity
@@ -49,53 +44,48 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // DEPENDENCIES (Injected via Constructor)
+    // ═══════════════════════════════════════════════════════════════════════
+
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final UserDetailsService userDetailsService;
+    private final OAuth2SuccessHandler oauth2SuccessHandler;
+    private final PasswordEncoder passwordEncoder;
 
-    @Value("${app.security.allowed-origins}")
-    private List<String> allowedOrigins;
+    // ═══════════════════════════════════════════════════════════════════════
+    // ✅ FIXED: CORS CONFIGURATION PROPERTIES (Using String with defaults)
+    // ═══════════════════════════════════════════════════════════════════════
 
-    @Value("${app.security.allowed-methods}")
-    private List<String> allowedMethods;
+    @Value("${app.security.allowed-origins:http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:4200}")
+    private String allowedOriginsString;
 
-    @Value("${app.security.allowed-headers}")
-    private List<String> allowedHeaders;
+    @Value("${app.security.allowed-methods:GET,POST,PUT,DELETE,PATCH,OPTIONS}")
+    private String allowedMethodsString;
 
-    @Value("${app.security.exposed-headers}")
-    private List<String> exposedHeaders;
+    @Value("${app.security.allowed-headers:Authorization,Content-Type,X-Requested-With,Accept,Origin,Access-Control-Request-Method,Access-Control-Request-Headers}")
+    private String allowedHeadersString;
 
-    @Value("${app.security.allow-credentials}")
+    @Value("${app.security.exposed-headers:Authorization,X-Total-Count,X-Page-Number,X-Page-Size}")
+    private String exposedHeadersString;
+
+    @Value("${app.security.allow-credentials:true}")
     private boolean allowCredentials;
 
-    @Value("${app.security.max-age}")
+    @Value("${app.security.max-age:3600}")
     private long maxAge;
 
-    /**
-     * Configure Security Filter Chain
-     *
-     * Defines the security rules for the application:
-     * - Which endpoints are public (no authentication required)
-     * - Which endpoints require authentication
-     * - How authentication failures are handled
-     * - Session management strategy (stateless for JWT)
-     *
-     * @param http HttpSecurity object to configure
-     * @return SecurityFilterChain configured filter chain
-     * @throws Exception if configuration fails
-     */
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECURITY FILTER CHAIN
+    // ═══════════════════════════════════════════════════════════════════════
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // Disable CSRF - not needed for stateless JWT authentication
                 .csrf(AbstractHttpConfigurer::disable)
-
-                // Configure CORS
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-                // Configure authorization rules
                 .authorizeHttpRequests(auth -> auth
-                        // Public endpoints - no authentication required
                         .requestMatchers(
                                 "/login/**",
                                 "/register/**",
@@ -112,60 +102,43 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/password/forgot",
                                 "/password/reset/**",
-                                "/password/validate-reset-token"
+                                "/password/validate-reset-token",
+                                "/oauth2/**",
+                                "/login/oauth2/**"
                         ).permitAll()
-
-                        // All other requests require authentication
                         .anyRequest().authenticated()
                 )
-
-                // Configure exception handling
+                .oauth2Login(oauth2 -> oauth2
+                        .successHandler(oauth2SuccessHandler)
+                        .failureUrl("/login?error=oauth2_failed")
+                )
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 )
-
-                // Configure session management - STATELESS for JWT
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-
-                // Add JWT authentication filter before UsernamePasswordAuthenticationFilter
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    /**
-     * Configure CORS (Cross-Origin Resource Sharing)
-     *
-     * Allows the frontend application to make requests to this service
-     * from different origins (domains/ports).
-     *
-     * Configuration is loaded from application.yml
-     *
-     * @return CorsConfigurationSource CORS configuration
-     */
+    // ═══════════════════════════════════════════════════════════════════════
+    // ✅ FIXED: CORS CONFIGURATION (Parse strings into arrays)
+    // ═══════════════════════════════════════════════════════════════════════
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Allow specific origins from configuration
-        configuration.setAllowedOrigins(allowedOrigins);
+        // ✅ Convert comma-separated strings to lists
+        configuration.setAllowedOrigins(parseCommaSeparated(allowedOriginsString));
+        configuration.setAllowedMethods(parseCommaSeparated(allowedMethodsString));
+        configuration.setAllowedHeaders(parseCommaSeparated(allowedHeadersString));
+        configuration.setExposedHeaders(parseCommaSeparated(exposedHeadersString));
 
-        // Allow specific HTTP methods
-        configuration.setAllowedMethods(allowedMethods);
-
-        // Allow specific headers
-        configuration.setAllowedHeaders(allowedHeaders);
-
-        // Expose specific headers to the client
-        configuration.setExposedHeaders(exposedHeaders);
-
-        // Allow credentials (cookies, authorization headers)
         configuration.setAllowCredentials(allowCredentials);
-
-        // Cache preflight response
         configuration.setMaxAge(maxAge);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -175,51 +148,37 @@ public class SecurityConfig {
     }
 
     /**
-     * Password Encoder Bean
+     * Helper method to parse comma-separated string into list
      *
-     * BCrypt is a strong hashing function designed for password storage.
-     * It includes a salt automatically and has a configurable work factor
-     * to make brute-force attacks more difficult.
-     *
-     * Strength = 12 provides good security while maintaining reasonable performance.
-     *
-     * @return PasswordEncoder BCrypt password encoder
+     * @param commaSeparated Comma-separated string
+     * @return List of trimmed strings
      */
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(12);
+    private List<String> parseCommaSeparated(String commaSeparated) {
+        if (commaSeparated == null || commaSeparated.trim().isEmpty()) {
+            return List.of();
+        }
+        return Arrays.stream(commaSeparated.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
     }
 
-    /**
-     * Authentication Provider Bean
-     *
-     * Configures how Spring Security authenticates users:
-     * - Uses UserDetailsService to load user data
-     * - Uses PasswordEncoder to verify passwords
-     *
-     * @return AuthenticationProvider configured authentication provider
-     */
+    // ═══════════════════════════════════════════════════════════════════════
+    // AUTHENTICATION PROVIDER & MANAGER
+    // ═══════════════════════════════════════════════════════════════════════
+
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
         authProvider.setUserDetailsService(userDetailsService);
-        authProvider.setPasswordEncoder(passwordEncoder());
+        authProvider.setPasswordEncoder(passwordEncoder);
         authProvider.setHideUserNotFoundExceptions(false);
         return authProvider;
     }
 
-    /**
-     * Authentication Manager Bean
-     *
-     * The AuthenticationManager is used to authenticate users during login.
-     * It delegates to the configured AuthenticationProvider.
-     *
-     * @param config AuthenticationConfiguration from Spring Security
-     * @return AuthenticationManager authentication manager
-     * @throws Exception if configuration fails
-     */
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
 }

@@ -1,8 +1,9 @@
 # ============================================================================
 # Job Service - Main Configuration (Base)
 # Author: Douglas Kings Kato
-# Version: 3.0.0 (PostgreSQL Migration)
+# Version: 3.0.0 (PostgreSQL Migration with Flyway)
 # ============================================================================
+
 server:
   port: 8000
   servlet:
@@ -23,19 +24,43 @@ spring:
   # POSTGRESQL DATABASE CONFIGURATION
   # ============================================================================
   datasource:
-    url: jdbc:postgresql://localhost:5432/job_service_db
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:postgres}
+    # PostgreSQL connection URL
+    # Format: jdbc:postgresql://host:port/database_name
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:youthconnect_job}
+
+    # Database credentials
+    # IMPORTANT: Must match the user created in init-databases.sql
+    username: ${DB_USERNAME:youthconnect_user}
+    password: ${DB_PASSWORD:YouthConnect2024!}
+
+    # PostgreSQL JDBC driver
     driver-class-name: org.postgresql.Driver
 
+    # HikariCP Connection Pool Configuration
+    # HikariCP is the default connection pool in Spring Boot (fast and reliable)
     hikari:
-      maximum-pool-size: 10
-      minimum-idle: 5
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
+      # Maximum number of connections in the pool
+      maximum-pool-size: ${DB_MAX_POOL_SIZE:10}
+
+      # Minimum number of idle connections to maintain
+      minimum-idle: ${DB_MIN_IDLE:5}
+
+      # Maximum time (ms) to wait for a connection from the pool
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:30000}
+
+      # Maximum time (ms) a connection can sit idle in the pool
+      idle-timeout: ${DB_IDLE_TIMEOUT:600000}
+
+      # Maximum lifetime (ms) of a connection in the pool
+      max-lifetime: ${DB_MAX_LIFETIME:1800000}
+
+      # Query to test connection validity
       connection-test-query: SELECT 1
+
+      # Pool name for identification in logs
       pool-name: JobServiceHikariPool
+
+      # Leak detection threshold (ms) - warns if connection not returned
       leak-detection-threshold: 60000
 
   # ============================================================================
@@ -43,33 +68,94 @@ spring:
   # ============================================================================
   jpa:
     hibernate:
-      ddl-auto: update
+      # DDL Auto Strategy
+      # IMPORTANT: Changed from 'update' to 'none' for Flyway-managed schema
+      # - none: Hibernate won't modify database schema (Flyway handles migrations)
+      # - validate: Hibernate only validates schema matches entities
+      # - update: Hibernate auto-updates schema (NOT recommended for production)
+      # - create-drop: Creates schema on startup, drops on shutdown (testing only)
+      ddl-auto: none
+
+      # Naming strategies for database objects
       naming:
+        # Physical naming: Maps Java camelCase to database snake_case
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+
+        # Implicit naming: Standard JPA naming conventions
         implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyJpaCompliantImpl
 
-    show-sql: true
+    # Show SQL statements in logs (useful for debugging)
+    show-sql: ${SPRING_JPA_SHOW_SQL:true}
 
+    # Hibernate-specific properties
     properties:
       hibernate:
+        # PostgreSQL dialect for SQL generation
         dialect: org.hibernate.dialect.PostgreSQLDialect
+
+        # Format SQL for readability in logs
         format_sql: true
+
+        # Add comments to SQL statements
         use_sql_comments: true
+
+        # Optimize insert/update order
         order_inserts: true
         order_updates: true
+
+        # Enable statistics for monitoring
         generate_statistics: true
+
+        # JDBC metadata configuration
         temp:
           use_jdbc_metadata_defaults: false
 
-        # JDBC batching for performance
+        # JDBC batching for better performance
         jdbc:
           batch_size: 20
           fetch_size: 50
           batch_versioned_data: true
 
+        # Cache configuration (disabled for simplicity)
         cache:
           use_second_level_cache: false
           use_query_cache: false
+
+  # ============================================================================
+  # FLYWAY CONFIGURATION
+  # ============================================================================
+  flyway:
+    # Enable Flyway for database migrations
+    enabled: true
+
+    # Location of migration scripts
+    # Flyway looks for files in: src/main/resources/db/migration
+    locations: classpath:db/migration
+
+    # Baseline on migrate: Creates baseline version for existing databases
+    # Set to true if database already exists (safe for initial setup)
+    baseline-on-migrate: true
+
+    # Baseline version: Starting point for migrations
+    baseline-version: 0
+
+    # Baseline description
+    baseline-description: Initial baseline
+
+    # Validate migrations on startup
+    validate-on-migrate: true
+
+    # Clean database before migration (NEVER use in production!)
+    clean-disabled: true
+
+    # Out of order migrations (allow running older migrations)
+    out-of-order: false
+
+    # Placeholder replacement
+    placeholder-replacement: true
+    placeholders:
+      db_name: ${DB_NAME:youthconnect_job}
+      db_username: ${DB_USERNAME:youthconnect_user}
 
   # ============================================================================
   # REDIS CONFIGURATION
@@ -80,6 +166,8 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
       timeout: 2000ms
+
+      # Lettuce connection pool (async Redis client)
       lettuce:
         pool:
           max-active: 8
@@ -87,8 +175,10 @@ spring:
           min-idle: 2
           max-wait: -1ms
         shutdown-timeout: 100ms
+
+      # Cache configuration
       cache:
-        time-to-live: 1800000ms
+        time-to-live: 1800000ms  # 30 minutes
         cache-null-values: false
         key-prefix: "job-service:"
 
@@ -188,7 +278,7 @@ management:
     web:
       base-path: /actuator
       exposure:
-        include: health,info,metrics,prometheus,env,loggers
+        include: health,info,metrics,prometheus,env,loggers,flyway
         exclude: shutdown
   endpoint:
     health:
@@ -197,6 +287,9 @@ management:
       probes:
         enabled: true
     info:
+      enabled: true
+    # Flyway endpoint to view migration status
+    flyway:
       enabled: true
   health:
     db:
@@ -232,6 +325,8 @@ logging:
     com.zaxxer.hikari: INFO
     feign: DEBUG
     org.springframework.data.redis: DEBUG
+    # Flyway logging
+    org.flywaydb: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

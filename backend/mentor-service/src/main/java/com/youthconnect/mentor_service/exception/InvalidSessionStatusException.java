@@ -3,13 +3,18 @@ package com.youthconnect.mentor_service.exception;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
+import java.util.UUID;
+
 /**
  * ============================================================================
- * INVALID SESSION STATUS EXCEPTION
+ * INVALID SESSION STATUS EXCEPTION (UUID VERSION)
  * ============================================================================
  *
  * Exception thrown when attempting to perform an operation on a session
  * that is in an invalid status for that operation.
+ *
+ * UPDATED TO USE UUID:
+ * - Session ID parameter now uses UUID instead of Long
  *
  * USAGE SCENARIOS:
  * - Trying to complete an already completed session
@@ -21,23 +26,23 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * - Error Message: Descriptive message about the invalid status transition
  *
  * @author Douglas Kings Kato
- * @version 1.0.0
- * @since 2025-01-22
+ * @version 2.0.0 (UUID Support)
+ * @since 2025-11-06
  * ============================================================================
  */
 @ResponseStatus(HttpStatus.BAD_REQUEST)
 public class InvalidSessionStatusException extends RuntimeException {
 
     /**
-     * Constructor with session ID and current status
+     * Constructor with session UUID and current status
      *
-     * @param sessionId     The ID of the session
+     * @param sessionId     The UUID of the session
      * @param currentStatus The current status that prevents the operation
      * @param attemptedAction The action that was attempted
      */
-    public InvalidSessionStatusException(Long sessionId, String currentStatus, String attemptedAction) {
+    public InvalidSessionStatusException(UUID sessionId, String currentStatus, String attemptedAction) {
         super(String.format(
-                "Cannot perform action '%s' on session %d. Current status is '%s'",
+                "Cannot perform action '%s' on session %s. Current status is '%s'",
                 attemptedAction, sessionId, currentStatus
         ));
     }

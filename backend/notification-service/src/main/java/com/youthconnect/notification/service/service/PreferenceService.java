@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.time.LocalTime;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -51,7 +52,7 @@ public class PreferenceService {
      * @param userId User ID
      * @return User preferences or defaults
      */
-    public NotificationPreferences getUserPreferences(Long userId) {
+    public NotificationPreferences getUserPreferences(UUID userId) {
         String cacheKey = PREFERENCE_KEY_PREFIX + userId;
 
         try {
@@ -116,7 +117,7 @@ public class PreferenceService {
      * @param category Notification category
      * @return true if notification should be sent
      */
-    public boolean shouldSendNotification(Long userId, String channel, NotificationCategory category) {
+    public boolean shouldSendNotification(UUID userId, String channel, NotificationCategory category) {
         NotificationPreferences prefs = getUserPreferences(userId);
 
         // Check if category is enabled
@@ -163,7 +164,7 @@ public class PreferenceService {
      * @param userId User ID
      * @return Default preferences
      */
-    private NotificationPreferences getDefaultPreferences(Long userId) {
+    private NotificationPreferences getDefaultPreferences(UUID userId) {
         return NotificationPreferences.builder()
                 .userId(userId)
                 .smsEnabled(true)

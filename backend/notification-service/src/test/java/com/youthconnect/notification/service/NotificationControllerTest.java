@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -21,7 +22,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * Integration tests for NotificationController.
+ * ═══════════════════════════════════════════════════════════════════════════
+ * NOTIFICATION CONTROLLER INTEGRATION TESTS (FIXED - UUID SUPPORT)
+ * ═══════════════════════════════════════════════════════════════════════════
  */
 @WebMvcTest(NotificationController.class)
 class NotificationControllerTest {
@@ -37,12 +40,15 @@ class NotificationControllerTest {
 
     @Test
     void testSendSms_Success() throws Exception {
-        // Arrange
+        // ✅ FIXED: Use UUID
+        UUID testUserId = UUID.randomUUID();
+
         SmsRequest request = SmsRequest.builder()
                 .recipient("+256701234567")
                 .message("Test SMS")
                 .messageType("TRANSACTIONAL")
                 .priority(1)
+                .userId(testUserId)
                 .build();
 
         Map<String, Object> response = new HashMap<>();
@@ -52,7 +58,6 @@ class NotificationControllerTest {
         when(notificationService.sendSms(any(SmsRequest.class)))
                 .thenReturn(CompletableFuture.completedFuture(response));
 
-        // Act & Assert
         mockMvc.perform(post("/api/notifications/sms/send")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -62,11 +67,13 @@ class NotificationControllerTest {
 
     @Test
     void testSendEmail_Success() throws Exception {
-        // Arrange
+        UUID testUserId = UUID.randomUUID();
+
         EmailRequest request = EmailRequest.builder()
                 .recipient("test@example.com")
                 .subject("Test Email")
                 .textContent("Test content")
+                .userId(testUserId)
                 .build();
 
         Map<String, Object> response = new HashMap<>();
@@ -75,7 +82,6 @@ class NotificationControllerTest {
         when(notificationService.sendEmail(any(EmailRequest.class)))
                 .thenReturn(CompletableFuture.completedFuture(response));
 
-        // Act & Assert
         mockMvc.perform(post("/api/notifications/email/send")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -85,9 +91,10 @@ class NotificationControllerTest {
 
     @Test
     void testSendWelcomeNotification_Success() throws Exception {
-        // Arrange
+        UUID testUserId = UUID.randomUUID();
+
         WelcomeNotificationRequest request = WelcomeNotificationRequest.builder()
-                .userId(1L)
+                .userId(testUserId)
                 .email("test@example.com")
                 .phoneNumber("+256701234567")
                 .firstName("John")
@@ -102,7 +109,6 @@ class NotificationControllerTest {
         when(notificationService.sendWelcomeNotification(any(WelcomeNotificationRequest.class)))
                 .thenReturn(CompletableFuture.completedFuture(response));
 
-        // Act & Assert
         mockMvc.perform(post("/api/notifications/welcome")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -112,7 +118,6 @@ class NotificationControllerTest {
 
     @Test
     void testHealthCheck_Success() throws Exception {
-        // ✅ CORRECT: Return proper Map structure
         Map<String, Object> smsHealth = Map.of(
                 "healthy", true,
                 "status", "UP",
@@ -130,7 +135,6 @@ class NotificationControllerTest {
         when(notificationService.checkSmsServiceHealth()).thenReturn(smsHealth);
         when(notificationService.checkEmailServiceHealth()).thenReturn(emailHealth);
 
-        // Act & Assert
         mockMvc.perform(get("/api/notifications/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"))
@@ -140,7 +144,6 @@ class NotificationControllerTest {
 
     @Test
     void testHealthCheck_SmsDown() throws Exception {
-        // ✅ CORRECT: SMS service down scenario
         Map<String, Object> smsHealth = Map.of(
                 "healthy", false,
                 "status", "DOWN",
@@ -155,7 +158,6 @@ class NotificationControllerTest {
         when(notificationService.checkSmsServiceHealth()).thenReturn(smsHealth);
         when(notificationService.checkEmailServiceHealth()).thenReturn(emailHealth);
 
-        // Act & Assert
         mockMvc.perform(get("/api/notifications/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DEGRADED"))
@@ -165,7 +167,6 @@ class NotificationControllerTest {
 
     @Test
     void testSendUssdConfirmation_Success() throws Exception {
-        // Arrange
         UssdConfirmationRequest request = UssdConfirmationRequest.builder()
                 .phoneNumber("+256701234567")
                 .userName("John Doe")
@@ -178,8 +179,7 @@ class NotificationControllerTest {
         when(notificationService.sendUssdConfirmation(any(UssdConfirmationRequest.class)))
                 .thenReturn(CompletableFuture.completedFuture(response));
 
-        // Act & Assert
-        mockMvc.perform(post("/api/notifications/ussd/registration")
+        mockMvc.perform(post("/api/notifications/ussd/confirmation")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())

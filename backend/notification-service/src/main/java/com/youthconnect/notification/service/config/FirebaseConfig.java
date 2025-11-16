@@ -65,7 +65,7 @@ public class FirebaseConfig {
      * Firebase project ID.
      * Must match the project ID in Firebase Console.
      */
-    @Value("${firebase.project-id:kwetu-hub-uganda}")
+    @Value("${firebase.project-id:Entrepreneurship-Booster-Platform}")
     private String projectId;
 
     /**

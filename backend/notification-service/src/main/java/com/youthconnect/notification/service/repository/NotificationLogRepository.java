@@ -2,6 +2,8 @@ package com.youthconnect.notification.service.repository;
 
 import com.youthconnect.notification.service.entity.NotificationLog;
 import com.youthconnect.notification.service.entity.NotificationLog.NotificationStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -9,85 +11,103 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 /**
- * Repository for managing {@link NotificationLog} entities.
+ * ═══════════════════════════════════════════════════════════════════════════
+ * NOTIFICATION LOG REPOSITORY - Data Access Layer (With Pagination)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
  * Provides query methods for fetching, tracking, and monitoring notifications.
+ *
+ * Changes from Original:
+ * - Added Page<> return types for pagination (as per guidelines)
+ * - Changed ID type from Long → UUID
+ *
+ * @author Douglas Kings Kato
+ * @version 2.0.0 (Microservices guidelines compliant)
  */
 @Repository
-public interface NotificationLogRepository extends JpaRepository<NotificationLog, Long> {
+public interface NotificationLogRepository extends JpaRepository<NotificationLog, UUID> {
 
     /**
-     * Retrieves all notifications sent to a specific user, ordered by creation date (latest first).
+     * Retrieves paginated notifications for a specific user
+     * Ordered by creation date (latest first)
      *
-     * @param userId the ID of the user
-     * @return list of notifications for the given user
+     * @param userId   User UUID
+     * @param pageable Pagination information
+     * @return Paginated list of notifications
      */
-    List<NotificationLog> findByUserIdOrderByCreatedAtDesc(Long userId);
+    Page<NotificationLog> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 
     /**
-     * Finds failed notifications that are eligible for retry,
-     * considering both retry count and scheduled retry time.
+     * Finds failed notifications eligible for retry
+     * Checks both retry count and scheduled retry time
      *
-     * @param now the current timestamp used to check retry eligibility
-     * @return list of failed notifications pending retry
+     * @param now      Current timestamp
+     * @param pageable Pagination information
+     * @return Paginated list of failed notifications pending retry
      */
     @Query("SELECT n FROM NotificationLog n " +
             "WHERE n.status = 'FAILED' " +
             "AND n.retryCount < n.maxRetries " +
             "AND n.nextRetryAt <= :now")
-    List<NotificationLog> findPendingRetries(@Param("now") LocalDateTime now);
+    Page<NotificationLog> findPendingRetries(@Param("now") LocalDateTime now, Pageable pageable);
 
     /**
-     * Retrieves notifications by status within a given date range.
+     * Retrieves paginated notifications by status within a date range
      *
-     * @param status the notification status (e.g., SENT, FAILED, PENDING)
-     * @param startDate start of the date range
-     * @param endDate end of the date range
-     * @return list of notifications matching the given status and date range
+     * @param status    Notification status
+     * @param startDate Start of date range
+     * @param endDate   End of date range
+     * @param pageable  Pagination information
+     * @return Paginated notifications matching criteria
      */
     @Query("SELECT n FROM NotificationLog n " +
             "WHERE n.status = :status " +
             "AND n.createdAt BETWEEN :startDate AND :endDate")
-    List<NotificationLog> findByStatusAndDateRange(
+    Page<NotificationLog> findByStatusAndDateRange(
             @Param("status") NotificationStatus status,
             @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate
+            @Param("endDate") LocalDateTime endDate,
+            Pageable pageable
     );
 
     /**
-     * Counts notifications with the given status that were created after a specific time.
-     * Useful for monitoring recent failures or successes.
+     * Counts notifications with given status created after specific time
+     * Used for monitoring and analytics
      *
-     * @param status the notification status
-     * @param after the cutoff timestamp
-     * @return count of notifications matching criteria
+     * @param status Notification status
+     * @param after  Cutoff timestamp
+     * @return Count of matching notifications
      */
     long countByStatusAndCreatedAtAfter(NotificationStatus status, LocalDateTime after);
 
     /**
-     * Counts all notifications by status (without time filtering).
+     * Counts all notifications by status (no time filtering)
      *
-     * @param status the notification status
-     * @return number of notifications matching the given status
+     * @param status Notification status
+     * @return Total count of notifications with given status
      */
     @Query("SELECT COUNT(n) FROM NotificationLog n WHERE n.status = :status")
     Long countByStatus(@Param("status") NotificationStatus status);
 
     /**
-     * Retrieves recent notifications for a user created after a given timestamp.
-     * Results are ordered by creation date (latest first).
+     * Retrieves recent notifications for a user created after specific timestamp
+     * Results are paginated and ordered by creation date (latest first)
      *
-     * @param userId the ID of the user
-     * @param since the timestamp to filter notifications created after
-     * @return list of recent notifications for the given user
+     * @param userId   User UUID
+     * @param since    Timestamp to filter notifications created after
+     * @param pageable Pagination information
+     * @return Paginated recent notifications for the user
      */
     @Query("SELECT n FROM NotificationLog n " +
             "WHERE n.userId = :userId " +
             "AND n.createdAt > :since " +
             "ORDER BY n.createdAt DESC")
-    List<NotificationLog> findRecentNotificationsByUser(
-            @Param("userId") Long userId,
-            @Param("since") LocalDateTime since
+    Page<NotificationLog> findRecentNotificationsByUser(
+            @Param("userId") UUID userId,
+            @Param("since") LocalDateTime since,
+            Pageable pageable
     );
 }

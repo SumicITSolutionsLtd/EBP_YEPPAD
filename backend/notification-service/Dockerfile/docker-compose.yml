@@ -1,26 +1,105 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# DOCKER COMPOSE - Notification Service (PostgreSQL)
+# ═══════════════════════════════════════════════════════════════════════════
+
 version: '3.8'
+
 services:
+  # ═══════════════════════════════════════════════════════════════════════
+  # NOTIFICATION SERVICE
+  # ═══════════════════════════════════════════════════════════════════════
   notification-service:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notification-service
     ports:
       - "7077:7077"
     environment:
+      # Spring Profile
       - SPRING_PROFILES_ACTIVE=dev
-      - DB_HOST=mysql
+
+      # PostgreSQL Database
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=ebp_notifications_db
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+
+      # Redis Cache
       - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+      # Africa's Talking API
+      - AFRICAS_TALKING_API_KEY=${AFRICAS_TALKING_API_KEY}
+      - AFRICAS_TALKING_USERNAME=${AFRICAS_TALKING_USERNAME}
+      - AFRICAS_TALKING_SENDER_ID=YouthConnect
+
+      # SMTP Email
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - EMAIL_USERNAME=${EMAIL_USERNAME}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+
+      # Firebase
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+      - FIREBASE_SERVICE_ACCOUNT=firebase-service-account.json
+
+      # Eureka Service Registry
+      - EUREKA_SERVER_URL=http://service-registry:8761/eureka/
+
     depends_on:
-      - mysql
+      - postgres
       - redis
+    networks:
+      - notification-network
+    restart: unless-stopped
 
-  mysql:
-    image: mysql:8.0
+  # ═══════════════════════════════════════════════════════════════════════
+  # POSTGRESQL DATABASE
+  # ═══════════════════════════════════════════════════════════════════════
+  postgres:
+    image: postgres:15-alpine
+    container_name: notification-postgres
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: youth_connect_db
+      POSTGRES_DB: ebp_notifications_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
     ports:
-      - "3307:3306"
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - notification-network
+    restart: unless-stopped
 
+  # ═══════════════════════════════════════════════════════════════════════
+  # REDIS CACHE
+  # ═══════════════════════════════════════════════════════════════════════
   redis:
     image: redis:7-alpine
+    container_name: notification-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - notification-network
+    restart: unless-stopped
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NETWORKS
+# ═══════════════════════════════════════════════════════════════════════════
+networks:
+  notification-network:
+    driver: bridge
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VOLUMES (Data Persistence)
+# ═══════════════════════════════════════════════════════════════════════════
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

@@ -7,19 +7,24 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * ============================================================================
- * USER SERVICE FEIGN CLIENT
+ * USER SERVICE FEIGN CLIENT (FIXED - UUID COMPLIANT)
  * ============================================================================
  *
  * Feign client for inter-service communication with user-service.
  * Provides access to user profile data needed for mentorship operations.
  *
+ * FIXED ISSUES:
+ * ✅ All methods now use UUID for user identification
+ * ✅ Removed hasRole method (changed signature from Long to UUID)
+ * ✅ Consistent UUID usage across all endpoints
+ *
  * KEY RESPONSIBILITIES:
  * - Fetch mentor profile details
  * - Fetch mentee (youth) profile details
- * - Validate user roles
  * - Get user preferences (language, timezone)
  * - Search mentors by expertise
  *
@@ -32,8 +37,8 @@ import java.util.Map;
  * - Returns minimal user info on service unavailability
  *
  * @author Douglas Kings Kato
- * @version 1.0.0
- * @since 2025-01-21
+ * @version 2.0.0 (UUID Compliance Fix)
+ * @since 2025-11-07
  * ============================================================================
  */
 @FeignClient(
@@ -47,52 +52,49 @@ public interface UserServiceClient {
      * Get complete user profile by user ID
      * Returns role-specific profile data
      *
-     * @param userId The user's unique identifier
+     * ✅ FIXED: Now uses UUID parameter
+     *
+     * @param userId The user's unique identifier (UUID)
      * @return Map containing user profile data
      */
     @GetMapping("/{userId}")
-    Map<String, Object> getUserProfile(@PathVariable Long userId);
+    Map<String, Object> getUserProfile(@PathVariable UUID userId);
 
     /**
      * Get mentor-specific profile details
      * Includes expertise, bio, experience, availability status
      *
-     * @param mentorId The mentor's user ID
+     * ✅ FIXED: Now uses UUID parameter
+     *
+     * @param mentorId The mentor's unique identifier (UUID)
      * @return Map with mentor profile data
      */
     @GetMapping("/{userId}/mentor-profile")
-    Map<String, Object> getMentorProfile(@PathVariable("userId") Long mentorId);
+    Map<String, Object> getMentorProfile(@PathVariable("userId") UUID mentorId);
 
     /**
      * Get youth (mentee) profile details
      * Includes interests, business stage, district
      *
-     * @param menteeId The mentee's user ID
+     * ✅ FIXED: Now uses UUID parameter
+     *
+     * @param menteeId The mentee's unique identifier (UUID)
      * @return Map with youth profile data
      */
     @GetMapping("/{userId}/youth-profile")
-    Map<String, Object> getYouthProfile(@PathVariable("userId") Long menteeId);
-
-    /**
-     * Validate user role
-     * Checks if user has specified role
-     *
-     * @param userId The user ID to check
-     * @param role The role to validate (MENTOR, YOUTH, etc.)
-     * @return true if user has the role
-     */
-    @GetMapping("/{userId}/has-role")
-    Boolean hasRole(@PathVariable Long userId, @RequestParam String role);
+    Map<String, Object> getYouthProfile(@PathVariable("userId") UUID menteeId);
 
     /**
      * Get user preferences
      * Returns language, timezone, notification preferences
      *
-     * @param userId The user ID
+     * ✅ FIXED: Now uses UUID parameter
+     *
+     * @param userId The user's unique identifier (UUID)
      * @return Map of user preferences
      */
     @GetMapping("/{userId}/preferences")
-    Map<String, Object> getUserPreferences(@PathVariable Long userId);
+    Map<String, Object> getUserPreferences(@PathVariable UUID userId);
 
     /**
      * Search mentors by expertise area
@@ -112,17 +114,19 @@ public interface UserServiceClient {
      * Get user's full name
      * Simple endpoint for display purposes
      *
-     * @param userId The user ID
+     * ✅ FIXED: Now uses UUID parameter
+     *
+     * @param userId The user's unique identifier (UUID)
      * @return Full name as string
      */
     @GetMapping("/{userId}/name")
-    String getUserFullName(@PathVariable Long userId);
+    String getUserFullName(@PathVariable UUID userId);
 
     /**
      * Batch get user profiles
      * Efficient retrieval of multiple user profiles
      *
-     * @param userIds Comma-separated list of user IDs
+     * @param userIds Comma-separated list of UUID strings
      * @return List of user profile maps
      */
     @GetMapping("/batch")

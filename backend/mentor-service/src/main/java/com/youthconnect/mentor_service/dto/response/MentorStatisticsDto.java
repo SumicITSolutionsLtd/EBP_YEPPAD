@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 /**
  * ============================================================================
  * MENTOR STATISTICS DTO
@@ -14,8 +16,7 @@ import lombok.NoArgsConstructor;
  * Used in mentor dashboards and analytics.
  *
  * @author Douglas Kings Kato
- * @version 1.0.0
- * @since 2025-01-22
+ * @since 2025-11-07
  * ============================================================================
  */
 @Data
@@ -25,9 +26,10 @@ import lombok.NoArgsConstructor;
 public class MentorStatisticsDto {
 
     /**
-     * Mentor user ID
+     * Mentor user UUID
+     * ✅ FIXED: Changed from Long to UUID
      */
-    private Long mentorId;
+    private UUID mentorId;
 
     /**
      * Total number of sessions conducted (all statuses)
@@ -74,8 +76,13 @@ public class MentorStatisticsDto {
      */
     private Long activeMentees;
 
+    // ========================================================================
+    // HELPER METHODS
+    // ========================================================================
+
     /**
      * Calculate completion rate
+     * Completion rate = (completed / total) * 100
      */
     public void calculateCompletionRate() {
         if (totalSessions != null && totalSessions > 0) {
@@ -83,5 +90,68 @@ public class MentorStatisticsDto {
         } else {
             this.completionRate = 0.0;
         }
+    }
+
+    /**
+     * Calculate cancellation rate
+     *
+     * @return Cancellation rate percentage
+     */
+    public Double getCancellationRate() {
+        if (totalSessions != null && totalSessions > 0) {
+            return (cancelledSessions.doubleValue() / totalSessions.doubleValue()) * 100;
+        }
+        return 0.0;
+    }
+
+    /**
+     * Calculate no-show rate
+     *
+     * @return No-show rate percentage
+     */
+    public Double getNoShowRate() {
+        if (totalSessions != null && totalSessions > 0) {
+            return (noShowSessions.doubleValue() / totalSessions.doubleValue()) * 100;
+        }
+        return 0.0;
+    }
+
+    /**
+     * Get completion rate formatted as string
+     *
+     * @return Formatted completion rate (e.g., "85.5%")
+     */
+    public String getCompletionRateFormatted() {
+        if (completionRate == null) {
+            calculateCompletionRate();
+        }
+        return String.format("%.1f%%", completionRate);
+    }
+
+    /**
+     * Get average rating formatted as string
+     *
+     * @return Formatted average rating (e.g., "4.5 / 5.0")
+     */
+    public String getAverageRatingFormatted() {
+        if (averageRating == null) {
+            return "No ratings yet";
+        }
+        return String.format("%.1f / 5.0", averageRating);
+    }
+
+    /**
+     * Check if mentor has good performance metrics
+     * Good performance: completion rate > 80% AND average rating > 4.0
+     *
+     * @return true if mentor meets performance criteria
+     */
+    public boolean hasGoodPerformance() {
+        if (completionRate == null) {
+            calculateCompletionRate();
+        }
+        return completionRate >= 80.0 &&
+                averageRating != null &&
+                averageRating >= 4.0;
     }
 }

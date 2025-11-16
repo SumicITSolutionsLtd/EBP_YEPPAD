@@ -1,5 +1,12 @@
-# Production configuration
+# ───────────────────────────────────────────────────────────────────────────
+# PRODUCTION PROFILE
+# ───────────────────────────────────────────────────────────────────────────
 spring:
+  config:
+    activate:
+      on-profile: prod
+
+  # Production database (from environment variables)
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -8,28 +15,26 @@ spring:
       maximum-pool-size: 20
       minimum-idle: 5
 
-  data:
-    redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT}
-      password: ${REDIS_PASSWORD}
+  # Don't show SQL in production
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
 
-jwt:
-  secret: ${JWT_SECRET}
-
-eureka:
-  client:
-    service-url:
-      defaultZone: ${EUREKA_URL}
-
+# Production logging
 logging:
   level:
     root: WARN
-    com.youthconnect.auth: INFO
-  file:
-    name: /var/log/auth-service/application.log
+    com.youthconnect.auth_service: INFO
+    org.springframework: WARN
 
+  # Production log file
+  file:
+    name: /var/log/youth-connect/auth-service.log
+
+# Production health details (hidden)
 management:
   endpoint:
     health:
-      show-details: never
+      show-details: when_authorized

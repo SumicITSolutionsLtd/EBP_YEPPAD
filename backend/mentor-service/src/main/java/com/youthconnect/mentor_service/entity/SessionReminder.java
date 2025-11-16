@@ -5,16 +5,22 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.GenericGenerator;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * ============================================================================
- * SESSION REMINDER ENTITY
+ * SESSION REMINDER ENTITY (UUID VERSION - FIXED)
  * ============================================================================
  *
  * Represents automated reminder notifications for mentorship sessions.
  * Tracks reminder delivery status for both mentor and mentee.
+ *
+ * UPDATED TO USE UUID:
+ * - Primary key changed from Long to UUID
+ * - session_id foreign key now uses UUID
  *
  * KEY FEATURES:
  * - Multiple reminder types (24h, 1h, 15min before session)
@@ -22,7 +28,7 @@ import java.time.LocalDateTime;
  * - Automatic scheduling based on session datetime
  * - Delivery status tracking
  *
- * DATABASE TABLE: session_reminders
+ * DATABASE TABLE: session_reminders (PostgreSQL)
  *
  * WORKFLOW:
  * 1. Session created → Reminders automatically scheduled
@@ -31,8 +37,8 @@ import java.time.LocalDateTime;
  * 4. Session completed → Reminders archived
  *
  * @author Douglas Kings Kato
- * @version 1.0.0
- * @since 2025-01-21
+ * @version 2.0.0 (UUID Support)
+ * @since 2025-11-06
  * ============================================================================
  */
 @Entity
@@ -45,22 +51,27 @@ public class SessionReminder {
 
     /**
      * Unique reminder identifier (Primary Key)
-     * Auto-generated using MySQL AUTO_INCREMENT strategy
+     * Uses UUID for distributed system compatibility
      */
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "reminder_id")
-    private Long reminderId;
+    @GeneratedValue(generator = "UUID")
+    @GenericGenerator(
+            name = "UUID",
+            strategy = "org.hibernate.id.UUIDGenerator"
+    )
+    @Column(name = "reminder_id", updatable = false, nullable = false, columnDefinition = "UUID")
+    private UUID reminderId;
 
     /**
      * Related session ID (Foreign Key to mentorship_sessions)
      * The session this reminder is for
      *
+     * UPDATED: Now uses UUID to match MentorshipSession
      * NOT NULL constraint ensures reminder is always linked to session
      * ON DELETE CASCADE: If session deleted, reminders also deleted
      */
-    @Column(name = "session_id", nullable = false)
-    private Long sessionId;
+    @Column(name = "session_id", nullable = false, columnDefinition = "UUID")
+    private UUID sessionId;
 
     /**
      * Type of reminder based on timing

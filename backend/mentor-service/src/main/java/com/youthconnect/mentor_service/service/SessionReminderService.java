@@ -14,14 +14,19 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * ============================================================================
- * SESSION REMINDER SERVICE (FINAL MERGED VERSION)
+ * SESSION REMINDER SERVICE (UUID VERSION - FINAL FIXED)
  * ============================================================================
  *
  * Handles automated session reminders for mentors and mentees.
  * Scheduled job runs periodically to send reminders ahead of sessions.
+ *
+ * UPDATED TO USE UUID:
+ * - All ID parameters now use UUID instead of Long
+ * - Compatible with UUID-based notification service
  *
  * REMINDER INTERVALS:
  * - 24 hours before
@@ -35,12 +40,10 @@ import java.util.List;
  * - Detailed error isolation and metrics logging
  * - Transaction management for data integrity
  *
- * @author
- *   Douglas Kings Kato
- * @version
- *   1.2.0 (Refined & Merged)
- * @since
- *   2025-01-22
+ * @author Douglas Kings Kato
+/**
+ * @version 2.0.0 (UUID Support - Fixed)
+ * @since 2025-11-06
  * ============================================================================
  */
 @Service
@@ -189,7 +192,7 @@ public class SessionReminderService {
      * Utility method to execute a send operation with retry attempts.
      */
     private boolean sendWithRetry(Runnable sendAction, Runnable markSuccess,
-                                  String recipient, Long sessionId, SessionReminder.ReminderType type) {
+                                  String recipient, UUID sessionId, SessionReminder.ReminderType type) {
         for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
             try {
                 sendAction.run();
@@ -212,10 +215,10 @@ public class SessionReminderService {
     /**
      * Creates all reminders for a newly scheduled session.
      *
-     * @param sessionId The session ID
+     * @param sessionId The session UUID
      */
     @Transactional
-    public void createRemindersForSession(Long sessionId) {
+    public void createRemindersForSession(UUID sessionId) {
         MentorshipSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Session not found: " + sessionId));
 
@@ -240,10 +243,10 @@ public class SessionReminderService {
     /**
      * Deletes all reminders for a cancelled session.
      *
-     * @param sessionId The session ID
+     * @param sessionId The session UUID
      */
     @Transactional
-    public void deleteRemindersForSession(Long sessionId) {
+    public void deleteRemindersForSession(UUID sessionId) {
         List<SessionReminder> reminders = reminderRepository.findBySessionId(sessionId);
         reminderRepository.deleteAll(reminders);
         log.info("Deleted {} reminders for cancelled session {}", reminders.size(), sessionId);

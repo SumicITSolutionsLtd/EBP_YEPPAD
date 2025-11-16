@@ -1,62 +1,329 @@
 # ============================================================================
 # Production Profile Configuration
+# Author: Douglas Kings Kato
+# Description: Production-ready settings with security and performance focus
+# WARNING: NEVER commit production secrets to version control!
 # ============================================================================
+
 spring:
   config:
     activate:
       on-profile: prod
 
+  # ============================================================================
+  # DATABASE - PRODUCTION
+  # ============================================================================
   datasource:
-    url: ${DB_URL:jdbc:postgresql://production-db-host:5432/job_service_db?sslmode=require}
+    # Production PostgreSQL with SSL
+    # Use managed database service (AWS RDS, Azure Database, etc.)
+    url: ${DB_URL:jdbc:postgresql://production-db-host:5432/youthconnect_job?sslmode=require&ssl=true}
+
+    # Load credentials from environment variables or secrets manager
+    # NEVER hardcode production credentials!
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
 
+    # Production connection pool settings
     hikari:
+      # Larger pool for production traffic
       maximum-pool-size: 20
       minimum-idle: 10
+
+      # Connection timeouts
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
+
+      # Connection leak detection
       leak-detection-threshold: 60000
 
+      # Connection validation
+      connection-test-query: SELECT 1
+      validation-timeout: 5000
+
+      # Pool name for monitoring
+      pool-name: JobServiceProductionPool
+
+  # ============================================================================
+  # JPA - PRODUCTION
+  # ============================================================================
   jpa:
     hibernate:
+      # CRITICAL: Never auto-update schema in production!
+      # All schema changes must go through Flyway migrations
       ddl-auto: none
+
+    # Don't show SQL in production (performance and security)
     show-sql: false
+
     properties:
       hibernate:
+        # No SQL formatting in production
         format_sql: false
         use_sql_comments: false
+
+        # Disable statistics in production (performance)
         generate_statistics: false
 
+        # Enable SQL batching for better performance
+        jdbc:
+          batch_size: 50
+          fetch_size: 100
+
+  # ============================================================================
+  # FLYWAY - PRODUCTION
+  # ============================================================================
+  flyway:
+    # Enable Flyway for production migrations
+    enabled: true
+
+    # CRITICAL: Never clean database in production!
+    clean-disabled: true
+
+    # Baseline settings for production
+    baseline-on-migrate: true
+    baseline-version: 0
+
+    # Strict validation in production
+    validate-on-migrate: true
+
+    # Don't allow out-of-order migrations
+    out-of-order: false
+
+    # Location of migration scripts
+    locations: classpath:db/migration
+
+    # Placeholders for production
+    placeholders:
+      db_name: ${DB_NAME:youthconnect_job}
+      db_username: ${DB_USERNAME}
+
+  # ============================================================================
+  # REDIS - PRODUCTION
+  # ============================================================================
   data:
     redis:
+      # Production Redis with SSL
       host: ${REDIS_HOST:production-redis-host}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD}
-      ssl: true
 
+      # Enable SSL for production
+      ssl:
+        enabled: true
+
+      # Production timeouts
+      timeout: 3000ms
+
+      # Production pool settings
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
+          max-wait: 2000ms
+
+# ============================================================================
+# LOGGING - PRODUCTION
+# ============================================================================
 logging:
   level:
+    # Less verbose logging in production
     root: WARN
+
+    # Application logs at INFO level
     com.youthconnect.job_services: INFO
+
+    # No SQL logging in production
     org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+
+    # Flyway logging (INFO for migration tracking)
+    org.flywaydb: INFO
+
+    # Spring framework minimal logging
+    org.springframework: WARN
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+
+    # HikariCP warnings only
+    com.zaxxer.hikari: WARN
+
+  # Production log file configuration
   file:
+    # Use absolute path for production logs
     name: /var/log/job-services/application.log
     max-size: 10MB
     max-history: 30
+    total-size-cap: 1GB
 
+  # Production logging pattern (structured for log aggregation)
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# ============================================================================
+# EUREKA - PRODUCTION
+# ============================================================================
 eureka:
   client:
     service-url:
-      defaultZone: ${EUREKA_URI:http://production-eureka:8761/eureka}
+      # Production Eureka cluster
+      defaultZone: ${EUREKA_URI:http://production-eureka-1:8761/eureka,http://production-eureka-2:8761/eureka}
+
+    # Eureka authentication
+    eureka-server-connect-timeout-seconds: 5
+    eureka-server-read-timeout-seconds: 8
+
   instance:
+    # Use hostname in production (not IP)
     prefer-ip-address: false
     hostname: ${HOSTNAME:job-services}
 
+    # Health check configuration
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
+
+    # Production metadata
+    metadata-map:
+      version: "3.0.0"
+      environment: production
+      zone: ${DATACENTER:primary}
+
+# ============================================================================
+# ACTUATOR - PRODUCTION
+# ============================================================================
 management:
   endpoints:
     web:
       exposure:
-        include: health,metrics,prometheus
+        # Limited endpoints in production (security)
+        include: health,metrics,prometheus,info,flyway
         exclude: env,loggers,shutdown
+
+  endpoint:
+    health:
+      # Limited health details in production
+      show-details: when_authorized
+      show-components: when_authorized
+
+    # Flyway endpoint for migration status
+    flyway:
+      enabled: true
+
+  # Health indicators
+  health:
+    db:
+      enabled: true
+    redis:
+      enabled: true
+    diskspace:
+      enabled: true
+      threshold: 1GB
+
+# ============================================================================
+# FEIGN CLIENT - PRODUCTION
+# ============================================================================
+feign:
+  client:
+    config:
+      default:
+        # Production timeouts (more conservative)
+        connectTimeout: 5000
+        readTimeout: 10000
+
+        # Minimal logging in production
+        loggerLevel: BASIC
+
+# ============================================================================
+# RESILIENCE4J - PRODUCTION
+# ============================================================================
+resilience4j:
+  circuitbreaker:
+    instances:
+      default:
+        # Production circuit breaker settings
+        slidingWindowSize: 100
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 60000
+        permittedNumberOfCallsInHalfOpenState: 5
+
+# ============================================================================
+# APPLICATION-SPECIFIC - PRODUCTION
+# ============================================================================
+app:
+  # Security settings (strict for production)
+  security:
+    jwt:
+      # CRITICAL: Load from secure vault (AWS Secrets Manager, etc.)
+      secret: ${JWT_SECRET}
+      access-token-expiry: 900
+      refresh-token-expiry: 604800
+
+  # CORS settings (whitelist only)
+  cors:
+    allowed-origins:
+      - https://youthconnect.ug
+      - https://www.youthconnect.ug
+      - https://api.youthconnect.ug
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+    allowed-headers: "*"
+    allow-credentials: true
+    max-age: 3600
+
+# ============================================================================
+# PRODUCTION NOTES
+# ============================================================================
+# This profile is for production deployment. Critical requirements:
+#
+# 1. SECURITY:
+#    - All secrets loaded from environment variables
+#    - SSL/TLS enabled for database and Redis
+#    - CORS whitelist only production domains
+#    - Limited actuator endpoint exposure
+#
+# 2. DATABASE:
+#    - Flyway manages all schema changes
+#    - ddl-auto MUST be 'none'
+#    - SSL connection required
+#    - Connection pool optimized for production load
+#
+# 3. LOGGING:
+#    - Minimal logging for performance
+#    - Structured logs for aggregation (ELK, CloudWatch)
+#    - Log rotation configured
+#
+# 4. MONITORING:
+#    - Health checks enabled
+#    - Metrics exposed for Prometheus
+#    - Circuit breakers configured
+#
+# 5. DEPLOYMENT:
+#    - Set environment variable: SPRING_PROFILES_ACTIVE=prod
+#    - Load secrets from vault before startup
+#    - Configure log directory permissions
+#    - Set up log aggregation
+#
+# 6. SECRETS MANAGEMENT:
+#    - Use AWS Secrets Manager, Azure Key Vault, or HashiCorp Vault
+#    - Rotate credentials regularly
+#    - Never commit secrets to version control
+#    - Use different secrets for each environment
+#
+# 7. PRE-DEPLOYMENT CHECKLIST:
+#    ☐ All secrets loaded from secure vault
+#    ☐ Database SSL enabled
+#    ☐ Redis SSL enabled
+#    ☐ Flyway migrations tested
+#    ☐ Log directory exists with proper permissions
+#    ☐ Monitoring and alerting configured
+#    ☐ Backup strategy in place
+#    ☐ Rollback plan documented
+# ============================================================================

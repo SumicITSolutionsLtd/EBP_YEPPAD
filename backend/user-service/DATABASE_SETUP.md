@@ -1,4 +1,4 @@
-# Youth Connect Uganda - PostgreSQL Database Setup Guide
+# Entrepreneurship Booster Platform - PostgreSQL Database Setup Guide
 
 ## 📋 Table of Contents
 - [Prerequisites](#prerequisites)

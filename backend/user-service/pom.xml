@@ -4,92 +4,159 @@
 		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-	<!-- =============================== -->
-	<!-- Parent and Project Info -->
-	<!-- =============================== -->
+	<!--
+        Refined Maven Project Object Model (POM) for the User Service microservice.
+        This version correctly declares 'parent-project' as its parent, enabling
+        inheritance of centralized configurations and dependency versions.
+    -->
+
+	<!-- ================================================================== -->
+	<!-- Parent Project Configuration                                       -->
+	<!-- IMPORTANT: Now directly inherits from your root 'parent-project'.  -->
+	<!-- This ensures consistent Spring Boot, Spring Cloud, Java versions,  -->
+	<!-- and other dependency versions managed centrally.                   -->
+	<!-- ================================================================== -->
 	<parent>
-		<groupId>org.springframework.boot</groupId>
-		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.2.0</version>
-		<relativePath/>
+		<groupId>com.youthconnect</groupId>
+		<artifactId>parent-project</artifactId>
+		<version>1.0.0-SNAPSHOT</version> <!-- MUST match the version defined in your root parent-project/pom.xml -->
+		<relativePath>../pom.xml</relativePath> <!--
+                                                    Relative path to the parent POM.
+                                                    Assumes user-service is a direct child directory
+                                                    of the parent-project.
+                                                -->
 	</parent>
 
-	<groupId>com.youthconnect</groupId>
+	<!-- ================================================================== -->
+	<!-- Project Identification                                             -->
+	<!-- Basic coordinates for this specific microservice.                  -->
+	<!-- groupId and version are inherited from the parent unless overridden.-->
+	<!-- ================================================================== -->
+	<!--
+        groupId is inherited from parent-project.
+        No need to explicitly declare it here unless it needs to be different.
+    <groupId>com.youthconnect</groupId>
+    -->
 	<artifactId>user-service</artifactId>
+	<!--
+        version is inherited from parent-project if not explicitly set.
+        Since you want 1.0.0 for this specific service, we'll keep it.
+        However, if parent-project manages child module versions, you might remove this.
+    -->
 	<version>1.0.0</version>
 	<name>Youth Connect Uganda - User Service</name>
 	<description>User management microservice for Youth Connect Uganda platform</description>
 
-	<!-- =============================== -->
-	<!-- Properties -->
-	<!-- =============================== -->
+	<!-- ================================================================== -->
+	<!-- Properties                                                         -->
+	<!-- Most properties are now inherited from 'parent-project'.           -->
+	<!-- Only define properties here if they are specific to this module    -->
+	<!-- and cannot be inherited or need to override a parent property.     -->
+	<!-- ================================================================== -->
 	<properties>
-		<java.version>21</java.version>
-		<spring-cloud.version>2023.0.0</spring-cloud.version>
+		<!--
+            java.version, spring-cloud.version, lombok.version,
+            project.build.sourceEncoding, maven.compiler.source/target
+            are now INHERITED from the parent-project.
+            You should REMOVE them from here to avoid conflicts and ensure consistency.
+        -->
+		<!--
+        <java.version>21</java.version>
+        <spring-cloud.version>2023.0.0</spring-cloud.version>
+        <lombok.version>1.18.30</lombok.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        -->
+
+		<!--
+            Keep jwt.version if it's not defined in the parent-project
+            or if this module needs a specific, different version.
+        -->
 		<jwt.version>0.11.5</jwt.version>
-		<lombok.version>1.18.30</lombok.version>
-		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<maven.compiler.source>21</maven.compiler.source>
-		<maven.compiler.target>21</maven.compiler.target>
+		<commons-io.version>2.15.0</commons-io.version> <!-- Define here if not in parent, or match parent -->
+		<libphonenumber.version>8.13.20</libphonenumber.version> <!-- Define here if not in parent, or match parent -->
+		<springdoc.version>2.2.0</springdoc.version> <!-- Define here if not in parent, or match parent -->
+		<flyway-maven-plugin.version>9.22.3</flyway-maven-plugin.version> <!-- Plugin version -->
+		<maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version> <!-- Plugin version -->
+		<maven-surefire-plugin.version>3.0.0-M9</maven-surefire-plugin.version> <!-- Plugin version -->
 	</properties>
 
-	<!-- =============================== -->
-	<!-- Dependencies -->
-	<!-- =============================== -->
+	<!-- ================================================================== -->
+	<!-- Dependencies                                                       -->
+	<!-- Declares all direct dependencies required by the user-service.     -->
+	<!-- Versions for dependencies managed in parent's dependencyManagement -->
+	<!-- do NOT need to be specified here.                                  -->
+	<!-- ================================================================== -->
 	<dependencies>
 		<!-- ===== Spring Boot Core Starters ===== -->
+		<!-- Versions for these are managed by the parent's spring-boot-starter-parent -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
-
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
-
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
-
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
-
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-cache</artifactId>
 		</dependency>
-
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-aop</artifactId>
+		</dependency>
+
 
 		<!-- ===== Spring Cloud & Microservices ===== -->
+		<!-- Versions for these are managed by the parent's spring-cloud-dependencies BOM -->
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
 		</dependency>
-
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-openfeign</artifactId>
 		</dependency>
-
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
 		</dependency>
-
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
 		</dependency>
 
+		<!-- ===== Internal Service Dependencies ===== -->
+		<!--
+            CRITICAL: Dependency on 'auth-service'.
+            Its version MUST match the artifact version of the auth-service module.
+            This allows 'user-service' to access shared classes (like RefreshToken).
+        -->
+		<!-- REMOVED: Direct dependency on auth-service. Services should communicate via REST APIs, not shared code. -->
+		<!--
+        <dependency>
+            <groupId>com.youthconnect</groupId>
+            <artifactId>auth-service</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        -->
+
 		<!-- ===== Database & Connection Pool ===== -->
+		<!-- Versions potentially managed by parent's dependencyManagement -->
 		<dependency>
 			<groupId>com.mysql</groupId>
 			<artifactId>mysql-connector-j</artifactId>
@@ -100,26 +167,24 @@
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
-
 		<dependency>
 			<groupId>com.zaxxer</groupId>
 			<artifactId>HikariCP</artifactId>
 		</dependency>
 
 		<!-- ===== JWT Authentication ===== -->
+		<!-- Versions explicitly defined here or in parent properties/dependencyManagement -->
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>
 			<version>${jwt.version}</version>
 		</dependency>
-
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-impl</artifactId>
 			<version>${jwt.version}</version>
 			<scope>runtime</scope>
 		</dependency>
-
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-jackson</artifactId>
@@ -128,28 +193,29 @@
 		</dependency>
 
 		<!-- ===== Caching ===== -->
+		<!-- Version potentially managed by parent's dependencyManagement -->
 		<dependency>
 			<groupId>com.github.ben-manes.caffeine</groupId>
 			<artifactId>caffeine</artifactId>
 		</dependency>
 
 		<!-- ===== Database Migration with Flyway ===== -->
+		<!-- Versions potentially managed by parent's dependencyManagement -->
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-core</artifactId>
 		</dependency>
-
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-mysql</artifactId>
 		</dependency>
 
 		<!-- ===== Metrics & Monitoring ===== -->
+		<!-- Versions potentially managed by parent's dependencyManagement -->
 		<dependency>
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-core</artifactId>
 		</dependency>
-
 		<dependency>
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
@@ -159,14 +225,16 @@
 		<dependency>
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-			<version>2.2.0</version>
+			<version>${springdoc.version}</version> <!-- Use property for version -->
 		</dependency>
 
 		<!-- ===== Utilities ===== -->
+		<!-- Lombok version inherited if defined in parent's dependencyManagement,
+             otherwise explicitly defined here. Removed explicit version due to parent inheritance. -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
-			<version>${lombok.version}</version>
+			<!-- <version>${lombok.version}</version> REMOVED - inherited from parent-project's dependencyManagement -->
 			<optional>true</optional>
 		</dependency>
 
@@ -178,13 +246,13 @@
 		<dependency>
 			<groupId>commons-io</groupId>
 			<artifactId>commons-io</artifactId>
-			<version>2.15.0</version>
+			<version>${commons-io.version}</version>
 		</dependency>
 
 		<dependency>
 			<groupId>com.googlecode.libphonenumber</groupId>
 			<artifactId>libphonenumber</artifactId>
-			<version>8.13.20</version>
+			<version>${libphonenumber.version}</version>
 		</dependency>
 
 		<dependency>
@@ -192,25 +260,18 @@
 			<artifactId>jackson-datatype-jsr310</artifactId>
 		</dependency>
 
-		<!-- ===== AOP (for logging/aspects) ===== -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-aop</artifactId>
-		</dependency>
-
 		<!-- ===== Testing ===== -->
+		<!-- Versions for these are managed by the parent's spring-boot-starter-parent -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-
 		<dependency>
 			<groupId>com.h2database</groupId>
 			<artifactId>h2</artifactId>
@@ -218,57 +279,67 @@
 		</dependency>
 	</dependencies>
 
-	<!-- =============================== -->
-	<!-- Dependency Management -->
-	<!-- =============================== -->
+	<!-- ================================================================== -->
+	<!-- Dependency Management                                              -->
+	<!-- This section is generally not needed in a child module when a      -->
+	<!-- comprehensive parent POM handles dependency management.            -->
+	<!-- If specific versions need to be forced for THIS module only,       -->
+	<!-- they could be defined here, but usually, it's preferred to manage  -->
+	<!-- centrally in the root parent.                                      -->
+	<!-- ================================================================== -->
 	<dependencyManagement>
 		<dependencies>
-			<dependency>
-				<groupId>org.springframework.cloud</groupId>
-				<artifactId>spring-cloud-dependencies</artifactId>
-				<version>${spring-cloud.version}</version>
-				<type>pom</type>
-				<scope>import</scope>
-			</dependency>
+			<!--
+                This is now redundant if the parent-project correctly defines
+                <spring-cloud.version> in its properties and imports the BOM
+                in its own <dependencyManagement> section.
+                Child modules will inherit that.
+            -->
+			<!--
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            -->
 		</dependencies>
 	</dependencyManagement>
 
-	<!-- =============================== -->
-	<!-- Build Configuration -->
-	<!-- =============================== -->
+	<!-- ================================================================== -->
+	<!-- Build Configuration                                                -->
+	<!-- Defines plugins and their specific configurations for this module. -->
+	<!-- Plugins defined in the parent's <pluginManagement> are inherited.  -->
+	<!-- Only define plugins here if they are unique to this module or      -->
+	<!-- require specific overrides.                                        -->
+	<!-- ================================================================== -->
 	<build>
 		<plugins>
-			<!-- Spring Boot Plugin -->
+			<!-- Spring Boot Plugin (inherited configuration from parent's pluginManagement) -->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
-				<configuration>
-					<excludes>
-						<exclude>
-							<groupId>org.projectlombok</groupId>
-							<artifactId>lombok</artifactId>
-						</exclude>
-					</excludes>
-				</configuration>
+				<!-- Configuration for Lombok exclusion is inherited from parent-project's pluginManagement -->
 			</plugin>
 
-			<!-- Compiler Plugin - Java 21 -->
+			<!-- Compiler Plugin - Java 21 (version and configuration inherited/defined via properties) -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.11.0</version>
+				<version>${maven-compiler-plugin.version}</version> <!-- Use property for version -->
 				<configuration>
-					<source>21</source>
-					<target>21</target>
-					<release>21</release>
+					<source>${java.version}</source> <!-- Inherit from parent properties -->
+					<target>${java.version}</target> <!-- Inherit from parent properties -->
+					<release>${java.version}</release> <!-- Inherit from parent properties -->
 				</configuration>
 			</plugin>
 
-			<!-- Surefire Plugin for Testing -->
+			<!-- Surefire Plugin for Running Unit Tests -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>3.0.0-M9</version>
+				<version>${maven-surefire-plugin.version}</version> <!-- Use property for version -->
 				<configuration>
 					<argLine>
 						-Djdk.instrument.traceUsage=false
@@ -276,15 +347,15 @@
 				</configuration>
 			</plugin>
 
-			<!-- ✅ Flyway Plugin Configuration -->
+			<!-- Flyway Plugin Configuration -->
 			<plugin>
 				<groupId>org.flywaydb</groupId>
 				<artifactId>flyway-maven-plugin</artifactId>
-				<version>9.22.3</version>
+				<version>${flyway-maven-plugin.version}</version> <!-- Use property for version -->
 				<configuration>
-					<url>jdbc:mysql://localhost:3306/your_database</url>
-					<user>root</user>
-					<password>Douglas20!</password>
+					<url>jdbc:mysql://localhost:3306/your_user_service_db</url> <!-- Specific to user-service, update DB name -->
+					<user>root</user> <!-- CHANGE THIS to your actual DB user -->
+					<password>Douglas20!</password> <!-- CHANGE THIS to your actual DB password -->
 					<schemas>
 						<schema>public</schema>
 					</schemas>

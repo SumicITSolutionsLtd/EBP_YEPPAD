@@ -1,0 +1,50 @@
+# =============================================================================
+# Docker Compose for Mentor Service - Production Environment
+# =============================================================================
+version: '3.9'
+
+services:
+  mentor-service:
+    image: youthconnect/mentor-service:${VERSION:-latest}
+    container_name: mentor-service-prod
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      EUREKA_URI: ${EUREKA_URI}
+      USER_SERVICE_URL: ${USER_SERVICE_URL}
+      NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL}
+      JPA_DDL_AUTO: validate
+      JPA_SHOW_SQL: false
+      LOG_LEVEL: INFO
+    ports:
+      - "${SERVER_PORT:-8090}:8090"
+    networks:
+      - youth-connect-prod
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8090/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  youth-connect-prod:
+    external: true

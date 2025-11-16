@@ -1,36 +1,53 @@
-# Production Profile Configuration
+# ═══════════════════════════════════════════════════════════════════════════
+# application-prod.yml - Production Profile
+# ═══════════════════════════════════════════════════════════════════════════
+
 spring:
   config:
     activate:
       on-profile: prod
 
+  # Production database (managed PostgreSQL)
   datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3307}/${DB_NAME:epb_db}?useSSL=true&serverTimezone=UTC
-    username: ${DB_USER:root}
-    password: ${DB_PASSWORD:changeme}
+    url: jdbc:postgresql://${DB_HOST:db.production.internal}:${DB_PORT:5432}/${DB_NAME:epb_file_prod}?currentSchema=public&stringtype=unspecified&ssl=true&sslmode=require
+    username: ${DB_USER:epb_app_user}
+    password: ${DB_PASSWORD}  # Must be set via environment variable
+
     hikari:
       maximum-pool-size: 20
       minimum-idle: 10
+      connection-timeout: 20000
+      leak-detection-threshold: 0  # Disabled in production
 
+  # JPA in production
   jpa:
-    show-sql: false
+    show-sql: false                   # Never log SQL in production
     hibernate:
-      ddl-auto: validate  # Never auto-create in production
+      ddl-auto: validate              # Never auto-create! Use Flyway migrations
+    properties:
+      hibernate:
+        format_sql: false
+        generate_statistics: false    # Disabled for performance
 
+# File storage in production
 app:
   file:
     storage:
-      type: ${STORAGE_TYPE:LOCAL}  # LOCAL, S3, MINIO
+      type: ${STORAGE_TYPE:LOCAL}     # Can be S3, MINIO in production
       path: ${STORAGE_PATH:/var/youthconnect/uploads/}
       base-url: ${BASE_URL:https://files.youthconnect.ug}
 
-    security:
-      virus-scan-enabled: true
-      encryption-enabled: true
+# Eureka in production
+eureka:
+  client:
+    registry-fetch-interval-seconds: 30
 
+# Logging in production
 logging:
   level:
     root: INFO
     com.youthconnect.file.service: INFO
+    org.springframework: WARN
+    org.hibernate: WARN
   file:
     name: /var/log/youthconnect/file-service.log

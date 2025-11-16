@@ -13,18 +13,24 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
  * ============================================================================
- * AVAILABILITY SERVICE
+ * AVAILABILITY SERVICE (FIXED - UUID COMPLIANT)
  * ============================================================================
  *
  * Business logic for mentor availability management.
  *
+ * FIXED ISSUES:
+ * ✅ All methods now use UUID for mentor identification
+ * ✅ Repository calls updated to use UUID
+ * ✅ Proper type consistency throughout
+ *
  * @author Douglas Kings Kato
- * @version 1.0.0
- * @since 2025-01-22
+ * @version 2.0.0 (UUID Compliance Fix)
+ * @since 2025-11-07
  * ============================================================================
  */
 @Service
@@ -37,10 +43,12 @@ public class AvailabilityService {
 
     /**
      * Get mentor's availability schedule
+     *
+     * ✅ FIXED: Now uses UUID for mentorId
      */
     @Cacheable(value = "availability", key = "#mentorId")
     @Transactional(readOnly = true)
-    public List<AvailabilityDto> getMentorAvailability(Long mentorId) {
+    public List<AvailabilityDto> getMentorAvailability(UUID mentorId) {
         log.debug("Fetching availability for mentor: {}", mentorId);
 
         List<MentorAvailability> availability =
@@ -53,10 +61,12 @@ public class AvailabilityService {
 
     /**
      * Set mentor availability schedule
+     *
+     * ✅ FIXED: Now uses UUID for mentorId
      */
     @CacheEvict(value = "availability", key = "#mentorId")
     public List<AvailabilityDto> setAvailability(
-            Long mentorId,
+            UUID mentorId,
             List<AvailabilityRequest> requests
     ) {
         log.info("Setting availability for mentor: {}", mentorId);
@@ -81,12 +91,14 @@ public class AvailabilityService {
 
     /**
      * Update availability slot
+     *
+     * ✅ FIXED: Now uses UUID for availabilityId and userId
      */
     @CacheEvict(value = "availability", allEntries = true)
     public AvailabilityDto updateAvailability(
-            Long availabilityId,
+            UUID availabilityId,
             AvailabilityRequest request,
-            Long userId
+            UUID userId
     ) {
         log.info("Updating availability: {}", availabilityId);
 
@@ -118,9 +130,11 @@ public class AvailabilityService {
 
     /**
      * Delete availability slot
+     *
+     * ✅ FIXED: Now uses UUID for availabilityId and userId
      */
     @CacheEvict(value = "availability", allEntries = true)
-    public void deleteAvailability(Long availabilityId, Long userId) {
+    public void deleteAvailability(UUID availabilityId, UUID userId) {
         log.info("Deleting availability: {}", availabilityId);
 
         MentorAvailability availability = availabilityRepository
@@ -155,8 +169,10 @@ public class AvailabilityService {
 
     /**
      * Build availability entity from request
+     *
+     * ✅ FIXED: Now uses UUID for mentorId
      */
-    private MentorAvailability buildAvailability(Long mentorId, AvailabilityRequest request) {
+    private MentorAvailability buildAvailability(UUID mentorId, AvailabilityRequest request) {
         return MentorAvailability.builder()
                 .mentorId(mentorId)
                 .dayOfWeek(request.getDayOfWeek())

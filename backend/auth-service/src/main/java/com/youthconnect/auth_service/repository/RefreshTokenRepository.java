@@ -12,20 +12,22 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
+ * ═══════════════════════════════════════════════════════════════════════════
  * Refresh Token Repository
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * UPDATED: Added missing count and delete methods for cleanup
- *
- * Handles database operations for refresh tokens.
+ * Handles database operations for refresh tokens with comprehensive
+ * query methods for token management, cleanup, and analytics.
  *
  * @author Douglas Kings Kato
- * @version 2.0.0
+ * @version 2.0.0 (Complete with cleanup methods)
  */
 @Repository
-public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
+public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
 
     /**
      * Find valid (non-revoked) refresh token by token string
+     * Primary method for token refresh operations
      *
      * @param token Token string
      * @return Optional containing token if found and not revoked
@@ -34,6 +36,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     /**
      * Find all active refresh tokens for a user
+     * Used for multi-device session management
      *
      * @param userId User UUID
      * @return List of active tokens
@@ -42,6 +45,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     /**
      * Find all tokens for a user (including revoked)
+     * Used for admin/audit purposes
      *
      * @param userId User UUID
      * @return List of all tokens
@@ -50,7 +54,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     /**
      * Delete expired tokens
-     * Used by cleanup scheduler
+     * Called by cleanup scheduler to free database space
      *
      * @param dateTime Cutoff datetime
      * @return Number of deleted records
@@ -61,7 +65,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     /**
      * Delete old revoked tokens
-     * Used by cleanup scheduler
+     * Called by cleanup scheduler (keep recent ones for audit)
      *
      * @param dateTime Cutoff datetime for revoked_at
      * @return Number of deleted records
@@ -72,6 +76,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     /**
      * Count revoked tokens
+     * Used for security analytics
      *
      * @return Number of revoked tokens
      */
@@ -79,6 +84,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     /**
      * Count expired tokens
+     * Used for monitoring cleanup effectiveness
      *
      * @param dateTime Current datetime
      * @return Number of expired tokens
@@ -87,6 +93,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     /**
      * Count tokens created after a date
+     * Used for usage analytics
      *
      * @param dateTime Cutoff datetime
      * @return Number of tokens created after date
@@ -95,6 +102,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     /**
      * Find tokens by user email
+     * Used for admin lookup
      *
      * @param email User email
      * @return List of tokens
@@ -103,6 +111,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     /**
      * Delete all revoked tokens for a user
+     * Used for cleanup after logout
      *
      * @param userId User UUID
      */
@@ -112,6 +121,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     /**
      * Check if user has any active tokens
+     * Used for session validation
      *
      * @param userId User UUID
      * @return True if user has at least one active token
@@ -120,6 +130,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     /**
      * Find most recently created token for user
+     * Used for latest session tracking
      *
      * @param userId User UUID
      * @return Optional containing most recent token
@@ -128,6 +139,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     /**
      * Count active tokens for user
+     * Used for multi-device session management
      *
      * @param userId User UUID
      * @return Number of active tokens

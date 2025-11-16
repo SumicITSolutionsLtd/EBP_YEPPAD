@@ -45,10 +45,10 @@ public class NotificationServiceImpl implements NotificationService {
     // Inject Africa's Talking client here when implemented
     // private final AfricasTalkingClient smsClient;
 
-    @Value("${app.mail.from:noreply@youthconnect.ug}")
+    @Value("${app.mail.from:noreply@ebp.ug}")
     private String fromEmail;
 
-    @Value("${app.sms.sender-id:YouthConnect}")
+    @Value("${app.sms.sender-id:ebp}")
     private String smsSenderId;
 
     // =========================================================================

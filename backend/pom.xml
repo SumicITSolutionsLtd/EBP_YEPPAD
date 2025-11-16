@@ -5,37 +5,69 @@
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <!--
+        This is the root Maven Project Object Model (POM) for the Youth-Connect-Uganda-Backend.
+        It acts as a parent POM, centralizing configuration, dependency management,
+        and defining the modules that constitute the entire microservices application.
+    -->
+
     <!-- ================================================================== -->
-    <!-- CRITICAL FIX: Compatible Spring Boot and Spring Cloud Versions    -->
-    <!-- Spring Boot 3.2.x is compatible with Spring Cloud 2023.0.x        -->
+    <!-- Parent Project Configuration                                       -->
+    <!-- Inherits settings from Spring Boot's starter parent POM.           -->
+    <!-- This provides default configurations for common plugins and        -->
+    <!-- manages dependency versions for Spring Boot itself.                -->
     <!-- ================================================================== -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.12</version> <!-- FIXED: Changed from 3.5.5 -->
-        <relativePath/>
+        <version>3.2.12</version> <!--
+                                      CRITICAL: This defines the Spring Boot version.
+                                      Spring Cloud version must be compatible with this.
+                                      Changed from 3.5.5 to 3.2.12 for compatibility with Spring Cloud 2023.0.x.
+                                  -->
+        <relativePath/> <!-- Look for the parent POM in the local and remote repositories -->
     </parent>
 
+    <!-- ================================================================== -->
+    <!-- Project Identification                                             -->
+    <!-- Basic coordinates for this parent project.                         -->
+    <!-- ================================================================== -->
     <groupId>com.youthconnect</groupId>
     <artifactId>parent-project</artifactId>
     <version>1.0.0-SNAPSHOT</version>
-    <packaging>pom</packaging>
+    <packaging>pom</packaging> <!--
+                                  Defines this project as a 'pom' type, indicating
+                                  it's a multi-module project and doesn't produce
+                                  a deployable artifact itself (like a JAR or WAR).
+                               -->
     <name>Youth-Connect-Uganda-Backend</name>
     <description>Parent project for Youth Connect Uganda microservices platform</description>
 
     <!-- ================================================================== -->
     <!-- Centralized Properties for All Modules                             -->
+    <!-- These properties can be used throughout this POM and its child     -->
+    <!-- modules to define versions, file encodings, etc.                   -->
     <!-- ================================================================== -->
     <properties>
-        <java.version>17</java.version>
+        <java.version>17</java.version> <!--
+                                            Sets the Java source and target version for compilation
+                                            across all child modules.
+                                        -->
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding> <!--
+                                                                           Standard character encoding for source files.
+                                                                           -->
 
         <!-- CRITICAL: Spring Cloud version compatible with Spring Boot 3.2.x -->
-        <spring-cloud.version>2023.0.3</spring-cloud.version>
+        <spring-cloud.version>2023.0.3</spring-cloud.version> <!--
+                                                                   Defines the Spring Cloud version.
+                                                                   2023.0.x (codenamed "Galway") is compatible with
+                                                                   Spring Boot 3.2.x.
+                                                               -->
 
         <!-- Additional Dependencies Versions -->
+        <!-- Centralized version management for various third-party libraries. -->
         <bucket4j.version>8.1.0</bucket4j.version>
         <lombok.version>1.18.30</lombok.version>
         <mysql.version>8.0.33</mysql.version>
@@ -43,41 +75,72 @@
         <wiremock.version>2.35.0</wiremock.version>
         <resilience4j.version>2.1.0</resilience4j.version>
         <micrometer.version>1.12.0</micrometer.version>
+        <!--
+            Note: The original log shows a 'notification-service' twice in the
+            reactor build order, and 'job-service' with version 0.11.5.
+            Please ensure unique artifactIds and correct versions for all services.
+            I've kept the module names as provided in your prompt, but be aware of duplicates.
+            The 'edge-functions' and 'job-services' modules seem to have slightly different
+            naming conventions (snake_case vs camelCase).
+            'AI Recommendation Service' is typically lowercase and hyphenated for artifactId.
+        -->
     </properties>
 
     <!-- ================================================================== -->
     <!-- Microservice Modules                                               -->
+    <!-- Defines the sub-modules (individual microservices) that are part   -->
+    <!-- of this multi-module project. Maven builds these modules in the    -->
+    <!-- order they are declared here.                                      -->
     <!-- ================================================================== -->
     <modules>
-        <module>service-registry</module>
+        <module>service-registry</module> <!--
+                                            First service to build,
+                                            as others often register with it.
+                                            -->
+        <module>auth-service</module> <!--
+                                            Moved before 'user-service'.
+                                            The 'user-service' depends on entities
+                                            (like RefreshToken) defined in 'auth-service'.
+                                            By building 'auth-service' first, its compiled
+                                            classes are available in the local Maven
+                                            repository for 'user-service' to use during
+                                            its own compilation.
+                                            -->
+        <module>user-service</module> <!--
+                                            Now builds after 'auth-service', so it can
+                                            find 'RefreshToken' and other shared types.
+                                            -->
         <module>api-gateway</module>
-        <module>user-service</module>
-        <module>auth-service</module>
         <module>opportunity-service</module>
         <module>content-service</module>
         <module>mentor-service</module>
         <module>ussd-service</module>
         <module>notification-service</module>
         <module>file-management-service</module>
-        <module>ai-recommendation-service</module>
+        <module>ai-recommendation-service</module> <!-- Consider standard artifactId: ai-recommendation-service -->
         <module>analytics-service</module>
-        <module>edge_functions</module>
-        <module>job-services</module>
+        <module>edge_functions</module> <!-- Consider standard artifactId: edge-functions -->
+        <module>job-services</module> <!-- Consider standard artifactId: job-service -->
     </modules>
 
     <!-- ================================================================== -->
     <!-- Centralized Dependency Management                                  -->
-    <!-- All child modules inherit these versions                           -->
+    <!-- This section specifies versions for dependencies. Child modules    -->
+    <!-- only need to declare the groupId and artifactId for these          -->
+    <!-- dependencies; the version will be inherited from here. This avoids -->
+    <!-- version conflicts and ensures consistency across services.         -->
     <!-- ================================================================== -->
     <dependencyManagement>
         <dependencies>
-            <!-- Spring Cloud Dependencies BOM -->
+            <!-- Spring Cloud Dependencies BOM (Bill Of Materials) -->
+            <!-- Imports the Spring Cloud BOM, which manages versions for all
+                 Spring Cloud related dependencies, ensuring compatibility. -->
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
                 <version>${spring-cloud.version}</version>
                 <type>pom</type>
-                <scope>import</scope>
+                <scope>import</scope> <!-- 'import' scope is used for BOMs -->
             </dependency>
 
             <!-- Database Driver -->
@@ -87,46 +150,79 @@
                 <version>${mysql.version}</version>
             </dependency>
 
-            <!-- Caching -->
+            <!-- Caching Library -->
             <dependency>
                 <groupId>com.github.ben-manes.caffeine</groupId>
                 <artifactId>caffeine</artifactId>
                 <version>${caffeine.version}</version>
             </dependency>
 
-            <!-- Rate Limiting -->
+            <!-- Rate Limiting Library -->
             <dependency>
                 <groupId>com.bucket4j</groupId>
                 <artifactId>bucket4j-core</artifactId>
                 <version>${bucket4j.version}</version>
             </dependency>
 
-            <!-- Lombok -->
+            <!-- Lombok for reducing boilerplate code -->
             <dependency>
                 <groupId>org.projectlombok</groupId>
                 <artifactId>lombok</artifactId>
                 <version>${lombok.version}</version>
-                <scope>provided</scope>
+                <scope>provided</scope> <!--
+                                          'provided' scope means it's available at
+                                          compile time but not bundled in the final artifact,
+                                          as the IDE or runtime environment provides it.
+                                        -->
             </dependency>
 
-            <!-- Testing -->
+            <!-- WireMock for API mocking in tests -->
             <dependency>
                 <groupId>com.github.tomakehurst</groupId>
                 <artifactId>wiremock-jre8</artifactId>
                 <version>${wiremock.version}</version>
-                <scope>test</scope>
+                <scope>test</scope> <!-- Only required for running tests -->
             </dependency>
+            <!-- Resilience4j and Micrometer dependencies can be added here
+                 if they are used across multiple services and you want to manage
+                 their versions centrally. For now, they are only in properties.
+                 Example:
+            <dependency>
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-spring-boot3</artifactId>
+                <version>${resilience4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.micrometer</groupId>
+                <artifactId>micrometer-core</artifactId>
+                <version>${micrometer.version}</version>
+            </dependency>
+            -->
         </dependencies>
     </dependencyManagement>
 
+    <!-- ================================================================== -->
+    <!-- Build Configuration                                                -->
+    <!-- Defines plugins and their configurations that apply to this parent -->
+    <!-- project and its child modules.                                     -->
+    <!-- ================================================================== -->
     <build>
-        <pluginManagement>
+        <pluginManagement> <!--
+                                Defines configurations for plugins that will be
+                                inherited by child modules, but child modules still
+                                need to declare the plugin if they want to use it.
+                             -->
             <plugins>
                 <plugin>
                     <groupId>org.springframework.boot</groupId>
                     <artifactId>spring-boot-maven-plugin</artifactId>
                     <configuration>
                         <excludes>
+                            <!--
+                                Excludes Lombok from being packaged inside the
+                                final Spring Boot executable JAR, as it's typically
+                                a compile-time and IDE dependency.
+                            -->
                             <exclude>
                                 <groupId>org.projectlombok</groupId>
                                 <artifactId>lombok</artifactId>
@@ -134,6 +230,7 @@
                         </excludes>
                     </configuration>
                 </plugin>
+                <!-- Add other common plugin configurations here if needed for all modules -->
             </plugins>
         </pluginManagement>
     </build>

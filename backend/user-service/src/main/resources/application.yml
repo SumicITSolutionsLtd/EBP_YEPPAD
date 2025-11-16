@@ -1,235 +1,345 @@
-# =================================================================================
-# Youth Connect Uganda - Auth Service Configuration (PostgreSQL)
-# Version: 2.0.0 - Compliant with Backend Guidelines
-# =================================================================================
+# ═════════════════════════════════════════════════════════════════════════════
+# USER SERVICE - Spring Boot Configuration (MERGED & REFINED)
+# ═════════════════════════════════════════════════════════════════════════════
+# File: user-service/src/main/resources/application.yml
+# Version: 3.0 (Merged - PostgreSQL Production Ready)
+# Last Updated: 2025-11-08
+#
+# PROFILE HIERARCHY:
+#   - default: Base configuration
+#   - dev: Development environment (local)
+#   - docker: Docker Compose environment
+#   - prod: Production environment (AWS/GCP/Azure)
+#
+# USAGE:
+#   Development: mvn spring-boot:run -Dspring-boot.run.profiles=dev
+#   Docker:      docker-compose up -d (SPRING_PROFILES_ACTIVE=docker in .env)
+#   Production:  java -jar app.jar --spring.profiles.active=prod
+# ═════════════════════════════════════════════════════════════════════════════
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SECTION 1: DEFAULT PROFILE (Base Configuration - All Environments)
+# ═════════════════════════════════════════════════════════════════════════════
 
 spring:
   application:
-    name: auth-service
+    name: user-service
 
-  # -----------------------------------------------------------------------------
-  # Database Configuration (PostgreSQL)
-  # -----------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database Configuration
+  # ---------------------------------------------------------------------------
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:youth_connect_db}
-    username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:postgres}
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/youthconnect_user?currentSchema=public # Changed DB_NAME to youthconnect_user
+    username: ${DB_USER:youthconnect_user} # Changed username
+    password: ${DB_PASSWORD:YouthConnect2024!} # Changed password
     driver-class-name: org.postgresql.Driver
-    hikari:
-      pool-name: AuthServiceHikariPool
-      maximum-pool-size: 20
-      minimum-idle: 5
-      idle-timeout: 300000
-      max-lifetime: 1800000
-      connection-timeout: 30000
-      leak-detection-threshold: 60000
 
-  # -----------------------------------------------------------------------------
-  # JPA / Hibernate (PostgreSQL)
-  # -----------------------------------------------------------------------------
+    # HikariCP Connection Pool (High-Performance)
+    hikari:
+      maximum-pool-size: ${DB_MAX_POOL_SIZE:20}
+      minimum-idle: ${DB_MIN_IDLE:5}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:30000}  # 30 seconds
+      idle-timeout: ${DB_IDLE_TIMEOUT:600000}             # 10 minutes
+      max-lifetime: ${DB_MAX_LIFETIME:1800000}            # 30 minutes
+      pool-name: UserServiceHikariPool
+      connection-test-query: SELECT 1
+      auto-commit: true
+      leak-detection-threshold: 60000                     # 60 seconds (detect connection leaks)
+
+  # ---------------------------------------------------------------------------
+  # JPA/Hibernate Configuration (PostgreSQL Optimized)
+  # ---------------------------------------------------------------------------
   jpa:
-    hibernate:
-      ddl-auto: validate
+    database: POSTGRESQL
     database-platform: org.hibernate.dialect.PostgreSQLDialect
-    show-sql: false
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}  # validate|update|create|none
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        implicit-strategy: org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy
+    show-sql: ${SPRING_JPA_SHOW_SQL:false}
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
+        use_sql_comments: false
         jdbc:
-          batch_size: 25
-          lob.non_contextual_creation: true
-        order_inserts: true
-        order_updates: true
-        generate_statistics: false
+          batch_size: 20                    # Batch inserts/updates
+          fetch_size: 50                    # Fetch size for queries
+        order_inserts: true                 # Order inserts for better performance
+        order_updates: true                 # Order updates for better performance
+        connection:
+          provider_disables_autocommit: false
+        cache:
+          use_second_level_cache: false     # Disable L2 cache (use Redis instead)
+          use_query_cache: false
 
-  # -----------------------------------------------------------------------------
-  # Flyway Database Migration (PostgreSQL)
-  # -----------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Flyway Database Migrations
+  # ---------------------------------------------------------------------------
   flyway:
     enabled: true
-    baseline-on-migrate: true
-    locations: classpath:db/migration/postgresql
-    validate-on-migrate: true
+    baseline-on-migrate: true               # Create baseline on first migration
+    validate-on-migrate: true               # Validate migrations before applying
+    out-of-order: false                     # Enforce strict ordering
+    locations: classpath:db/migration       # Migration scripts location
+    schemas: public
     baseline-version: 0
-    out-of-order: false
+    baseline-description: "Initial baseline"
+    encoding: UTF-8
+    placeholders:
+      schema: public
 
-  # -----------------------------------------------------------------------------
-  # Redis (Token Storage & Caching)
-  # -----------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Redis Cache Configuration
+  # ---------------------------------------------------------------------------
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
-      timeout: 3000ms
+      database: ${REDIS_DATABASE:0}
+      timeout: ${REDIS_TIMEOUT:2000}ms
       lettuce:
         pool:
-          max-active: 20
-          max-idle: 10
-          min-idle: 5
-          max-wait: 2000ms
+          max-active: ${REDIS_MAX_ACTIVE:20}
+          max-idle: ${REDIS_MAX_IDLE:10}
+          min-idle: ${REDIS_MIN_IDLE:5}
+          max-wait: -1ms
 
-# -----------------------------------------------------------------------------
-# Server Configuration
-# -----------------------------------------------------------------------------
-server:
-  port: ${SERVER_PORT:8083}
+  # ---------------------------------------------------------------------------
+  # Cache Configuration
+  # ---------------------------------------------------------------------------
+  cache:
+    type: ${CACHE_TYPE:redis}
+    redis:
+      time-to-live: ${CACHE_REDIS_TIME_TO_LIVE:3600000}ms  # 1 hour default TTL
+      cache-null-values: false                              # Don't cache null values
+      use-key-prefix: true                                  # Prefix keys with cache name
+    cache-names:
+      - userProfiles        # User profile cache
+      - authData            # Authentication data cache
+      - opportunities       # Opportunity listings cache
+      - searchResults       # Search results cache
+
+  # ---------------------------------------------------------------------------
+  # File Upload Configuration
+  # ---------------------------------------------------------------------------
   servlet:
-    context-path: /api/v1/auth
+    multipart:
+      enabled: ${SPRING_SERVLET_MULTIPART_ENABLED:true}
+      max-file-size: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:50MB}
+      max-request-size: ${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:50MB}
+      file-size-threshold: ${SPRING_SERVLET_MULTIPART_FILE_SIZE_THRESHOLD:2KB}
+      location: ${java.io.tmpdir}
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SECTION 2: SERVER CONFIGURATION
+# ═════════════════════════════════════════════════════════════════════════════
+
+server:
+  port: ${SERVER_PORT:8081}
   compression:
     enabled: true
-    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+    min-response-size: 1024
+  http2:
+    enabled: true
   error:
     include-message: always
     include-binding-errors: always
     include-stacktrace: on_param
+    include-exception: false
 
-# -----------------------------------------------------------------------------
-# JWT Security Configuration
-# -----------------------------------------------------------------------------
-jwt:
-  secret: ${JWT_SECRET:aVeryLongAndSecureSecretKeyForYouthConnectUgandaWith256BitsMinimumRequired}
-  expiration: ${JWT_EXPIRATION:3600000}        # 1 hour
-  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000} # 7 days
-  issuer: youth-connect-auth-service
-  audience: youth-connect-platform
+# ═════════════════════════════════════════════════════════════════════════════
+# SECTION 3: EUREKA SERVICE DISCOVERY
+# ═════════════════════════════════════════════════════════════════════════════
 
-# -----------------------------------------------------------------------------
-# Eureka Service Discovery
-# -----------------------------------------------------------------------------
 eureka:
   client:
-    enabled: true
-    register-with-eureka: true
-    fetch-registry: true
+    enabled: ${EUREKA_ENABLED:true} # Changed default to true
+    register-with-eureka: ${EUREKA_ENABLED:true} # Changed default to true
+    fetch-registry: ${EUREKA_ENABLED:true} # Changed default to true
     service-url:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
     registry-fetch-interval-seconds: 30
   instance:
-    prefer-ip-address: true
+    hostname: ${EUREKA_HOSTNAME:localhost}
+    prefer-ip-address: ${EUREKA_INSTANCE_PREFER_IP_ADDRESS:true}
     instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
-    lease-renewal-interval-in-seconds: 30
-    lease-expiration-duration-in-seconds: 90
+    lease-renewal-interval-in-seconds: ${EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL:30}
+    lease-expiration-duration-in-seconds: ${EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION:90}
     metadata-map:
-      version: 2.0.0
-      environment: ${SPRING_PROFILES_ACTIVE:development}
-      management-port: ${management.server.port:8083}
+      version: ${APP_VERSION:1.0.0}
+      profile: ${spring.profiles.active:default}
+      management-port: ${management.server.port:8081}
 
-# -----------------------------------------------------------------------------
-# Feign Clients Configuration
-# -----------------------------------------------------------------------------
-feign:
-  client:
-    config:
-      default:
-        connectTimeout: 10000
-        readTimeout: 15000
-        loggerLevel: basic
-  circuitbreaker:
-    enabled: true
-    alphanumeric-ids:
-      enabled: true
+# ═════════════════════════════════════════════════════════════════════════════
+# SECTION 4: SPRING BOOT ACTUATOR (Health Checks & Metrics)
+# ═════════════════════════════════════════════════════════════════════════════
 
-# -----------------------------------------------------------------------------
-# Resilience4j Circuit Breaker & Retry
-# -----------------------------------------------------------------------------
-resilience4j:
-  circuitbreaker:
-    instances:
-      userService:
-        registerHealthIndicator: true
-        slidingWindowType: COUNT_BASED
-        slidingWindowSize: 10
-        minimumNumberOfCalls: 5
-        permittedNumberOfCallsInHalfOpenState: 3
-        automaticTransitionFromOpenToHalfOpenEnabled: true
-        waitDurationInOpenState: 15s
-        failureRateThreshold: 50
-        slowCallRateThreshold: 50
-        slowCallDurationThreshold: 3s
-      notificationService:
-        registerHealthIndicator: true
-        slidingWindowSize: 10
-        minimumNumberOfCalls: 5
-        permittedNumberOfCallsInHalfOpenState: 3
-        waitDurationInOpenState: 20s
-        failureRateThreshold: 60
-  retry:
-    instances:
-      userService:
-        maxAttempts: 3
-        waitDuration: 1000ms
-        enableExponentialBackoff: true
-        exponentialBackoffMultiplier: 2
-        retryExceptions:
-          - org.springframework.web.client.ResourceAccessException
-          - java.io.IOException
-      notificationService:
-        maxAttempts: 2
-        waitDuration: 2000ms
-
-# -----------------------------------------------------------------------------
-# Pagination Configuration
-# -----------------------------------------------------------------------------
-app:
-  pagination:
-    default-page-size: 20
-    max-page-size: 100
-
-# -----------------------------------------------------------------------------
-# Rate Limiting Configuration
-# -----------------------------------------------------------------------------
-rate-limit:
-  login:
-    capacity: 5
-    refill-tokens: 5
-    refill-duration: 60
-  register:
-    capacity: 3
-    refill-tokens: 3
-    refill-duration: 300
-  password-reset:
-    capacity: 2
-    refill-tokens: 2
-    refill-duration: 600
-  token-refresh:
-    capacity: 10
-    refill-tokens: 10
-    refill-duration: 60
-
-# -----------------------------------------------------------------------------
-# Actuator & Monitoring
-# -----------------------------------------------------------------------------
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus,env
+        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health,info,metrics,prometheus}
       base-path: /actuator
+      path-mapping:
+        health: health
+        prometheus: prometheus
+
   endpoint:
     health:
-      show-details: when-authorized
+      show-details: ${MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS:always} # Changed default to always
       probes:
         enabled: true
+      group:
+        readiness:
+          include: readinessState,db,redis
+        liveness:
+          include: livenessState,ping
+
   health:
+    diskspace:
+      enabled: ${MANAGEMENT_HEALTH_DISKSPACE_ENABLED:true}
+      threshold: 10MB
+    db:
+      enabled: ${MANAGEMENT_HEALTH_DB_ENABLED:true}
+    redis:
+      enabled: ${MANAGEMENT_HEALTH_REDIS_ENABLED:true}
     livenessstate:
       enabled: true
     readinessstate:
       enabled: true
+
   metrics:
     export:
       prometheus:
-        enabled: true
-    tags:
-      application: ${spring.application.name}
-      environment: ${SPRING_PROFILES_ACTIVE:development}
+        enabled: ${MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED:true}
     distribution:
       percentiles-histogram:
         http.server.requests: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${APP_ENV:dev}
 
-# -----------------------------------------------------------------------------
-# OpenAPI / Swagger Configuration
-# -----------------------------------------------------------------------------
+# ═════════════════════════════════════════════════════════════════════════════
+# SECTION 5: LOGGING CONFIGURATION
+# ═════════════════════════════════════════════════════════════════════════════
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.youthconnect.user_service: ${LOG_LEVEL_APP:DEBUG} # Changed package name
+    org.springframework.web: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK:INFO}
+    org.springframework.security: INFO
+    org.springframework.cloud: INFO
+    org.hibernate.SQL: ${SPRING_JPA_SHOW_SQL:false}
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+  file:
+    path: ${LOG_PATH:./logs}
+    name: ${LOG_PATH:./logs}/user-service.log
+    max-size: ${LOG_FILE_MAX_SIZE:10MB}
+    max-history: ${LOG_FILE_MAX_HISTORY:30}
+    total-size-cap: 1GB
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SECTION 6: SECURITY CONFIGURATION
+# ═════════════════════════════════════════════════════════════════════════════
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:aVeryLongAndSecureSecretKeyForYouthConnectUgandaHackathonProjectWith256BitsMinimum} # Retained original secret
+    issuer: ${JWT_ISSUER:youthconnect-platform} # Changed issuer
+    audience: ${JWT_AUDIENCE:youthconnect-users} # Changed audience
+    access-token-expiry: ${JWT_ACCESS_TOKEN_EXPIRY:900000}      # 15 minutes
+    refresh-token-expiry: ${JWT_REFRESH_TOKEN_EXPIRY:604800} # 7 days
+
+  internal:
+    api-key: ${INTERNAL_API_KEY:internal-secret-key}
+
+  account-lockout:
+    enabled: ${SECURITY_ACCOUNT_LOCKOUT_ENABLED:true}
+    max-attempts: ${SECURITY_ACCOUNT_LOCKOUT_ATTEMPTS:5}
+    duration: ${SECURITY_ACCOUNT_LOCKOUT_DURATION:1800}  # 30 minutes
+
+  password-policy:
+    min-length: ${SECURITY_PASSWORD_MIN_LENGTH:8}
+    require-uppercase: ${SECURITY_PASSWORD_REQUIRE_UPPERCASE:true}
+    require-lowercase: ${SECURITY_PASSWORD_REQUIRE_LOWERCASE:true}
+    require-digit: ${SECURITY_PASSWORD_REQUIRE_DIGIT:true}
+    require-special: ${SECURITY_PASSWORD_REQUIRE_SPECIAL:true}
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SECTION 7: CORS CONFIGURATION
+# ═════════════════════════════════════════════════════════════════════════════
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001}
+  allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,PATCH,OPTIONS}
+  allowed-headers: ${CORS_ALLOWED_HEADERS:*}
+  allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
+  max-age: ${CORS_MAX_AGE:3600}
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SECTION 8: RATE LIMITING
+# ═════════════════════════════════════════════════════════════════════════════
+
+rate-limit:
+  enabled: ${RATE_LIMIT_ENABLED:true}
+  requests: ${RATE_LIMIT_REQUESTS:100}
+  duration: ${RATE_LIMIT_DURATION:60}  # seconds
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SECTION 9: APPLICATION-SPECIFIC CONFIGURATION (CONSOLIDATED)
+# ═════════════════════════════════════════════════════════════════════════════
+
+app:
+  # Application Metadata
+  name: YouthConnect Uganda - User Service
+  version: ${APP_VERSION:1.0.0}
+  environment: ${APP_ENVIRONMENT:dev}
+
+  # Pagination Settings
+  pagination:
+    default-page-size: 20
+    max-page-size: 100
+
+  # File Upload Settings
+  upload:
+    dir: ${APP_UPLOAD_DIR:/app/uploads}
+    max-size: ${FILE_MAX_SIZE:52428800}  # 50MB
+    allowed-types: ${FILE_ALLOWED_TYPES:image/jpeg,image/png,image/gif,application/pdf}
+    virus-scan-enabled: false  # Enable in production
+
+  # Storage Configuration
+  storage:
+    type: ${STORAGE_TYPE:local}  # local | s3
+    path: ${STORAGE_PATH:/app/uploads}
+
+  # AWS S3 Configuration (if storage.type=s3)
+  aws:
+    s3:
+      bucket: ${AWS_S3_BUCKET:youthconnect-uploads} # Changed bucket name
+      region: ${AWS_REGION:us-east-1}
+      access-key: ${AWS_ACCESS_KEY_ID:}
+      secret-key: ${AWS_SECRET_ACCESS_KEY:}
+      cloudfront-url: ${AWS_CLOUDFRONT_URL:}
+
+  # Cache Settings
+  cache:
+    ttl: 3600  # 1 hour in seconds
+    max-entries: 10000
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SECTION 10: OPENAPI/SWAGGER DOCUMENTATION
+# ═════════════════════════════════════════════════════════════════════════════
+
 springdoc:
   api-docs:
     path: /api-docs
@@ -243,75 +353,17 @@ springdoc:
     doc-expansion: none
     filter: true
   show-actuator: true
-  packages-to-scan: com.youthconnect.auth_service.controller
+  packages-to-scan: com.youthconnect.user_service.controller # Changed package name
 
-# -----------------------------------------------------------------------------
-# Application-Specific Configuration
-# -----------------------------------------------------------------------------
-app:
-  name: Youth Connect Uganda Auth Service
-  version: 2.0.0
-  environment: ${SPRING_PROFILES_ACTIVE:development}
-
-  security:
-    allowed-origins:
-      - http://localhost:3000
-      - http://localhost:3001
-      - https://youthconnect.ug
-      - https://www.youthconnect.ug
-
-    password:
-      min-length: 8
-      require-uppercase: true
-      require-lowercase: true
-      require-digit: true
-      require-special-char: true
-      max-attempts: 5
-      lockout-duration-minutes: 30
-
-  token:
-    blacklist-cleanup-cron: "0 0 2 * * ?"
-    max-refresh-count: 10
-    access-token-validity-seconds: 3600
-    refresh-token-validity-seconds: 604800
-
-  ussd:
-    session-timeout-minutes: 5
-    default-language: en
-
-  password-reset:
-    token-expiry-minutes: 15
-    max-attempts: 3
-
-# -----------------------------------------------------------------------------
-# Logging Configuration
-# -----------------------------------------------------------------------------
-logging:
-  level:
-    root: INFO
-    com.youthconnect.auth_service: DEBUG
-    org.springframework.security: INFO
-    org.springframework.web: INFO
-    org.springframework.cloud: INFO
-    org.hibernate.SQL: WARN
-    org.hibernate.type.descriptor.sql.BasicBinder: WARN
-    io.github.resilience4j: INFO
-    feign: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-  file:
-    name: logs/auth-service.log
-    max-size: 10MB
-    max-history: 30
-    total-size-cap: 1GB
-
-# =================================================================================
-# Profile-Specific Configurations
-# =================================================================================
+# ═════════════════════════════════════════════════════════════════════════════
+# SECTION 11: PROFILE-SPECIFIC CONFIGURATIONS
+# ═════════════════════════════════════════════════════════════════════════════
 
 ---
-# Development Profile
+# ═════════════════════════════════════════════════════════════════════════════
+# DEV PROFILE (Local Development)
+# ═════════════════════════════════════════════════════════════════════════════
+
 spring:
   config:
     activate:
@@ -319,76 +371,112 @@ spring:
 
   jpa:
     show-sql: true
+    hibernate:
+      ddl-auto: update  # Auto-update schema in development
     properties:
       hibernate:
         format_sql: true
-        generate_statistics: true
+        use_sql_comments: true
+
+eureka:
+  client:
+    enabled: false  # Disable Eureka in local development
 
 logging:
   level:
-    root: DEBUG
-    com.youthconnect.auth_service: DEBUG
+    root: INFO
+    com.youthconnect.user_service: DEBUG # Changed package name
     org.springframework.web: DEBUG
-    org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  upload:
+    dir: ./uploads  # Local directory
+    virus-scan-enabled: false
+  cache:
+    ttl: 60  # Short TTL for dev (1 minute)
 
 ---
-# Production Profile
+# ═════════════════════════════════════════════════════════════════════════════
+# DOCKER PROFILE (Docker Compose)
+# ═════════════════════════════════════════════════════════════════════════════
+
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+eureka:
+  client:
+    enabled: ${EUREKA_ENABLED:true}
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: ${EUREKA_URL:http://service-registry:8761/eureka/}
+
+logging:
+  level:
+    root: INFO
+    com.youthconnect.user_service: DEBUG # Changed package name
+
+app:
+  upload:
+    dir: /app/uploads  # Docker volume mount
+
+---
+# ═════════════════════════════════════════════════════════════════════════════
+# PROD PROFILE (Production)
+# ═════════════════════════════════════════════════════════════════════════════
+
 spring:
   config:
     activate:
       on-profile: prod
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?ssl=true&sslmode=require
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/youthconnect_user?ssl=true&sslmode=require # Changed DB_NAME
     hikari:
       maximum-pool-size: 30
       minimum-idle: 10
-      connection-timeout: 30000
 
   jpa:
     show-sql: false
+    hibernate:
+      ddl-auto: validate  # Never auto-update in production
     properties:
       hibernate:
         format_sql: false
+        use_sql_comments: false
         generate_statistics: false
 
 logging:
   level:
     root: WARN
-    com.youthconnect.auth_service: INFO
+    com.youthconnect.user_service: INFO # Changed package name
     org.springframework.web: WARN
-    org.springframework.security: WARN
-  file:
-    name: /var/log/auth-service/application.log
 
 management:
   endpoint:
     health:
-      show-details: never
+      show-details: when_authorized
 
----
-# Docker Profile
-spring:
-  config:
-    activate:
-      on-profile: docker
+app:
+  upload:
+    dir: ${APP_UPLOAD_DIR:/var/youthconnect/uploads} # Changed upload directory
+    virus-scan-enabled: true  # Enable virus scanning in production
+  cache:
+    ttl: 7200  # 2 hours
+    max-entries: 5000
 
-  datasource:
-    url: jdbc:postgresql://postgres:5432/youth_connect_db
-    username: postgres
-    password: postgres
+security:
+  account-lockout:
+    enabled: true
 
-  data:
-    redis:
-      host: redis
-      port: 6379
-
-eureka:
-  client:
-    service-url:
-      defaultZone: http://service-registry:8761/eureka/
-  instance:
-    prefer-ip-address: true
-    hostname: auth-service
+# ═════════════════════════════════════════════════════════════════════════════
+# END OF CONFIGURATION
+# ═════════════════════════════════════════════════════════════════════════════

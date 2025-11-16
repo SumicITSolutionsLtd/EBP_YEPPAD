@@ -5,14 +5,18 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.UUID;
 
 /**
  * ============================================================================
- * MENTOR NOT AVAILABLE EXCEPTION
+ * MENTOR NOT AVAILABLE EXCEPTION (UUID VERSION)
  * ============================================================================
  *
  * Exception thrown when attempting to book a session with a mentor
  * who is not available at the requested time.
+ *
+ * UPDATED TO USE UUID:
+ * - All ID parameters now use UUID instead of Long
  *
  * USAGE SCENARIOS:
  * - Mentor has no availability slot for the requested day/time
@@ -25,8 +29,8 @@ import java.time.format.DateTimeFormatter;
  * - Error Message: Details about why mentor is unavailable
  *
  * @author Douglas Kings Kato
- * @version 1.0.0
- * @since 2025-01-22
+ * @version 2.0.0 (UUID Support)
+ * @since 2025-11-06
  * ============================================================================
  */
 @ResponseStatus(HttpStatus.CONFLICT)
@@ -36,29 +40,29 @@ public class MentorNotAvailableException extends RuntimeException {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     /**
-     * Constructor with mentor ID and requested time
+     * Constructor with mentor UUID and requested time
      *
-     * @param mentorId      The mentor's user ID
+     * @param mentorId      The mentor's user UUID
      * @param requestedTime The requested session date/time
      */
-    public MentorNotAvailableException(Long mentorId, LocalDateTime requestedTime) {
+    public MentorNotAvailableException(UUID mentorId, LocalDateTime requestedTime) {
         super(String.format(
-                "Mentor with ID %d is not available on %s. " +
+                "Mentor with ID %s is not available on %s. " +
                         "Please check their availability schedule and try a different time.",
                 mentorId, requestedTime.format(FORMATTER)
         ));
     }
 
     /**
-     * Constructor with mentor ID, requested time, and specific reason
+     * Constructor with mentor UUID, requested time, and specific reason
      *
-     * @param mentorId      The mentor's user ID
+     * @param mentorId      The mentor's user UUID
      * @param requestedTime The requested session date/time
      * @param reason        Specific reason for unavailability
      */
-    public MentorNotAvailableException(Long mentorId, LocalDateTime requestedTime, String reason) {
+    public MentorNotAvailableException(UUID mentorId, LocalDateTime requestedTime, String reason) {
         super(String.format(
-                "Mentor with ID %d is not available on %s. Reason: %s",
+                "Mentor with ID %s is not available on %s. Reason: %s",
                 mentorId, requestedTime.format(FORMATTER), reason
         ));
     }
@@ -85,17 +89,17 @@ public class MentorNotAvailableException extends RuntimeException {
     /**
      * Constructor for conflicting session scenario
      *
-     * @param mentorId        The mentor's user ID
+     * @param mentorId        The mentor's user UUID
      * @param requestedTime   The requested session time
-     * @param conflictingSessionId The ID of the conflicting session
+     * @param conflictingSessionId The UUID of the conflicting session
      */
     public static MentorNotAvailableException dueToConflict(
-            Long mentorId,
+            UUID mentorId,
             LocalDateTime requestedTime,
-            Long conflictingSessionId
+            UUID conflictingSessionId
     ) {
         return new MentorNotAvailableException(String.format(
-                "Mentor with ID %d already has a session scheduled at %s (Session ID: %d). " +
+                "Mentor with ID %s already has a session scheduled at %s (Session ID: %s). " +
                         "Please choose a different time slot.",
                 mentorId, requestedTime.format(FORMATTER), conflictingSessionId
         ));
@@ -104,12 +108,12 @@ public class MentorNotAvailableException extends RuntimeException {
     /**
      * Constructor for mentor status scenario
      *
-     * @param mentorId The mentor's user ID
+     * @param mentorId The mentor's user UUID
      * @param status   The mentor's current status (BUSY, ON_LEAVE, etc.)
      */
-    public static MentorNotAvailableException dueToStatus(Long mentorId, String status) {
+    public static MentorNotAvailableException dueToStatus(UUID mentorId, String status) {
         return new MentorNotAvailableException(String.format(
-                "Mentor with ID %d is currently %s and not accepting new session requests.",
+                "Mentor with ID %s is currently %s and not accepting new session requests.",
                 mentorId, status
         ));
     }

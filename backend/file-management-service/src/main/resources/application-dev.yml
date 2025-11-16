@@ -1,26 +1,49 @@
-# Development Profile Configuration
+# ═══════════════════════════════════════════════════════════════════════════
+# application-dev.yml - Development Profile
+# ═══════════════════════════════════════════════════════════════════════════
+
 spring:
   config:
     activate:
       on-profile: dev
 
+  # Development database (local PostgreSQL)
   datasource:
-    url: jdbc:mysql://localhost:3307/epb_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-    username: root
-    password: root
+    url: jdbc:postgresql://localhost:5432/epb_file_dev?currentSchema=public&stringtype=unspecified
+    username: postgres
+    password: postgres
 
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      leak-detection-threshold: 30000  # 30s - aggressive leak detection in dev
+
+  # JPA in development
   jpa:
-    show-sql: true
+    show-sql: true                    # Show SQL in console
     hibernate:
-      ddl-auto: update  # Auto-create tables in dev
+      ddl-auto: update                # Auto-create/update tables (dev only!)
+    properties:
+      hibernate:
+        format_sql: true              # Pretty-print SQL
+        generate_statistics: true     # Show query statistics
 
+# File storage in development
 app:
   file:
     storage:
       path: uploads/dev/
       base-url: http://localhost:8089
 
+# Eureka in development
+eureka:
+  client:
+    registry-fetch-interval-seconds: 10
+
+# Logging in development
 logging:
   level:
     root: DEBUG
     com.youthconnect.file.service: TRACE
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql: TRACE

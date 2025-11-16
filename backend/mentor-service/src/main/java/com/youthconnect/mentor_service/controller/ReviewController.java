@@ -6,10 +6,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util.UUID;
 
 /**
  * ============================================================================
@@ -19,8 +22,7 @@ import java.util.List;
  * REST controller for review and rating management.
  *
  * @author Douglas Kings Kato
- * @version 1.0.0
- * @since 2025-01-22
+ * @since 2025-11-07
  * ============================================================================
  */
 @RestController
@@ -33,16 +35,21 @@ public class ReviewController {
     private final ReviewService reviewService;
 
     /**
-     * Get all reviews for a mentor
+     * Get all reviews for a mentor (PAGINATED)
      */
     @GetMapping("/{mentorId}/reviews")
     @Operation(summary = "Get mentor reviews",
-            description = "Retrieve all approved reviews for a mentor")
-    public ResponseEntity<List<Review>> getMentorReviews(
-            @PathVariable Long mentorId
+            description = "Retrieve all approved reviews for a mentor (paginated)")
+    public ResponseEntity<Page<Review>> getMentorReviews(
+            @PathVariable UUID mentorId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
     ) {
-        log.debug("Fetching reviews for mentor: {}", mentorId);
-        List<Review> reviews = reviewService.getMentorReviews(mentorId);
+        log.debug("Fetching reviews for mentor: {} (page: {}, size: {})", mentorId, page, size);
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Review> reviews = reviewService.getMentorReviews(mentorId, pageable);
+
         return ResponseEntity.ok(reviews);
     }
 
@@ -52,7 +59,7 @@ public class ReviewController {
     @GetMapping("/reviews/{reviewId}")
     @Operation(summary = "Get review details")
     public ResponseEntity<Review> getReview(
-            @PathVariable Long reviewId
+            @PathVariable UUID reviewId
     ) {
         log.debug("Fetching review: {}", reviewId);
         Review review = reviewService.getReview(reviewId);

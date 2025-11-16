@@ -3,22 +3,29 @@ package com.youthconnect.mentor_service.client;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * ============================================================================
- * USER SERVICE FALLBACK
+ * USER SERVICE FALLBACK (FIXED - UUID COMPLIANT)
  * ============================================================================
  *
  * Fallback implementation for UserServiceClient.
  * Provides minimal user data when user-service is unavailable.
  *
+ * FIXED ISSUES:
+ * ✅ All method signatures now match interface (UUID parameters)
+ * ✅ Removed hasRole method (incompatible signature)
+ * ✅ Proper @Override annotations
+ *
+ * STRATEGY:
+ * - Log failure to monitoring system
+ * - Don't block user operations
+ * - Return minimal fallback data
+ *
  * @author Douglas Kings Kato
- * @version 1.0.0
- * @since 2025-01-21
+ * @version 2.0.0 (UUID Compliance Fix)
+ * @since 2025-11-07
  * ============================================================================
  */
 @Component
@@ -26,38 +33,34 @@ import java.util.Map;
 public class UserServiceClientFallback implements UserServiceClient {
 
     @Override
-    public Map<String, Object> getUserProfile(Long userId) {
+    public Map<String, Object> getUserProfile(UUID userId) {
         log.error("Failed to fetch user profile for userId: {}", userId);
         Map<String, Object> fallbackProfile = new HashMap<>();
-        fallbackProfile.put("userId", userId);
+        fallbackProfile.put("userId", userId.toString());
         fallbackProfile.put("error", "User service unavailable");
+        fallbackProfile.put("fallback", true);
         return fallbackProfile;
     }
 
     @Override
-    public Map<String, Object> getMentorProfile(Long mentorId) {
+    public Map<String, Object> getMentorProfile(UUID mentorId) {
         log.error("Failed to fetch mentor profile for mentorId: {}", mentorId);
         return getUserProfile(mentorId);
     }
 
     @Override
-    public Map<String, Object> getYouthProfile(Long menteeId) {
+    public Map<String, Object> getYouthProfile(UUID menteeId) {
         log.error("Failed to fetch youth profile for menteeId: {}", menteeId);
         return getUserProfile(menteeId);
     }
 
     @Override
-    public Boolean hasRole(Long userId, String role) {
-        log.error("Failed to validate role for userId: {}, role: {}", userId, role);
-        return false; // Fail closed for security
-    }
-
-    @Override
-    public Map<String, Object> getUserPreferences(Long userId) {
+    public Map<String, Object> getUserPreferences(UUID userId) {
         log.error("Failed to fetch preferences for userId: {}", userId);
         Map<String, Object> defaultPrefs = new HashMap<>();
         defaultPrefs.put("language", "en");
         defaultPrefs.put("timezone", "Africa/Kampala");
+        defaultPrefs.put("fallback", true);
         return defaultPrefs;
     }
 
@@ -68,9 +71,9 @@ public class UserServiceClientFallback implements UserServiceClient {
     }
 
     @Override
-    public String getUserFullName(Long userId) {
+    public String getUserFullName(UUID userId) {
         log.error("Failed to fetch name for userId: {}", userId);
-        return "User " + userId;
+        return "User " + userId.toString().substring(0, 8);
     }
 
     @Override

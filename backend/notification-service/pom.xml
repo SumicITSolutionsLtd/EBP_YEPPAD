@@ -124,14 +124,20 @@
 		</dependency>
 
 		<!-- ═════════════════════════════════════════════════════════════════
-             DATABASE
+             DATABASE - PostgreSQL (CHANGED FROM MySQL)
              ═════════════════════════════════════════════════════════════════ -->
 
-		<!-- MySQL Driver -->
+		<!-- PostgreSQL Driver -->
 		<dependency>
-			<groupId>com.mysql</groupId>
-			<artifactId>mysql-connector-j</artifactId>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
+		</dependency>
+
+		<!-- Flyway Database Migrations -->
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
 		</dependency>
 
 		<!-- ═════════════════════════════════════════════════════════════════
@@ -143,6 +149,13 @@
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
 			<optional>true</optional>
+		</dependency>
+
+		<!-- UUID Generator for Primary Keys -->
+		<dependency>
+			<groupId>com.fasterxml.uuid</groupId>
+			<artifactId>java-uuid-generator</artifactId>
+			<version>4.3.0</version>
 		</dependency>
 
 		<!-- ═════════════════════════════════════════════════════════════════

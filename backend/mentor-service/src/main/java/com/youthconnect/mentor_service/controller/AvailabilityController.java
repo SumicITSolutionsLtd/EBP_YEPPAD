@@ -2,7 +2,6 @@ package com.youthconnect.mentor_service.controller;
 
 import com.youthconnect.mentor_service.dto.request.AvailabilityRequest;
 import com.youthconnect.mentor_service.dto.response.AvailabilityDto;
-import com.youthconnect.mentor_service.entity.MentorAvailability;
 import com.youthconnect.mentor_service.service.AvailabilityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * ============================================================================
@@ -24,8 +24,7 @@ import java.util.List;
  * REST controller for managing mentor availability schedules.
  *
  * @author Douglas Kings Kato
- * @version 1.0.0
- * @since 2025-01-22
+ * @since 2025-11-07
  * ============================================================================
  */
 @RestController
@@ -44,7 +43,7 @@ public class AvailabilityController {
     @Operation(summary = "Get mentor availability",
             description = "Retrieve weekly availability schedule for a mentor")
     public ResponseEntity<List<AvailabilityDto>> getMentorAvailability(
-            @PathVariable Long mentorId
+            @PathVariable UUID mentorId
     ) {
         log.info("Fetching availability for mentor: {}", mentorId);
         List<AvailabilityDto> availability = availabilityService.getMentorAvailability(mentorId);
@@ -59,7 +58,7 @@ public class AvailabilityController {
     @Operation(summary = "Set mentor availability",
             description = "Set weekly availability schedule (mentor only)")
     public ResponseEntity<List<AvailabilityDto>> setAvailability(
-            @PathVariable Long mentorId,
+            @PathVariable UUID mentorId,
             @Valid @RequestBody List<AvailabilityRequest> availabilityRequests
     ) {
         log.info("Setting availability for mentor: {}", mentorId);
@@ -74,9 +73,9 @@ public class AvailabilityController {
     @PreAuthorize("hasRole('MENTOR')")
     @Operation(summary = "Update availability slot")
     public ResponseEntity<AvailabilityDto> updateAvailability(
-            @PathVariable Long availabilityId,
+            @PathVariable UUID availabilityId,
             @Valid @RequestBody AvailabilityRequest request,
-            @RequestHeader("X-User-Id") Long userId
+            @RequestHeader("X-User-Id") UUID userId
     ) {
         log.info("Updating availability: {}", availabilityId);
         AvailabilityDto updated = availabilityService.updateAvailability(availabilityId, request, userId);
@@ -84,14 +83,13 @@ public class AvailabilityController {
     }
 
     /**
-     * Delete availability slot
-     */
+     * Delete availability slot */
     @DeleteMapping("/availability/{availabilityId}")
     @PreAuthorize("hasRole('MENTOR')")
     @Operation(summary = "Delete availability slot")
     public ResponseEntity<Void> deleteAvailability(
-            @PathVariable Long availabilityId,
-            @RequestHeader("X-User-Id") Long userId
+            @PathVariable UUID availabilityId,
+            @RequestHeader("X-User-Id") UUID userId
     ) {
         log.info("Deleting availability: {}", availabilityId);
         availabilityService.deleteAvailability(availabilityId, userId);

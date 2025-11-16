@@ -1,17 +1,25 @@
 # ================================================================================
 # Service Registry (Eureka Server) - Development Configuration
+# ✅ FIXED: Added Spring Security credentials that match API Gateway
 # ================================================================================
 
 spring:
   application:
     name: service-registry
 
+  # ✅ CRITICAL: Spring Security credentials for Eureka authentication
+  # These MUST match the credentials used by API Gateway and other services
+  security:
+    user:
+      name: ${EUREKA_USERNAME:admin}        # Must match EUREKA_USERNAME in .env
+      password: ${EUREKA_PASSWORD:changeme} # Must match EUREKA_PASSWORD in .env
+
   # Banner configuration
   banner:
     location: classpath:banner.txt
 
 server:
-  port: 8761
+  port: ${SERVER_PORT:8761}
   compression:
     enabled: true
     mime-types: text/html,text/xml,text/plain,application/json
@@ -25,21 +33,21 @@ server:
 # ================================================================================
 eureka:
   instance:
-    hostname: localhost
+    hostname: ${HOSTNAME:localhost}
     prefer-ip-address: false
     lease-renewal-interval-in-seconds: 10
     lease-expiration-duration-in-seconds: 30
 
   client:
-    # Standalone mode - don't register with itself
+    # ✅ Standalone mode - don't register with itself
     register-with-eureka: false
     fetch-registry: false
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: http://${HOSTNAME:localhost}:${SERVER_PORT:8761}/eureka/
     registry-fetch-interval-seconds: 5
 
   server:
-    # Development settings - disable self-preservation
+    # Development settings - disable self-preservation for faster testing
     enable-self-preservation: false
     eviction-interval-timer-in-ms: 5000
 
@@ -51,7 +59,7 @@ eureka:
     peer-eureka-nodes-update-interval-ms: 10000
     peer-eureka-status-refresh-time-interval-ms: 10000
 
-    # Rate limiting (prevent abuse)
+    # ✅ Rate limiting (prevent abuse)
     rate-limiter-enabled: true
     rate-limiter-burst-size: 100
     rate-limiter-registry-fetch-average-rate: 500

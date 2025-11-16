@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalTime;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -58,7 +59,7 @@ public class NotificationPreferences {
      * User ID (foreign key to users table).
      */
     @NotNull(message = "User ID is required")
-    private Long userId;
+    private UUID userId;
 
     // ═══════════════════════════════════════════════════════════════════════
     // CHANNEL PREFERENCES

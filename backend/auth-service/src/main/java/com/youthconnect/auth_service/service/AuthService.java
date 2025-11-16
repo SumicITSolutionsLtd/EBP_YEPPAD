@@ -4,14 +4,14 @@ import com.youthconnect.auth_service.client.NotificationServiceClient;
 import com.youthconnect.auth_service.client.UserServiceClient;
 import com.youthconnect.auth_service.dto.request.LoginRequest;
 import com.youthconnect.auth_service.dto.request.RegisterRequest;
-import com.youthconnect.auth_service.dto.request.UssdLoginRequest;
+import com.youthconnect.auth_service.dto.request.UssdLoginRequest; // Ensure this import is correct
 import com.youthconnect.auth_service.dto.response.ApiResponse;
 import com.youthconnect.auth_service.dto.response.AuthResponse;
 import com.youthconnect.auth_service.dto.response.UserInfoResponse;
 import com.youthconnect.auth_service.entity.RefreshToken;
 import com.youthconnect.auth_service.exception.InvalidCredentialsException;
 import com.youthconnect.auth_service.exception.UserNotFoundException;
-import com.youthconnect.auth_service.repository.RefreshTokenRepository;
+import com.youthconnect.auth_service.repository.RefreshTokenRepository; // Ensure this import is correct
 import com.youthconnect.auth_service.util.JwtUtil;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
@@ -285,10 +285,25 @@ public class AuthService {
         }
     }
 
-    // =========================================================================
+    // ═══════════════════════════════════════════════════════════════════════════
     // HELPER METHODS
-    // =========================================================================
-    private String generateAndSaveRefreshToken(UUID userId, String email, String role) {
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Generate and Save Refresh Token
+     *
+     * ✅ FIXED: Changed from private to public for OAuth2Service access
+     *
+     * Creates a new refresh token and persists it in the database.
+     * This method is now public to allow OAuth2Service to generate tokens
+     * after successful OAuth2 authentication.
+     *
+     * @param userId User UUID
+     * @param email User email
+     * @param role User role
+     * @return Refresh token string
+     */
+    public String generateAndSaveRefreshToken(UUID userId, String email, String role) {
         String tokenValue = jwtUtil.generateRefreshToken(email, userId);
 
         RefreshToken token = new RefreshToken();

@@ -1,344 +1,203 @@
-# =================================================================================
-# Entrepreneurship Booster Platform - Auth Service Configuration
+# ═══════════════════════════════════════════════════════════════════════════
+# Entrepreneurship Booster Platform - AUTH SERVICE CONFIGURATION (COMPLETE)
+# ═══════════════════════════════════════════════════════════════════════════
+# Service: auth-service
 # Version: 2.0.0
-# Updated: 2025-11-03
-# Description: Production-ready configuration with pagination, monitoring, and security
-# =================================================================================
+# Author: Douglas Kings Kato
+# Date: 2025-11-16
+# ═══════════════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════════════
+# SPRING CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
 spring:
+  # Application Metadata
   application:
     name: auth-service
+    description: Authentication and Authorization Service for Entrepreneurship Booster Platform
+    version: '@project.version@'
 
-  # -----------------------------------------------------------------------------
-  # Database Configuration (Default: PostgreSQL + HikariCP)
-  # -----------------------------------------------------------------------------
+  # ───────────────────────────────────────────────────────────────────────────
+  # SECURITY CONFIGURATION (OAuth2 Client)
+  # ───────────────────────────────────────────────────────────────────────────
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            # ✅ FIXED: Default placeholder values prevent startup failures
+            client-id: ${GOOGLE_CLIENT_ID:placeholder-client-id-not-configured}
+            client-secret: ${GOOGLE_CLIENT_SECRET:placeholder-client-secret-not-configured}
+            scope:
+              - email
+              - profile
+              - openid
+            authorization-grant-type: authorization_code
+            client-authentication-method: client_secret_post
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
+            user-name-attribute: sub
+            issuer-uri: https://accounts.google.com
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # DATABASE CONFIGURATION (PostgreSQL)
+  # ───────────────────────────────────────────────────────────────────────────
   datasource:
-    url: jdbc:postgresql://localhost:5432/ebp_db?currentSchema=auth
-    username: postgres
-    password: Douglas20!
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:youthconnect_auth}
+    username: ${DB_USER:youthconnect_user}
+    password: ${DB_PASSWORD:YouthConnect2024!}
     driver-class-name: org.postgresql.Driver
-    hikari:
-      pool-name: AuthServiceHikariPool
-      maximum-pool-size: 10
-      minimum-idle: 2
-      idle-timeout: 300000
-      max-lifetime: 1200000
-      connection-timeout: 20000
-      leak-detection-threshold: 60000
-      auto-commit: true
-      connection-test-query: SELECT 1
 
-  # -----------------------------------------------------------------------------
-  # JPA / Hibernate
-  # -----------------------------------------------------------------------------
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      idle-timeout: 600000
+      pool-name: AuthServiceHikariPool
+      connection-test-query: SELECT 1
+      auto-commit: true
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # JPA/HIBERNATE CONFIGURATION
+  # ───────────────────────────────────────────────────────────────────────────
   jpa:
     hibernate:
-      ddl-auto: validate   # Use Flyway for schema management
+      ddl-auto: validate
     database-platform: org.hibernate.dialect.PostgreSQLDialect
-    show-sql: false
-    open-in-view: false
+    show-sql: ${SHOW_SQL:true}
     properties:
       hibernate:
         format_sql: true
+        use_sql_comments: true
         jdbc:
           batch_size: 20
-          time_zone: Africa/Nairobi
-        order_inserts: true
-        order_updates: true
-        default_schema: auth
-        generate_statistics: false
-        enable_lazy_load_no_trans: false
+        cache:
+          use_second_level_cache: false
+        generate_statistics: ${HIBERNATE_STATS:false}
 
-  # -----------------------------------------------------------------------------
-  # Flyway Database Migration
-  # -----------------------------------------------------------------------------
+  # ───────────────────────────────────────────────────────────────────────────
+  # FLYWAY DATABASE MIGRATION
+  # ───────────────────────────────────────────────────────────────────────────
   flyway:
     enabled: true
     baseline-on-migrate: true
+    baseline-version: 0
     locations: classpath:db/migration
     validate-on-migrate: true
-    schemas: auth
-    out-of-order: false
-    clean-disabled: true
+    out-of-order: ${FLYWAY_OUT_OF_ORDER:false}
+    table: flyway_schema_history
+    sql-migration-prefix: V
+    sql-migration-separator: __
+    sql-migration-suffixes: .sql
 
-  # -----------------------------------------------------------------------------
-  # Redis (Token Blacklist & Caching)
-  # -----------------------------------------------------------------------------
+  # ───────────────────────────────────────────────────────────────────────────
+  # REDIS CONFIGURATION
+  # ───────────────────────────────────────────────────────────────────────────
   data:
     redis:
-      host: localhost
-      port: 6379
-      timeout: 2000ms
-      jedis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DB:0}
+      timeout: 3000ms
+      lettuce:
         pool:
-          max-active: 20
-          max-idle: 10
+          max-active: 8
+          max-idle: 8
           min-idle: 2
           max-wait: -1ms
-      # Connection retry
-      lettuce:
-        shutdown-timeout: 200ms
 
-    # Pagination Defaults (for future list endpoints)
-    web:
-      pageable:
-        default-page-size: 20
-        max-page-size: 100
-        one-indexed-parameters: false
-
-  # -----------------------------------------------------------------------------
-  # Cache Configuration
-  # -----------------------------------------------------------------------------
-  cache:
-    type: redis
-    redis:
-      time-to-live: 3600000 # 1 hour
-      cache-null-values: false
-
-# -----------------------------------------------------------------------------
-# Server Configuration
-# -----------------------------------------------------------------------------
+# ═══════════════════════════════════════════════════════════════════════════
+# SERVER CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
 server:
-  port: 8083
+  port: ${SERVER_PORT:8083}
   servlet:
     context-path: /api/auth
-    encoding:
-      charset: UTF-8
-      enabled: true
-      force: true
   compression:
     enabled: true
     mime-types: application/json,application/xml,text/html,text/xml,text/plain
-    min-response-size: 1024
   error:
     include-message: always
     include-binding-errors: always
     include-stacktrace: on_param
-    whitelabel:
-      enabled: false
-  shutdown: graceful
+    include-exception: false
+  http2:
+    enabled: true
 
-# -----------------------------------------------------------------------------
-# JWT Security Configuration
-# -----------------------------------------------------------------------------
-jwt:
-  secret: aVeryLongAndSecureSecretKeyForYouthConnectUgandaHackathonProjectWith256BitsMinimum
-  expiration: 3600000          # 1 hour (in milliseconds)
-  refresh-expiration: 604800000 # 7 days (in milliseconds)
-  issuer: youth-connect-auth-service
-  audience: youth-connect-platform
-  header: Authorization
-  prefix: Bearer
-
-# -----------------------------------------------------------------------------
-# Eureka Service Discovery
-# -----------------------------------------------------------------------------
+# ═══════════════════════════════════════════════════════════════════════════
+# EUREKA SERVICE DISCOVERY
+# ═══════════════════════════════════════════════════════════════════════════
 eureka:
   client:
-    enabled: true
+    enabled: ${EUREKA_ENABLED:true}
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
     register-with-eureka: true
     fetch-registry: true
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
     registry-fetch-interval-seconds: 30
-    eureka-server-connect-timeout-seconds: 30
-    eureka-server-read-timeout-seconds: 30
+    healthcheck:
+      enabled: true
 
   instance:
-    prefer-ip-address: true
-    instance-id: ${spring.application.name}:${random.value}
+    prefer-ip-address: ${EUREKA_PREFER_IP:false}
+    hostname: ${INSTANCE_HOSTNAME:localhost}
     lease-renewal-interval-in-seconds: 30
     lease-expiration-duration-in-seconds: 90
-    hostname: localhost
-
     metadata-map:
-      version: ${app.version}
-      environment: ${app.environment}
-      zone: ${app.zone:default}
+      zone: ${INSTANCE_ZONE:zone1}
+      version: '@project.version@'
+      environment: ${SPRING_PROFILES_ACTIVE:dev}
 
-    # Health check configuration
-    health-check-url-path: /api/auth/actuator/health
-    status-page-url-path: /api/auth/actuator/info
+# ═══════════════════════════════════════════════════════════════════════════
+# JWT CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+jwt:
+  secret: ${JWT_SECRET:aVeryLongAndSecureSecretKeyForYouthConnectUgandaHackathonProjectWith256BitsMinimum}
+  expiration: ${JWT_EXPIRATION:86400000}
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+  issuer: ${JWT_ISSUER:youth-connect-auth-service}
+  audience: ${JWT_AUDIENCE:youth-connect-platform}
 
-# -----------------------------------------------------------------------------
-# Feign Client Configuration
-# -----------------------------------------------------------------------------
-feign:
-  client:
-    config:
-      default:
-        connectTimeout: 5000
-        readTimeout: 10000
-        loggerLevel: basic
-
-      user-service:
-        connectTimeout: 5000
-        readTimeout: 15000
-        loggerLevel: full
-
-      notification-service:
-        connectTimeout: 3000
-        readTimeout: 10000
-        loggerLevel: basic
-
-  circuitbreaker:
-    enabled: true
-    alphanumeric-ids:
-      enabled: true
-
-  compression:
-    request:
-      enabled: true
-      mime-types: application/json
-      min-request-size: 2048
-    response:
-      enabled: true
-
-# -----------------------------------------------------------------------------
-# Resilience4j Circuit Breakers & Retries
-# -----------------------------------------------------------------------------
-resilience4j:
-  circuitbreaker:
-    configs:
-      default:
-        registerHealthIndicator: true
-        slidingWindowSize: 10
-        minimumNumberOfCalls: 5
-        permittedNumberOfCallsInHalfOpenState: 3
-        automaticTransitionFromOpenToHalfOpenEnabled: true
-        waitDurationInOpenState: 10s
-        failureRateThreshold: 50
-        slowCallRateThreshold: 50
-        slowCallDurationThreshold: 5s
-        recordExceptions:
-          - org.springframework.web.client.HttpServerErrorException
-          - java.io.IOException
-          - java.util.concurrent.TimeoutException
-          - feign.RetryableException
-        ignoreExceptions:
-          - java.lang.IllegalArgumentException
-
-    instances:
-      userService:
-        baseConfig: default
-        waitDurationInOpenState: 10s
-        failureRateThreshold: 50
-
-      notificationService:
-        baseConfig: default
-        waitDurationInOpenState: 15s
-        failureRateThreshold: 60
-        minimumNumberOfCalls: 3
-
-  retry:
-    configs:
-      default:
-        maxAttempts: 3
-        waitDuration: 500ms
-        enableExponentialBackoff: true
-        exponentialBackoffMultiplier: 2
-        retryExceptions:
-          - org.springframework.web.client.HttpServerErrorException
-          - java.io.IOException
-          - feign.RetryableException
-
-    instances:
-      userService:
-        baseConfig: default
-        maxAttempts: 3
-        waitDuration: 500ms
-
-      notificationService:
-        baseConfig: default
-        maxAttempts: 2
-        waitDuration: 1000ms
-
-  timelimiter:
-    configs:
-      default:
-        timeoutDuration: 5s
-        cancelRunningFuture: true
-
-# -----------------------------------------------------------------------------
-# Rate Limiting Configuration
-# -----------------------------------------------------------------------------
-rate-limit:
-  enabled: true
-
-  login:
-    capacity: 5
-    refill-tokens: 5
-    refill-duration: 60
-
-  register:
-    capacity: 3
-    refill-tokens: 3
-    refill-duration: 300
-
-  password-reset:
-    capacity: 2
-    refill-tokens: 2
-    refill-duration: 600
-
-  token-refresh:
-    capacity: 10
-    refill-tokens: 10
-    refill-duration: 60
-
-  ussd-login:
-    capacity: 10
-    refill-tokens: 10
-    refill-duration: 60
-
-# -----------------------------------------------------------------------------
-# Actuator & Monitoring
-# -----------------------------------------------------------------------------
+# ═══════════════════════════════════════════════════════════════════════════
+# ACTUATOR CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
 management:
   endpoints:
     web:
-      exposure:
-        include: health,info,metrics,prometheus,mappings,env
       base-path: /actuator
-
+      exposure:
+        include: health,info,metrics,prometheus,flyway,loggers
   endpoint:
     health:
-      show-details: when-authorized
+      show-details: ${HEALTH_SHOW_DETAILS:always}
+      show-components: always
       probes:
         enabled: true
-      group:
-        readiness:
-          include: readinessState,db,redis
-        liveness:
-          include: livenessState,ping
-
-    metrics:
-      enabled: true
-
-    prometheus:
-      enabled: true
-
   health:
-    circuitbreakers:
+    db:
       enabled: true
-    ratelimiters:
+    diskspace:
       enabled: true
-
+      threshold: 10MB
+    redis:
+      enabled: true
   metrics:
     export:
       prometheus:
         enabled: true
-        step: 1m
-        descriptions: true
-
-    distribution:
-      percentiles-histogram:
-        http.server.requests: true
-
-    tags:
-      application: ${spring.application.name}
-      environment: ${app.environment}
-      version: ${app.version}
-
+    enable:
+      jvm: true
+      process: true
+      system: true
+      http: true
+      logback: true
   info:
     env:
       enabled: true
@@ -347,358 +206,139 @@ management:
     os:
       enabled: true
 
-# -----------------------------------------------------------------------------
-# API Documentation (OpenAPI / Swagger)
-# -----------------------------------------------------------------------------
-springdoc:
-  api-docs:
-    path: /api-docs
-    enabled: true
+# ═══════════════════════════════════════════════════════════════════════════
+# LOGGING CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.youthconnect.auth_service: ${LOG_LEVEL_APP:DEBUG}
+    org.springframework: ${LOG_LEVEL_SPRING:INFO}
+    org.springframework.web: ${LOG_LEVEL_WEB:DEBUG}
+    org.springframework.security: ${LOG_LEVEL_SECURITY:DEBUG}
+    org.hibernate: ${LOG_LEVEL_HIBERNATE:INFO}
+    org.hibernate.SQL: ${LOG_LEVEL_SQL:DEBUG}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_LEVEL_SQL_PARAMS:TRACE}
+    org.flywaydb: ${LOG_LEVEL_FLYWAY:INFO}
+    com.zaxxer.hikari: ${LOG_LEVEL_HIKARI:INFO}
+    com.netflix.discovery: ${LOG_LEVEL_EUREKA:INFO}
+    feign: ${LOG_LEVEL_FEIGN:DEBUG}
 
-  swagger-ui:
-    path: /swagger-ui.html
-    enabled: true
-    tags-sorter: alpha
-    operations-sorter: alpha
-    display-request-duration: true
-    doc-expansion: none
-    filter: true
-    try-it-out-enabled: true
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %highlight(%-5level) %logger{36} - %msg%n'
+    file: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n'
 
-  show-actuator: true
+  file:
+    name: ${LOG_FILE:logs/auth-service.log}
+    max-size: 10MB
+    max-history: 30
 
-  default-consumes-media-type: application/json
-  default-produces-media-type: application/json
-
-  packages-to-scan: com.youthconnect.auth_service.controller
-
-  info:
-    title: Youth Connect Uganda - Auth Service API
-    description: Authentication and Authorization API for Youth Connect Platform
-    version: ${app.version}
-    contact:
-      name: Youth Connect Uganda
-      email: tech@youthconnect.ug
-      url: https://youthconnect.ug
-
-# -----------------------------------------------------------------------------
-# Application-Specific Configuration
-# -----------------------------------------------------------------------------
+# ═══════════════════════════════════════════════════════════════════════════
+# ✅ APPLICATION-SPECIFIC CONFIGURATION (CRITICAL FIX)
+# ═══════════════════════════════════════════════════════════════════════════
 app:
-  name: Youth Connect Uganda Auth Service
-  version: 2.0.0
-  environment: development
-  zone: default
+  # ✅ OAuth2 Configuration (Optional - Disabled by Default)
+  oauth2:
+    enabled: ${OAUTH2_ENABLED:false}
+    redirect-uri: ${OAUTH2_REDIRECT_URI:http://localhost:3000/auth/callback}
 
-  # CORS Configuration
+  # ✅ CRITICAL FIX: CORS Security Configuration (REQUIRED for SecurityConfig)
+  # This section was MISSING and causing the startup failure
   security:
+    # Allowed origins for CORS requests (comma-separated list converted to array)
     allowed-origins:
-      - http://localhost:3000
-      - http://localhost:3001
-      - http://localhost:19006
-      - https://youthconnect.ug
-      - https://www.youthconnect.ug
+      - http://localhost:3000      # React development server
+      - http://localhost:3001      # Alternative React port
+      - http://localhost:5173      # Vite development server
+      - http://localhost:4200      # Angular development server
 
+    # Allowed HTTP methods
     allowed-methods:
       - GET
       - POST
       - PUT
-      - PATCH
       - DELETE
+      - PATCH
       - OPTIONS
 
+    # Allowed request headers
     allowed-headers:
       - Authorization
       - Content-Type
+      - X-Requested-With
       - Accept
       - Origin
-      - X-Requested-With
+      - Access-Control-Request-Method
+      - Access-Control-Request-Headers
 
+    # Headers exposed to browser
     exposed-headers:
       - Authorization
       - X-Total-Count
-      - X-User-Id
+      - X-Page-Number
+      - X-Page-Size
 
+    # Allow credentials (cookies, auth)
     allow-credentials: true
+
+    # Cache preflight response (seconds)
     max-age: 3600
 
-    # Password Policy
+    # Password policy
     password:
       min-length: 8
-      max-length: 100
       require-uppercase: true
       require-lowercase: true
       require-digit: true
       require-special-char: true
-      max-attempts: 5
-      lockout-duration-minutes: 30
 
-  # Token Management
-  token:
-    blacklist-cleanup-cron: "0 0 2 * * ?"  # Daily at 2:00 AM
-    max-refresh-count: 10
-    refresh-token-validity-days: 7
+    # Account lockout settings
+    lockout:
+      max-attempts: ${LOCKOUT_MAX_ATTEMPTS:5}
+      duration-minutes: ${LOCKOUT_DURATION:30}
 
-  # Password Reset Configuration
+  # Password reset configuration
   password-reset:
-    token-expiry-minutes: 15
-    max-attempts: 3
-    cleanup-cron: "0 0 3 * * ?"  # Daily at 3:00 AM
+    token-expiry-minutes: ${PASSWORD_RESET_EXPIRY:15}
+    max-attempts: ${PASSWORD_RESET_MAX_ATTEMPTS:3}
+    cleanup-cron: ${PASSWORD_RESET_CLEANUP_CRON:0 0 3 * * ?}
 
-  # USSD Configuration
+  # Email verification configuration
+  email-verification:
+    token-expiry-hours: ${EMAIL_VERIFY_EXPIRY:24}
+    resend-limit: ${EMAIL_VERIFY_RESEND_LIMIT:5}
+
+  # Token management
+  token:
+    blacklist-cleanup-cron: ${TOKEN_BLACKLIST_CLEANUP_CRON:0 0 2 * * ?}
+
+  # USSD configuration
   ussd:
-    session-timeout-minutes: 5
-    default-language: en
-    supported-languages:
-      - en  # English
-      - lg  # Luganda
-      - lur # Alur
-      - lgb # Lugbara
+    enabled: ${USSD_ENABLED:true}
+    session-timeout-minutes: ${USSD_SESSION_TIMEOUT:5}
 
-  # Pagination Configuration
-  pagination:
-    default-page-size: 20
-    max-page-size: 100
-    default-sort-direction: DESC
-
-  # Notification Configuration
-  notification:
-    welcome-email-enabled: true
-    password-reset-email-enabled: true
-    login-alert-enabled: false
-
-  # Feature Flags
-  features:
-    ussd-enabled: true
-    password-reset-enabled: true
-    refresh-token-rotation: false
-    account-lockout: true
-
-# -----------------------------------------------------------------------------
-# Logging Configuration
-# -----------------------------------------------------------------------------
-logging:
-  level:
-    root: INFO
-    com.youthconnect.auth_service: DEBUG
-    org.springframework.security: INFO
-    org.springframework.web: INFO
-    org.springframework.cloud: INFO
-    org.hibernate.SQL: WARN
-    org.hibernate.type.descriptor.sql.BasicBinder: WARN
-    io.github.resilience4j: INFO
-    com.netflix.discovery: INFO
-    feign: INFO
-
-  pattern:
-    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(${LOG_LEVEL_PATTERN:%5p}) %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:%wEx}"
-    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-
-  file:
-    name: logs/auth-service.log
-    max-size: 10MB
-    max-history: 30
-    total-size-cap: 1GB
-
-  logback:
-    rollingpolicy:
-      max-file-size: 10MB
-      max-history: 30
-      total-size-cap: 1GB
-
-# =================================================================================
-# DEVELOPMENT PROFILE
-# =================================================================================
----
-spring:
-  config:
-    activate:
-      on-profile: dev
-
-  datasource:
-    url: jdbc:postgresql://localhost:5432/youth_connect_db?currentSchema=auth
-    username: postgres
-    password: Douglas20!
-
-  jpa:
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
-        use_sql_comments: true
-
-  data:
-    redis:
-      host: localhost
-      port: 6379
-
-logging:
-  level:
-    root: DEBUG
-    com.youthconnect.auth_service: DEBUG
-    org.springframework.web: DEBUG
-    org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-    feign: DEBUG
-
-app:
-  environment: development
-  features:
-    ussd-enabled: true
-    password-reset-enabled: true
-
-# =================================================================================
-# TEST PROFILE
-# =================================================================================
----
-spring:
-  config:
-    activate:
-      on-profile: test
-
-  datasource:
-    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-
-  jpa:
-    hibernate:
-      ddl-auto: create-drop
-    database-platform: org.hibernate.dialect.H2Dialect
-    show-sql: true
-
-  flyway:
-    enabled: false
-
-  data:
-    redis:
-      host: localhost
-      port: 6370
-
-eureka:
-  client:
-    enabled: false
-
-logging:
-  level:
-    root: INFO
-    com.youthconnect.auth_service: DEBUG
-
-app:
-  environment: test
-
-# =================================================================================
-# DOCKER PROFILE
-# =================================================================================
+# ═══════════════════════════════════════════════════════════════════════════
+# PROFILE: Docker
+# ═══════════════════════════════════════════════════════════════════════════
 ---
 spring:
   config:
     activate:
       on-profile: docker
 
+  # Docker database (container networking)
   datasource:
-    url: jdbc:postgresql://postgres:5432/ebp_db?currentSchema=auth
-    username: postgres
-    password: Douglas20!
+    url: jdbc:postgresql://postgres:5432/youthconnect_auth
 
+  # Docker Redis
   data:
     redis:
       host: redis
-      port: 6379
 
+# Docker Eureka
 eureka:
   client:
     service-url:
       defaultZone: http://service-registry:8761/eureka/
-
   instance:
     prefer-ip-address: true
-    hostname: auth-service
-
-server:
-  port: 8083
-
-logging:
-  level:
-    root: INFO
-    com.youthconnect.auth_service: INFO
-
-app:
-  environment: docker
-
-# =================================================================================
-# PRODUCTION PROFILE
-# =================================================================================
----
-spring:
-  config:
-    activate:
-      on-profile: prod
-
-  datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ebp_db}?currentSchema=auth&ssl=true&sslmode=require
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD}
-    hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
-      connection-timeout: 30000
-
-  jpa:
-    show-sql: false
-    properties:
-      hibernate:
-        generate_statistics: false
-
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
-      ssl: true
-
-jwt:
-  secret: ${JWT_SECRET}
-
-eureka:
-  client:
-    service-url:
-      defaultZone: ${EUREKA_URL:http://service-registry:8761/eureka/}
-
-server:
-  port: ${SERVER_PORT:8083}
-
-logging:
-  level:
-    root: WARN
-    com.youthconnect.auth_service: INFO
-    org.springframework.web: WARN
-    org.springframework.security: INFO
-
-  file:
-    name: /var/log/auth-service/application.log
-    max-size: 50MB
-    max-history: 60
-
-management:
-  endpoint:
-    health:
-      show-details: never
-
-app:
-  environment: production
-  security:
-    allowed-origins:
-      - https://youthconnect.ug
-      - https://www.youthconnect.ug
-      - https://api.youthconnect.ug
-  features:
-    ussd-enabled: true
-    password-reset-enabled: true
-    refresh-token-rotation: true
-
-# =================================================================================
-# END OF CONFIGURATION
-# =================================================================================

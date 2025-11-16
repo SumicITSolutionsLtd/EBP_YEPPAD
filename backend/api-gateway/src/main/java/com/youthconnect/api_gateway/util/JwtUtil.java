@@ -41,7 +41,7 @@ import java.util.function.Function;
  *
  * Location: api-gateway/src/main/java/com/youthconnect/api_gateway/util/
  *
- * @author Youth Connect Development Team
+ * @author Douglas Kings Kato
  * @version 1.0.0
  */
 @Slf4j
