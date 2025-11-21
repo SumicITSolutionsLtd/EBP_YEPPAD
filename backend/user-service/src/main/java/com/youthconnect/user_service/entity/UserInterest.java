@@ -9,6 +9,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * UserInterest Entity - User Interest Tracking for AI Recommendations
@@ -26,7 +27,7 @@ import java.time.LocalDateTime;
  *
  * Database Mapping:
  * - Table: user_interests
- * - Primary Key: user_interest_id (auto-increment)
+ * - Primary Key: user_interest_id (UUID - matches PostgreSQL schema)
  * - Unique Constraint: (user_id, interest_tag) - prevents duplicate interests
  * - Foreign Key: user_id references users(user_id)
  *
@@ -36,7 +37,7 @@ import java.time.LocalDateTime;
  * - Trend analysis: Identify popular interests across user segments
  *
  * @author Douglas Kings Kato
- * @version 1.0.0
+ * @version 1.1.0 - Fixed UUID type mismatch
  * @since 2024-01-15
  */
 @Entity
@@ -58,21 +59,29 @@ import java.time.LocalDateTime;
 public class UserInterest {
 
     /**
-     * Primary key - auto-generated unique identifier
+     * Primary key - UUID auto-generated
+     *
+     * FIXED: Changed from GenerationType.IDENTITY to GenerationType.UUID
+     * to match PostgreSQL schema where user_interest_id is UUID type.
+     *
+     * GenerationType.IDENTITY expects BIGINT/SERIAL, not UUID.
+     * GenerationType.UUID generates UUID values compatible with PostgreSQL uuid-ossp.
      */
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "user_interest_id")
-    private Long id;
+    private UUID id;
 
     /**
      * User ID - references the users table
      *
-     * NOTE: We use Long instead of @ManyToOne to avoid circular dependencies
+     * NOTE: We use UUID instead of @ManyToOne to avoid circular dependencies
      * and improve query performance. The relationship is logical, not physical.
+     *
+     * Matches PostgreSQL schema: user_id UUID NOT NULL
      */
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private UUID userId;
 
     /**
      * Interest tag/keyword
@@ -159,11 +168,13 @@ public class UserInterest {
      * Create user-selected interest with HIGH priority
      * Convenience method for explicit user choices
      *
-     * @param userId User's unique identifier
+     * FIXED: Changed parameter type from Long to UUID to match entity field type
+     *
+     * @param userId User's unique identifier (UUID)
      * @param interestTag Interest keyword
      * @return UserInterest with HIGH level and USER_SELECTED source
      */
-    public static UserInterest createUserSelected(Long userId, String interestTag) {
+    public static UserInterest createUserSelected(UUID userId, String interestTag) {
         return UserInterest.builder()
                 .userId(userId)
                 .interestTag(interestTag)
@@ -176,11 +187,13 @@ public class UserInterest {
      * Create AI-inferred interest with MEDIUM priority
      * Used when AI detects interests from user behavior
      *
-     * @param userId User's unique identifier
+     * FIXED: Changed parameter type from Long to UUID to match entity field type
+     *
+     * @param userId User's unique identifier (UUID)
      * @param interestTag Interest keyword
      * @return UserInterest with MEDIUM level and AI_INFERRED source
      */
-    public static UserInterest createAiInferred(Long userId, String interestTag) {
+    public static UserInterest createAiInferred(UUID userId, String interestTag) {
         return UserInterest.builder()
                 .userId(userId)
                 .interestTag(interestTag)
@@ -193,11 +206,13 @@ public class UserInterest {
      * Create activity-based interest with LOW priority
      * Used when interest is derived from single user action
      *
-     * @param userId User's unique identifier
+     * FIXED: Changed parameter type from Long to UUID to match entity field type
+     *
+     * @param userId User's unique identifier (UUID)
      * @param interestTag Interest keyword
      * @return UserInterest with LOW level and ACTIVITY_BASED source
      */
-    public static UserInterest createActivityBased(Long userId, String interestTag) {
+    public static UserInterest createActivityBased(UUID userId, String interestTag) {
         return UserInterest.builder()
                 .userId(userId)
                 .interestTag(interestTag)

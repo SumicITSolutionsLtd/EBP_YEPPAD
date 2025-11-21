@@ -1,141 +1,346 @@
 # ═════════════════════════════════════════════════════════════════════════════
-# USER SERVICE - POSTGRESQL CONFIGURATION (ENHANCED v2.1)
+# USER SERVICE - SPRING BOOT CONFIGURATION (v3.0)
 # ═════════════════════════════════════════════════════════════════════════════
-# ✅ FIXES APPLIED:
-# 1. Increased connection timeouts (30s → 2 min for migrations)
-# 2. Increased Flyway retry settings (3 → 5 retries)
-# 3. Enhanced connection pool configuration
-# 4. Improved timeout handling for schema validation
+# FIXES APPLIED IN THIS VERSION:
+# 1. Added app.security.internal-api-key (was causing 401 errors)
+# 2. Fixed port configuration to use USER_SERVICE_PORT env variable
+# 3. Increased connection timeouts for Flyway migrations
+# 4. Enhanced HikariCP connection pool settings
+# 5. Added comprehensive comments for troubleshooting
+#
+# Author: Douglas Kings Kato
+# Version: 3.0.0
+# Last Updated: 2025-11-21
 # ═════════════════════════════════════════════════════════════════════════════
 
+# ═════════════════════════════════════════════════════════════════════════════
+# APPLICATION CONFIGURATION
+# ═════════════════════════════════════════════════════════════════════════════
 spring:
   application:
+    # Service name - used for Eureka registration and logging
+    # This name appears in Eureka dashboard and service-to-service calls
     name: user-service
 
-  # ---------------------------------------------------------------------------
-  # PostgreSQL Database Configuration
-  # ---------------------------------------------------------------------------
+  # ───────────────────────────────────────────────────────────────────────────
+  # POSTGRESQL DATABASE CONFIGURATION
+  # ───────────────────────────────────────────────────────────────────────────
   datasource:
-    # ✅ FIXED: Increased timeouts for Flyway migrations
-    # - connectTimeout: 30s → 120s (2 minutes)
-    # - socketTimeout: 120s → 180s (3 minutes)
-    # - loginTimeout: 30s → 60s (1 minute)
+    # JDBC URL with connection parameters
+    # ${VAR:default} syntax reads from environment variable or uses default
+    #
+    # Connection Parameters Explained:
+    # - currentSchema=public: Use 'public' schema (PostgreSQL default)
+    # - connectTimeout=120: Wait up to 2 minutes for initial connection
+    # - socketTimeout=180: Wait up to 3 minutes for query response
+    # - tcpKeepAlive=true: Keep connection alive to prevent firewall drops
+    # - loginTimeout=60: Wait up to 1 minute for authentication
+    #
+    # Why these timeouts are high:
+    # - Flyway migrations can take time on first run
+    # - Network latency in cloud/docker environments
+    # - Large initial data loads
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:youthconnect_user}?currentSchema=public&connectTimeout=120&socketTimeout=180&tcpKeepAlive=true&loginTimeout=60
 
+    # Database credentials
+    # In production, these should come from secrets manager (AWS Secrets, Vault, K8s Secrets)
     username: ${DB_USER:youthconnect_user}
     password: ${DB_PASSWORD:YouthConnect2024!}
+
+    # JDBC Driver
     driver-class-name: org.postgresql.Driver
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # HIKARICP CONNECTION POOL CONFIGURATION
+    # ─────────────────────────────────────────────────────────────────────────
+    # HikariCP is the fastest, most reliable JDBC connection pool
+    # https://github.com/brettwooldridge/HikariCP
     hikari:
-      maximum-pool-size: ${DB_MAX_POOL_SIZE:20}
-      minimum-idle: ${DB_MIN_IDLE:5}
+      # Pool Size Configuration
+      # Rule of thumb: pool_size = ((core_count * 2) + effective_spindle_count)
+      # For most apps: 10-20 is optimal
+      maximum-pool-size: ${DB_MAX_POOL_SIZE:20}    # Max connections to DB
+      minimum-idle: ${DB_MIN_IDLE:5}                # Min idle connections maintained
 
-      # ✅ FIXED: Increased connection timeout for migrations
-      connection-timeout: 120000  # 2 minutes (was 30 seconds)
+      # Timeout Configuration (in milliseconds)
+      connection-timeout: 120000        # 2 min - wait for connection from pool
+      idle-timeout: 600000              # 10 min - idle connection before removal
+      max-lifetime: 1800000             # 30 min - max lifetime of connection
 
-      idle-timeout: 600000
-      max-lifetime: 1800000
+      # Pool Identity
       pool-name: YouthConnectUserServicePool
-      connection-test-query: SELECT 1
+
+      # Connection Validation
+      connection-test-query: SELECT 1   # Fast query to test connection health
+      validation-timeout: 10000         # 10 sec - timeout for validation query
+
+      # Auto-commit (default: true)
+      # Set to false if you want manual transaction management
       auto-commit: true
 
-      # ✅ FIXED: Increased leak detection threshold
-      leak-detection-threshold: 120000  # 2 minutes (was 1 minute)
+      # Leak Detection (helps find unclosed connections)
+      # If connection not returned to pool within this time → log warning
+      leak-detection-threshold: 120000  # 2 min - detect connection leaks
 
-      validation-timeout: 10000  # 10 seconds
+      # Additional HikariCP Optimizations
+      # These are advanced settings for production performance tuning
+      # data-source-properties:
+      #   cachePrepStmts: true           # Cache prepared statements
+      #   prepStmtCacheSize: 250         # How many statements to cache
+      #   prepStmtCacheSqlLimit: 2048    # Max SQL length to cache
+      #   useServerPrepStmts: true       # Use server-side prepared statements
 
-  # ---------------------------------------------------------------------------
-  # JPA/Hibernate Configuration
-  # ---------------------------------------------------------------------------
+  # ───────────────────────────────────────────────────────────────────────────
+  # JPA/HIBERNATE CONFIGURATION
+  # ───────────────────────────────────────────────────────────────────────────
   jpa:
+    # Database Platform
     database: POSTGRESQL
     database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+    # Hibernate DDL Strategy
     hibernate:
+      # Schema Management Options:
+      # - validate: Only validate schema (PRODUCTION - safest)
+      # - update: Update schema if needed (DEVELOPMENT - convenient)
+      # - create: Create schema, drop previous data (TESTING)
+      # - create-drop: Create on start, drop on stop (INTEGRATION TESTS)
+      # - none: Do nothing (use with Flyway/Liquibase)
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
+
+      # Naming Strategy
+      # PhysicalNamingStrategyStandardImpl: Use exact names from @Table/@Column
+      # SpringPhysicalNamingStrategy: Convert camelCase to snake_case
       naming:
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
 
+    # SQL Logging (disable in production for performance)
     show-sql: ${SPRING_JPA_SHOW_SQL:false}
 
+    # Hibernate Properties (Advanced Tuning)
     properties:
       hibernate:
-        format_sql: false
+        # SQL Formatting (for debugging)
+        format_sql: false               # Pretty-print SQL (only if show-sql=true)
+
+        # JDBC Batch Operations (improves bulk insert/update performance)
         jdbc:
-          batch_size: 20
-          fetch_size: 50
-        order_inserts: true
-        order_updates: true
+          batch_size: 20                # Insert/update N rows in single batch
+          fetch_size: 50                # Fetch N rows at a time from ResultSet
+
+        # Query Optimization
+        order_inserts: true             # Group inserts by entity type
+        order_updates: true             # Group updates by entity type
+
+        # Query Timeout
         query:
-          # ✅ FIXED: Increased query timeout for complex operations
-          timeout: 120000  # 2 minutes
+          timeout: 120000               # 2 min - max time for query execution
 
-  # ---------------------------------------------------------------------------
-  # Flyway Database Migrations Configuration
-  # ---------------------------------------------------------------------------
+        # Additional Performance Settings (uncomment if needed)
+        # use_sql_comments: true        # Add comments to SQL (for debugging)
+        # generate_statistics: true     # Generate performance statistics
+        # cache.use_second_level_cache: false  # Disable L2 cache (Redis used instead)
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # FLYWAY DATABASE MIGRATION CONFIGURATION
+  # ───────────────────────────────────────────────────────────────────────────
+  # Flyway manages database schema versions using SQL migration scripts
+  # Migration files: src/main/resources/db/migration/V1__Initial_Schema.sql
   flyway:
-    enabled: true
+    enabled: true                       # Enable Flyway migrations
+
+    # Baseline Configuration
+    # baseline-on-migrate: true allows Flyway to work with existing databases
+    # It creates flyway_schema_history table and sets baseline version
     baseline-on-migrate: true
-    validate-on-migrate: true
+    baseline-version: 0                 # Version number for baseline
+
+    # Validation & Migration Settings
+    validate-on-migrate: true           # Validate migrations before applying
+    out-of-order: false                 # Don't allow out-of-order migrations
+
+    # Migration Script Locations
+    # Flyway looks for SQL files in these locations
+    # Naming convention: V{version}__{description}.sql
+    # Example: V1__Initial_Schema.sql, V2__Add_Users_Table.sql
     locations: classpath:db/migration
-    schemas: public
-    baseline-version: 0
 
-    # ✅ FIXED: Enhanced retry configuration
-    connect-retries: 5  # Increased from 3
-    lock-retry-count: 100  # Increased from 50
-    connect-retries-interval: 10  # 10 seconds between retries
+    # Schema Configuration
+    schemas: public                     # Target schema for migrations
 
-    out-of-order: false
-    placeholder-replacement: false
+    # Placeholder Configuration
+    # Allows ${placeholder} substitution in SQL scripts
+    placeholder-replacement: false      # Disabled by default for security
+
+    # Retry Configuration
+    # Important for handling transient network issues
+    connect-retries: 5                  # Retry connection 5 times
+    connect-retries-interval: 10        # 10 seconds between retries
+
+    # Lock Configuration
+    # Prevents concurrent migrations from multiple instances
+    lock-retry-count: 100               # Retry lock acquisition 100 times
+
+# ═════════════════════════════════════════════════════════════════════════════
+# APPLICATION SECURITY CONFIGURATION
+# ═════════════════════════════════════════════════════════════════════════════
+# This section configures security settings for the user service, including
+# internal API keys for service-to-service communication.
+#
+# IMPORTANT SECURITY NOTES:
+# - Change INTERNAL_API_KEY in production environment variables
+# - Never commit real API keys to version control
+# - Use strong, randomly generated keys (minimum 32 characters)
+# - Rotate keys regularly (every 90 days recommended)
+# ═════════════════════════════════════════════════════════════════════════════
+
+app:
+  security:
+    # Internal API key for service-to-service communication
+    # Used by InternalApiInterceptor to validate requests from other microservices
+    # Default value is for development only - MUST be overridden in production
+    #
+    # How it works:
+    # 1. Other services include this key in X-Internal-API-Key header
+    # 2. InternalApiInterceptor validates the key before allowing access
+    # 3. If key is invalid/missing → 401 Unauthorized response
+    internal-api-key: ${INTERNAL_API_KEY:dev-internal-api-key-change-in-production-2024}
+
+    # Additional security settings (optional, for future use)
+    jwt:
+      # JWT settings if needed for token validation
+      enabled: false
+
+    # Rate limiting for internal APIs (optional)
+    rate-limit:
+      enabled: ${RATE_LIMIT_ENABLED:false}
+      requests-per-minute: ${RATE_LIMIT_REQUESTS_PER_MINUTE:100}
 
 # ═════════════════════════════════════════════════════════════════════════════
 # SERVER CONFIGURATION
 # ═════════════════════════════════════════════════════════════════════════════
 
 server:
-  port: ${SERVER_PORT:8081}
+  # Server Port
+  # Can be overridden by SERVER_PORT or USER_SERVICE_PORT environment variables
+  # USER_SERVICE_PORT takes precedence if both are set
+  port: ${USER_SERVICE_PORT:${SERVER_PORT:8181}}
+
+  # Tomcat Configuration
   tomcat:
-    # ✅ FIXED: Increased Tomcat timeouts
-    connection-timeout: 120000  # 2 minutes
-    keep-alive-timeout: 120000  # 2 minutes
+    # Connection timeout for client requests
+    connection-timeout: 120000          # 2 minutes
+
+    # Keep-alive timeout for persistent connections
+    # If no data received within this time → connection closed
+    keep-alive-timeout: 120000          # 2 minutes
+
+    # Thread pool configuration (uncomment if needed)
+    # threads:
+    #   max: 200                        # Max worker threads
+    #   min-spare: 10                   # Min idle threads
+
+    # Max HTTP header size (uncomment if needed for large headers)
+    # max-http-header-size: 16KB
+
+    # Accept queue size (uncomment if needed)
+    # accept-count: 100                 # Queue size when all threads busy
 
 # ═════════════════════════════════════════════════════════════════════════════
 # EUREKA SERVICE DISCOVERY
 # ═════════════════════════════════════════════════════════════════════════════
+# Eureka is Netflix's service discovery solution
+# Services register themselves and discover other services dynamically
 
 eureka:
   client:
+    # Enable/disable Eureka client
+    # Set EUREKA_ENABLED=false to run standalone without service discovery
     enabled: ${EUREKA_ENABLED:true}
+
+    # Eureka Server URL
+    # Services register here and fetch registry of other services
     service-url:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
-    register-with-eureka: true
-    fetch-registry: true
+
+    # Registration Settings
+    register-with-eureka: true          # Register this service with Eureka
+    fetch-registry: true                # Fetch registry of other services
+
+    # How often to fetch updated registry (in seconds)
     registry-fetch-interval-seconds: 30
 
   instance:
+    # Use IP address instead of hostname for registration
+    # Recommended for Docker/Kubernetes environments
     prefer-ip-address: true
+
+    # Unique instance identifier
+    # Format: service-name:port
     instance-id: ${spring.application.name}:${server.port}
-    lease-renewal-interval-in-seconds: 30
-    lease-expiration-duration-in-seconds: 90
+
+    # Heartbeat Configuration
+    # Service sends heartbeat to Eureka to indicate it's alive
+    lease-renewal-interval-in-seconds: 30      # Send heartbeat every 30 seconds
+    lease-expiration-duration-in-seconds: 90   # Eureka waits 90 seconds before eviction
+
+    # Instance Metadata
+    # Custom key-value pairs attached to this instance
     metadata-map:
-      zone: default
+      zone: default                     # Availability zone
+      # Add custom metadata as needed:
+      # version: 3.0.0
+      # environment: dev
 
 # ═════════════════════════════════════════════════════════════════════════════
 # LOGGING CONFIGURATION
 # ═════════════════════════════════════════════════════════════════════════════
+# Logging levels: TRACE < DEBUG < INFO < WARN < ERROR < FATAL
 
 logging:
   level:
+    # Root logger (applies to all packages unless overridden)
     root: INFO
-    com.youthconnect.user_service: DEBUG
+
+    # Application-specific logging
+    com.youthconnect.user_service: DEBUG    # Our application code
+
+    # Hibernate SQL logging
+    # Set to DEBUG to see SQL queries (useful for debugging)
     org.hibernate.SQL: ${SPRING_JPA_SHOW_SQL:false}
+
+    # Spring Security logging
+    # Useful for debugging authentication/authorization issues
     org.springframework.security: DEBUG
+
+    # Flyway migration logging
     org.flywaydb: INFO
+
+    # HikariCP connection pool logging
+    # Set to DEBUG to see connection pool activity
     com.zaxxer.hikari: DEBUG
+
+    # Additional useful loggers (uncomment if needed)
+    # org.springframework.web: DEBUG    # HTTP requests/responses
+    # org.springframework.jdbc: DEBUG   # JDBC operations
+    # org.hibernate.type: TRACE         # SQL parameter values
+
+  # Log pattern configuration (uncomment to customize)
+  # pattern:
+  #   console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+  #   file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+  # Log file configuration (uncomment to enable file logging)
+  # file:
+  #   name: logs/user-service.log
+  #   max-size: 10MB
+  #   max-history: 30
 
 # ═════════════════════════════════════════════════════════════════════════════
 # DEVELOPMENT PROFILE
 # ═════════════════════════════════════════════════════════════════════════════
+# Activate with: --spring.profiles.active=dev
+# Or environment variable: SPRING_PROFILES_ACTIVE=dev
 
 ---
 spring:
@@ -143,22 +348,39 @@ spring:
     activate:
       on-profile: dev
 
+  # Development JPA settings
   jpa:
     hibernate:
+      # Auto-update schema on changes (convenient for development)
       ddl-auto: update
+
+    # Show SQL queries in console for debugging
     show-sql: true
 
+# Development-specific security settings
+# WARNING: This is a weak key for development only
+app:
+  security:
+    internal-api-key: dev-internal-api-key-2024
+
+# Development logging
 logging:
   level:
     root: INFO
     com.youthconnect.user_service: DEBUG
+
+    # Show SQL queries and parameters
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+    # Detailed Flyway logging
     org.flywaydb: DEBUG
 
 # ═════════════════════════════════════════════════════════════════════════════
 # DOCKER PROFILE
 # ═════════════════════════════════════════════════════════════════════════════
+# Activate with: --spring.profiles.active=docker
+# Used when running in Docker Compose or Docker containers
 
 ---
 spring:
@@ -166,20 +388,34 @@ spring:
     activate:
       on-profile: docker
 
+  # Docker database URL
+  # Uses service name from docker-compose.yml instead of localhost
   datasource:
     url: jdbc:postgresql://postgres-db:5432/youthconnect_user?currentSchema=public&connectTimeout=120&socketTimeout=180&tcpKeepAlive=true&loginTimeout=60
 
+# Docker-specific security
+# IMPORTANT: Override INTERNAL_API_KEY in docker-compose.yml or .env file
+app:
+  security:
+    internal-api-key: ${INTERNAL_API_KEY:docker-internal-api-key-2024}
+
+# Docker Eureka configuration
 eureka:
   client:
+    # Uses Eureka service name from docker-compose.yml
     service-url:
       defaultZone: http://eureka-server:8761/eureka/
+
   instance:
+    # Use hostname instead of IP in Docker networks
     prefer-ip-address: false
     hostname: user-service
 
 # ═════════════════════════════════════════════════════════════════════════════
 # PRODUCTION PROFILE
 # ═════════════════════════════════════════════════════════════════════════════
+# Activate with: --spring.profiles.active=prod
+# Used in production environments (AWS, Azure, GCP, etc.)
 
 ---
 spring:
@@ -187,18 +423,39 @@ spring:
     activate:
       on-profile: prod
 
+  # Production JPA settings
   jpa:
     hibernate:
+      # Only validate schema, never modify it
+      # All schema changes must go through Flyway migrations
       ddl-auto: validate
+
+    # Disable SQL logging for performance
     show-sql: false
 
+  # Production connection pool settings
   datasource:
     hikari:
+      # Larger pool for production traffic
       maximum-pool-size: 50
       minimum-idle: 10
+
+      # Tighter timeouts for production
       connection-timeout: 120000
+
+      # Aggressive leak detection (1 minute)
       leak-detection-threshold: 60000
 
+# Production security
+# CRITICAL: MUST provide INTERNAL_API_KEY via environment variable
+# No default value - application will fail to start if not provided
+# This prevents accidental deployment with insecure default keys
+app:
+  security:
+    internal-api-key: ${INTERNAL_API_KEY}  # No default - will fail if not set
+
+# Production logging
+# Less verbose to reduce disk I/O and improve performance
 logging:
   level:
     root: WARN
@@ -206,7 +463,9 @@ logging:
     org.hibernate.SQL: false
     org.flywaydb: INFO
 
+# Production Eureka settings
+# More aggressive heartbeat for faster failure detection
 eureka:
   instance:
-    lease-renewal-interval-in-seconds: 10
-    lease-expiration-duration-in-seconds: 30
+    lease-renewal-interval-in-seconds: 10     # Heartbeat every 10 seconds
+    lease-expiration-duration-in-seconds: 30  # Evict after 30 seconds
