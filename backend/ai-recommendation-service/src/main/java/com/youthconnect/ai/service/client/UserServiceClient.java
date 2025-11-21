@@ -12,6 +12,8 @@ import java.util.Map;
  * Provides methods to fetch user profiles, interests, activities,
  * and role-based user data for recommendation algorithms.
  * Also includes a health check endpoint.
+ * @author Douglas Kings Kato
+ * @version 1.0.0
  */
 @FeignClient(name = "user-service", fallback = UserServiceClientFallback.class)
 public interface UserServiceClient {

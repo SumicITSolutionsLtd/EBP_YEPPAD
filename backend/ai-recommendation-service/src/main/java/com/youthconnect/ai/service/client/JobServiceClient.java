@@ -9,6 +9,8 @@ import java.util.List;
  * Job Service Client for AI Recommendation Service
  *
  * Allows AI service to fetch job data for generating recommendations.
+ * @author Douglas Kings Kato
+ * @version 1.0.0
  */
 @FeignClient(
         name = "job-service",

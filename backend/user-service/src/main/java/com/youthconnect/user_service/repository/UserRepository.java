@@ -27,7 +27,7 @@ import java.util.UUID;
  * - Added paginated findByRole methods
  * - Proper method overloading for backward compatibility
  *
- * @author Douglas Kings Kato & Youth Connect Uganda Team
+ * @author Douglas Kings Kato
  * @version 2.1.0 (UUID Migration Complete)
  * @since 2025-11-02
  */

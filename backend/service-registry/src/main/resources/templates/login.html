@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<!-- ════════════════════════════════════════════════════════════════════════════════
+     EBP Service Registry - Custom Login Page
+
+     ✅ FIXED: Added Thymeleaf namespace declaration (xmlns:th)
+     This resolves the "Namespace 'th' is not bound" error
+     ════════════════════════════════════════════════════════════════════════════════ -->
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EBP Service Registry - Login</title>
+    <style>
+        /* ================================================================================ */
+        /* ROOT VARIABLES - EBP Brand Colors */
+        /* ================================================================================ */
+        :root {
+            --primary-color: #2563eb;
+            --primary-dark: #1e40af;
+            --primary-light: #3b82f6;
+            --secondary-color: #10b981;
+            --accent-color: #f59e0b;
+            --danger-color: #ef4444;
+            --bg-gradient-start: #1e3a8a;
+            --bg-gradient-end: #7c3aed;
+            --text-dark: #1f2937;
+            --text-light: #ffffff;
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        /* ================================================================================ */
+        /* GLOBAL STYLES */
+        /* ================================================================================ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* ================================================================================ */
+        /* ANIMATED BACKGROUND ELEMENTS */
+        /* ================================================================================ */
+        .background-animation {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .circle {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            animation: float 15s infinite ease-in-out;
+        }
+
+        .circle:nth-child(1) {
+            width: 300px;
+            height: 300px;
+            top: -150px;
+            left: -150px;
+            animation-delay: 0s;
+        }
+
+        .circle:nth-child(2) {
+            width: 200px;
+            height: 200px;
+            bottom: -100px;
+            right: -100px;
+            animation-delay: 2s;
+        }
+
+        .circle:nth-child(3) {
+            width: 150px;
+            height: 150px;
+            top: 50%;
+            left: 10%;
+            animation-delay: 4s;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0) rotate(0deg);
+            }
+            50% {
+                transform: translateY(-30px) rotate(180deg);
+            }
+        }
+
+        /* ================================================================================ */
+        /* LOGIN CONTAINER */
+        /* ================================================================================ */
+        .login-container {
+            position: relative;
+            z-index: 1;
+            background: var(--text-light);
+            border-radius: 20px;
+            box-shadow: var(--shadow-xl);
+            overflow: hidden;
+            max-width: 450px;
+            width: 100%;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ================================================================================ */
+        /* HEADER SECTION */
+        /* ================================================================================ */
+        .login-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            padding: 40px 30px;
+            text-align: center;
+            color: var(--text-light);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            animation: pulse 3s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 0.5;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 0.8;
+            }
+        }
+
+        /* ✅ FIXED: Logo styling for both emoji and image support */
+        .logo {
+            font-size: 48px;
+            margin-bottom: 10px;
+            animation: bounce 2s infinite;
+            display: inline-block;
+        }
+
+        .logo-image {
+            height: 60px;
+            margin-bottom: 10px;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .login-header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 5px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .login-header p {
+            font-size: 14px;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ================================================================================ */
+        /* FORM SECTION */
+        /* ================================================================================ */
+        .login-body {
+            padding: 40px 30px;
+        }
+
+        .welcome-text {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .welcome-text h2 {
+            color: var(--text-dark);
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .welcome-text p {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        /* ================================================================================ */
+        /* ERROR MESSAGE STYLING */
+        /* ================================================================================ */
+        .error-message {
+            background: #fee2e2;
+            border-left: 4px solid var(--danger-color);
+            color: #991b1b;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: shake 0.5s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        .error-message::before {
+            content: '⚠️';
+            font-size: 18px;
+        }
+
+        /* ================================================================================ */
+        /* FORM GROUPS */
+        /* ================================================================================ */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            color: var(--text-dark);
+            font-weight: 500;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 18px;
+            color: #9ca3af;
+            pointer-events: none;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 14px 15px 14px 45px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            background: #f9fafb;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            background: white;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+        }
+
+        .form-control::placeholder {
+            color: #9ca3af;
+        }
+
+        /* ================================================================================ */
+        /* REMEMBER ME & FORGOT PASSWORD */
+        /* ================================================================================ */
+        .form-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .remember-me input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+        }
+
+        .remember-me label {
+            color: #4b5563;
+            cursor: pointer;
+            margin: 0;
+        }
+
+        .forgot-password {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .forgot-password:hover {
+            color: var(--primary-dark);
+            text-decoration: underline;
+        }
+
+        /* ================================================================================ */
+        /* SUBMIT BUTTON */
+        /* ================================================================================ */
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-login::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn-login:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(37, 99, 235, 0.4);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        /* ================================================================================ */
+        /* FOOTER */
+        /* ================================================================================ */
+        .login-footer {
+            text-align: center;
+            padding: 20px 30px;
+            background: #f9fafb;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .login-footer p {
+            color: #6b7280;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+
+        .social-links {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .social-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: white;
+            color: var(--primary-color);
+            text-decoration: none;
+            font-size: 18px;
+            transition: all 0.3s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .social-link:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+            background: var(--primary-color);
+            color: white;
+        }
+
+        /* ================================================================================ */
+        /* INFO BADGE */
+        /* ================================================================================ */
+        .info-badge {
+            background: #dbeafe;
+            border-left: 4px solid var(--primary-color);
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #1e40af;
+        }
+
+        .info-badge strong {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        /* ================================================================================ */
+        /* RESPONSIVE DESIGN */
+        /* ================================================================================ */
+        @media (max-width: 480px) {
+            .login-container {
+                margin: 0 15px;
+            }
+
+            .login-header {
+                padding: 30px 20px;
+            }
+
+            .login-header h1 {
+                font-size: 24px;
+            }
+
+            .login-body {
+                padding: 30px 20px;
+            }
+
+            .form-options {
+                flex-direction: column;
+                gap: 10px;
+                align-items: flex-start;
+            }
+        }
+
+        /* ================================================================================ */
+        /* LOADING SPINNER */
+        /* ================================================================================ */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .btn-login.loading {
+            pointer-events: none;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+<!-- ════════════════════════════════════════════════════════════════════════════════
+     Background Animation
+     ════════════════════════════════════════════════════════════════════════════════ -->
+<div class="background-animation">
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════════════
+     Login Container
+     ════════════════════════════════════════════════════════════════════════════════ -->
+<div class="login-container">
+    <!-- ────────────────────────────────────────────────────────────────────────────
+         Header Section
+         ──────────────────────────────────────────────────────────────────────────── -->
+    <div class="login-header">
+        <!-- ✅ OPTION 1: Use custom logo image (if EBP_Logo.png exists) -->
+        <!-- Uncomment this line if you have the logo file in static/images/ -->
+        <!-- <img th:src="@{/images/EBP_Logo.png}" alt="EBP Logo" class="logo-image"> -->
+
+        <!-- ✅ OPTION 2: Use emoji logo (default) -->
+        <div class="logo">🚀</div>
+
+        <h1>EBP Service Registry</h1>
+        <p>Entrepreneurship Booster Platform</p>
+    </div>
+
+    <!-- ────────────────────────────────────────────────────────────────────────────
+         Body Section (Login Form)
+         ──────────────────────────────────────────────────────────────────────────── -->
+    <div class="login-body">
+        <!-- Welcome Message -->
+        <div class="welcome-text">
+            <h2>Welcome Back!</h2>
+            <p>Please sign in to access the Eureka Dashboard</p>
+        </div>
+
+        <!-- ✅ Error Message (Spring Security auto-adds 'error' parameter on failed login) -->
+        <!-- th:if checks if request parameter 'error' exists -->
+        <div class="error-message" th:if="${param.error}">
+            <span>Invalid username or password. Please try again.</span>
+        </div>
+
+        <!-- ✅ Logout Success Message -->
+        <!-- th:if checks if request parameter 'logout' exists -->
+        <div class="info-badge" th:if="${param.logout}"
+             style="background: #d1fae5; border-color: var(--secondary-color); color: #065f46;">
+            <strong>✓ Logged Out Successfully</strong>
+            You have been successfully logged out.
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════════════════════
+             Login Form
+
+             ✅ KEY POINTS:
+             1. method="POST" - Spring Security expects POST
+             2. th:action="@{/login}" - Thymeleaf URL processing (adds CSRF automatically)
+             3. name="username" - Spring Security expects this field name
+             4. name="password" - Spring Security expects this field name
+             5. CSRF token - Added automatically by th:action
+             ════════════════════════════════════════════════════════════════════════ -->
+        <form method="POST" th:action="@{/login}" id="loginForm">
+            <!-- ✅ CSRF Token (automatically added by Thymeleaf when using th:action) -->
+            <!-- Manual CSRF token (backup if th:action doesn't work) -->
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+
+            <!-- ────────────────────────────────────────────────────────────────────
+                 Username Field
+                 ──────────────────────────────────────────────────────────────────── -->
+            <div class="form-group">
+                <label for="username">Username</label>
+                <div class="input-wrapper">
+                    <span class="input-icon">👤</span>
+                    <input
+                            type="text"
+                            id="username"
+                            name="username"
+                            class="form-control"
+                            placeholder="Enter your username"
+                            required
+                            autofocus
+                            autocomplete="username"
+                    >
+                </div>
+            </div>
+
+            <!-- ────────────────────────────────────────────────────────────────────
+                 Password Field
+                 ──────────────────────────────────────────────────────────────────── -->
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div class="input-wrapper">
+                    <span class="input-icon">🔒</span>
+                    <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            class="form-control"
+                            placeholder="Enter your password"
+                            required
+                            autocomplete="current-password"
+                    >
+                </div>
+            </div>
+
+            <!-- ────────────────────────────────────────────────────────────────────
+                 Remember Me & Forgot Password
+                 ──────────────────────────────────────────────────────────────────── -->
+            <div class="form-options">
+                <div class="remember-me">
+                    <input type="checkbox" id="remember" name="remember-me">
+                    <label for="remember">Remember me</label>
+                </div>
+                <a href="#" class="forgot-password">Forgot password?</a>
+            </div>
+
+            <!-- ────────────────────────────────────────────────────────────────────
+                 Submit Button
+                 ──────────────────────────────────────────────────────────────────── -->
+            <button type="submit" class="btn-login" id="loginBtn">
+                <span id="btnText">Sign In</span>
+            </button>
+        </form>
+
+        <!-- ════════════════════════════════════════════════════════════════════════
+             Development Credentials Info
+             ⚠️ REMOVE THIS SECTION IN PRODUCTION!
+             ════════════════════════════════════════════════════════════════════════ -->
+        <div class="info-badge">
+            <strong>🔐 Development Credentials</strong>
+            Username: <code>admin</code><br>
+            Password: <code>changeme</code>
+        </div>
+    </div>
+
+    <!-- ────────────────────────────────────────────────────────────────────────────
+         Footer Section
+         ──────────────────────────────────────────────────────────────────────────── -->
+    <div class="login-footer">
+        <p>© 2025 Entrepreneurship Booster Platform</p>
+        <p style="font-size: 12px; color: #9ca3af;">Empowering Youth Through Technology</p>
+
+        <!-- Social Links (Optional) -->
+        <div class="social-links">
+            <a href="#" class="social-link" title="Website">🌐</a>
+            <a href="#" class="social-link" title="GitHub">💻</a>
+            <a href="#" class="social-link" title="Support">📧</a>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════════════
+     JavaScript for Enhanced UX
+     ════════════════════════════════════════════════════════════════════════════════ -->
+<script>
+    // ================================================================================
+    // FORM SUBMISSION HANDLER WITH LOADING STATE
+    // ================================================================================
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+        const btn = document.getElementById('loginBtn');
+        const btnText = document.getElementById('btnText');
+
+        // Add loading state
+        btn.classList.add('loading');
+        btnText.innerHTML = '<span class="spinner"></span>Signing in...';
+        btn.disabled = true;
+    });
+
+    // ================================================================================
+    // ENTER KEY HANDLER (submit form on Enter in password field)
+    // ================================================================================
+    document.getElementById('password').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('loginForm').submit();
+        }
+    });
+
+    // ================================================================================
+    // AUTO-HIDE ERROR MESSAGE AFTER 5 SECONDS
+    // ================================================================================
+    window.addEventListener('DOMContentLoaded', function() {
+        const errorMsg = document.querySelector('.error-message');
+        if (errorMsg) {
+            setTimeout(() => {
+                errorMsg.style.transition = 'opacity 0.5s';
+                errorMsg.style.opacity = '0';
+                setTimeout(() => errorMsg.remove(), 500);
+            }, 5000);
+        }
+    });
+
+    // ================================================================================
+    // FORGOT PASSWORD HANDLER
+    // ================================================================================
+    document.querySelector('.forgot-password')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        alert('Please contact your system administrator to reset your password.\n\nEmail: admin@ebp-platform.ug');
+    });
+</script>
+</body>
+</html>

@@ -15,12 +15,6 @@ public interface MentorProfileRepository extends JpaRepository<MentorProfile, Lo
     // Optional: Add custom query methods
     // List<MentorProfile> findByAreaOfExpertiseContaining(String expertise);
 
-    /**
-     * Finds a MentorProfile by the associated user's ID.
-     * Spring Data JPA automatically creates the query from the method name.
-     *
-     * @param userId The ID of the user to search for.
-     * @return An Optional containing the MentorProfile if found.
-     */
+    // MentorProfileRepository
     Optional<MentorProfile> findByUser_Id(UUID userId);
 }

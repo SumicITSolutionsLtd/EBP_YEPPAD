@@ -1,103 +1,85 @@
 package com.youthconnect.auth_service.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import org.hibernate.annotations.GenericGenerator;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-/**
- * User Entity - WITH OAUTH2 SUPPORT
- * ═══════════════════════════════════════════════════════════════════════════
- *
- * ✅ NEW FIELDS:
- * - oauth2_provider: 'google', 'facebook', 'apple', or NULL
- * - oauth2_user_id: Provider's unique user ID
- *
- * AUTHENTICATION MODES:
- * 1. Email/Password (Traditional)
- *    - oauth2_provider = NULL
- *    - oauth2_user_id = NULL
- *    - password_hash = BCrypt hash
- *
- * 2. OAuth2 (Google/Facebook/Apple)
- *    - oauth2_provider = 'google'
- *    - oauth2_user_id = Google's user ID
- *    - password_hash = Random (unused)
- *
- * @author Douglas Kings Kato
- * @version 2.0.0 (OAuth2 Support)
- */
 @Entity
-@Table(name = "users", indexes = {
-        @Index(name = "idx_users_email", columnList = "email"),
-        @Index(name = "idx_users_phone", columnList = "phone_number"),
-        @Index(name = "idx_users_oauth2", columnList = "oauth2_provider, oauth2_user_id"),
-        @Index(name = "idx_users_active", columnList = "is_active")
-})
-@Data
+@Table(
+        name = "users",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_users_email", columnNames = "email"),
+                @UniqueConstraint(name = "uk_users_phone_number", columnNames = "phone_number")
+        },
+        indexes = {
+                @Index(name = "idx_users_email", columnList = "email"),
+                @Index(name = "idx_users_phone", columnList = "phone_number"),
+                @Index(name = "idx_users_oauth2", columnList = "oauth2_provider, oauth2_user_id"),
+                // ✅ FIXED: Changed "active" to "is_active" (Physical Column Name)
+                @Index(name = "idx_users_active", columnList = "is_active"),
+                @Index(name = "idx_users_role", columnList = "role"),
+                @Index(name = "idx_users_status", columnList = "status")
+        }
+)
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class User {
 
     @Id
-    @GeneratedValue(generator = "UUID")
-    @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
+    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "user_id", updatable = false, nullable = false, columnDefinition = "uuid")
     private UUID userId;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(name = "email", nullable = false, length = 100)
     private String email;
 
-    @Column(name = "phone_number", unique = true, length = 20)
+    @Column(name = "phone_number", length = 20)
     private String phoneNumber;
 
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
-    @Column(nullable = false, length = 30)
-    @Enumerated(EnumType.STRING)
-    private UserRole role;
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // ✅ NEW: OAuth2 Integration Fields
-    // ═══════════════════════════════════════════════════════════════════════
-
-    /**
-     * OAuth2 Provider Name
-     * Values: 'google', 'facebook', 'apple', or NULL
-     * NULL = User uses email/password authentication
-     */
     @Column(name = "oauth2_provider", length = 50)
     private String oauth2Provider;
 
-    /**
-     * OAuth2 Provider's User ID
-     * Example: Google's sub claim (unique user identifier)
-     * Must be set together with oauth2_provider
-     */
     @Column(name = "oauth2_user_id", length = 255)
     private String oauth2UserId;
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Account Status & Verification
-    // ═══════════════════════════════════════════════════════════════════════
+    @Column(name = "first_name", length = 100)
+    private String firstName;
 
+    @Column(name = "last_name", length = 100)
+    private String lastName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 30)
+    @Builder.Default
+    private UserRole role = UserRole.YOUTH;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 30)
+    @Builder.Default
+    private AccountStatus status = AccountStatus.PENDING_VERIFICATION;
+
+    // This mapping is correct for the field, but the @Index above needs to match the name="" below
     @Column(name = "is_active", nullable = false)
-    private boolean active = true;
+    @Builder.Default
+    private Boolean active = true;
 
     @Column(name = "email_verified", nullable = false)
-    private boolean emailVerified = false;
+    @Builder.Default
+    private Boolean emailVerified = false;
 
     @Column(name = "phone_verified", nullable = false)
-    private boolean phoneVerified = false;
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // Security & Audit
-    // ═══════════════════════════════════════════════════════════════════════
+    @Builder.Default
+    private Boolean phoneVerified = false;
 
     @Column(name = "last_login")
     private LocalDateTime lastLogin;
@@ -106,29 +88,21 @@ public class User {
     private String lastLoginIp;
 
     @Column(name = "failed_login_attempts", nullable = false)
+    @Builder.Default
     private Integer failedLoginAttempts = 0;
 
     @Column(name = "account_locked_until")
     private LocalDateTime accountLockedUntil;
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Additional Fields
-    // ═══════════════════════════════════════════════════════════════════════
+    @Column(name = "password_changed_at")
+    private LocalDateTime passwordChangedAt;
 
-    @Column(name = "first_name", length = 100)
-    private String firstName;
-
-    @Column(name = "last_name", length = 100)
-    private String lastName;
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // Audit Fields
-    // ═══════════════════════════════════════════════════════════════════════
-
+    @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @Column(name = "created_by", columnDefinition = "uuid")
@@ -137,136 +111,108 @@ public class User {
     @Column(name = "updated_by", columnDefinition = "uuid")
     private UUID updatedBy;
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Soft Delete
-    // ═══════════════════════════════════════════════════════════════════════
-
     @Column(name = "is_deleted", nullable = false)
-    private boolean deleted = false;
+    @Builder.Default
+    private Boolean deleted = false;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // JPA Lifecycle Callbacks
-    // ═══════════════════════════════════════════════════════════════════════
+    @Column(name = "deleted_by", columnDefinition = "uuid")
+    private UUID deletedBy;
 
     @PrePersist
     protected void onCreate() {
-        LocalDateTime now = LocalDateTime.now();
-        if (createdAt == null) {
-            createdAt = now;
+        if (failedLoginAttempts == null) failedLoginAttempts = 0;
+        if (active == null) active = true;
+        if (deleted == null) deleted = false;
+
+        if (isOAuth2User() && (emailVerified == null || !emailVerified)) {
+            this.emailVerified = true;
+            if (this.status == AccountStatus.PENDING_VERIFICATION) {
+                this.status = AccountStatus.ACTIVE;
+            }
         }
-        if (updatedAt == null) {
-            updatedAt = now;
-        }
-        if (failedLoginAttempts == null) {
-            failedLoginAttempts = 0;
-        }
     }
 
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+    public void setActive(boolean active) {
+        this.active = active;
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Business Logic Methods
-    // ═══════════════════════════════════════════════════════════════════════
-
-    public boolean isLocked() {
-        return accountLockedUntil != null && accountLockedUntil.isAfter(LocalDateTime.now());
-    }
-
-    public boolean isFullyVerified() {
-        return emailVerified && phoneVerified;
-    }
-
-    public void incrementFailedAttempts() {
-        if (failedLoginAttempts == null) {
-            failedLoginAttempts = 0;
-        }
-        failedLoginAttempts++;
-    }
-
-    public void resetFailedAttempts() {
-        failedLoginAttempts = 0;
-        accountLockedUntil = null;
-    }
-
-    public void lockAccount(int lockDurationMinutes) {
-        accountLockedUntil = LocalDateTime.now().plusMinutes(lockDurationMinutes);
-    }
-
-    public void softDelete() {
-        this.deleted = true;
-        this.deletedAt = LocalDateTime.now();
-        this.active = false;
-    }
-
-    public void updateLastLogin(String ipAddress) {
-        this.lastLogin = LocalDateTime.now();
-        this.lastLoginIp = ipAddress;
-        resetFailedAttempts();
+    public boolean isActive() {
+        return this.active != null && this.active;
     }
 
     public String getFullName() {
-        if (firstName != null && lastName != null) {
+        if (firstName != null && !firstName.isBlank() &&
+                lastName != null && !lastName.isBlank()) {
             return firstName + " " + lastName;
-        } else if (firstName != null) {
+        } else if (firstName != null && !firstName.isBlank()) {
             return firstName;
-        } else if (lastName != null) {
+        } else if (lastName != null && !lastName.isBlank()) {
             return lastName;
         }
         return email;
     }
 
-    /**
-     * ✅ NEW: Check if user uses OAuth2 authentication
-     */
     public boolean isOAuth2User() {
         return oauth2Provider != null && oauth2UserId != null;
     }
 
-    /**
-     * ✅ NEW: Check if user uses traditional email/password
-     */
     public boolean isPasswordUser() {
         return oauth2Provider == null && oauth2UserId == null;
     }
 
-    /**
-     * ✅ NEW: Link OAuth2 account to existing user
-     */
     public void linkOAuth2Account(String provider, String providerId) {
         this.oauth2Provider = provider;
         this.oauth2UserId = providerId;
-        this.emailVerified = true; // OAuth2 providers verify email
+        this.emailVerified = true;
     }
 
-    /**
-     * ✅ NEW: Unlink OAuth2 account (user switches to password auth)
-     */
     public void unlinkOAuth2Account() {
         this.oauth2Provider = null;
         this.oauth2UserId = null;
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // User Role Enum
-    // ═══════════════════════════════════════════════════════════════════════
+    public boolean isAccountLocked() {
+        return accountLockedUntil != null &&
+                accountLockedUntil.isAfter(LocalDateTime.now());
+    }
+
+    public void incrementFailedLoginAttempts() {
+        if (this.failedLoginAttempts == null) this.failedLoginAttempts = 0;
+        this.failedLoginAttempts++;
+    }
+
+    public void resetFailedLoginAttempts() {
+        this.failedLoginAttempts = 0;
+        this.accountLockedUntil = null;
+    }
+
+    public void lockAccount(int lockoutMinutes) {
+        this.accountLockedUntil = LocalDateTime.now().plusMinutes(lockoutMinutes);
+        this.status = AccountStatus.LOCKED;
+    }
+
+    public void updateLastLogin(String ipAddress) {
+        this.lastLogin = LocalDateTime.now();
+        this.lastLoginIp = ipAddress;
+        resetFailedLoginAttempts();
+    }
+
+    public void softDelete(UUID deleterId) {
+        this.deleted = true;
+        this.deletedAt = LocalDateTime.now();
+        this.deletedBy = deleterId;
+        this.active = false;
+        this.status = AccountStatus.INACTIVE;
+    }
 
     public enum UserRole {
-        YOUTH,
-        NGO,
-        MENTOR,
-        FUNDER,
-        SERVICE_PROVIDER,
-        ADMIN,
-        SUPER_ADMIN,
-        MODERATOR,
-        COMPANY,
-        RECRUITER,
-        GOVERNMENT
+        YOUTH, NGO, MENTOR, FUNDER, SERVICE_PROVIDER, ADMIN, SUPER_ADMIN, MODERATOR, COMPANY, RECRUITER, GOVERNMENT
+    }
+
+    public enum AccountStatus {
+        ACTIVE, INACTIVE, SUSPENDED, LOCKED, PENDING_VERIFICATION, BANNED
     }
 }

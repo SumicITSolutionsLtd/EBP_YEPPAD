@@ -1,16 +1,32 @@
+
+
+
+
+
+
 package com.youthconnect.user_service.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.GenericGenerator;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.GenericGenerator;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * YOUTH PROFILE ENTITY - FIXED
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * FIXES APPLIED:
+ * 1. Correct @JoinColumn configuration
+ * 2. Proper UUID handling
+ * 3. Correct referenced column name
+ */
 @Entity
 @Table(name = "youth_profiles")
 @Data
@@ -21,10 +37,15 @@ public class YouthProfile {
     @GeneratedValue(generator = "UUID")
     @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
     @Column(name = "profile_id", columnDefinition = "UUID")
-    private UUID id; // CHANGED FROM Long to UUID
+    private UUID id;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", referencedColumnName = "user_id", nullable = false, unique = true)
+    @JoinColumn(
+            name = "user_id",                    // Column in youth_profiles table
+            referencedColumnName = "user_id",
+            nullable = false,
+            unique = true
+    )
     private User user;
 
     @Column(name = "first_name", nullable = false, length = 50)
@@ -59,6 +80,9 @@ public class YouthProfile {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    /**
+     * Constructor for creating profile with associated user
+     */
     public YouthProfile(User user) {
         this.user = user;
     }

@@ -13,6 +13,8 @@ import java.util.Map;
  * Provides default responses when the User Service is unavailable.
  * This ensures that dependent services can still function with
  * degraded but predictable behavior.
+ * @author Douglas Kings Kato
+ * @version 1.0.0
  */
 @Slf4j
 @Component

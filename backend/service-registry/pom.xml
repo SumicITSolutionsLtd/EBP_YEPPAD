@@ -5,45 +5,34 @@
          https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-	<!-- ============================================= -->
-	<!-- Parent Project Configuration                  -->
-	<!-- Using Spring Boot parent directly             -->
-	<!-- ============================================= -->
+	<!-- ================================================================================ -->
+	<!-- Parent Configuration -->
+	<!-- ================================================================================ -->
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
 		<version>3.2.11</version>
-		<relativePath/>
+		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 
-	<!-- ============================================= -->
-	<!-- Project Coordinates                           -->
-	<!-- ============================================= -->
+	<!-- ================================================================================ -->
+	<!-- Project Information -->
+	<!-- ================================================================================ -->
 	<groupId>com.youthconnect</groupId>
 	<artifactId>service-registry</artifactId>
 	<name>Service Registry - Eureka Server</name>
-	<description>Eureka Service Registry for YouthConnect Uganda Platform</description>
+	<description>Eureka Service Registry for EBP Platform</description>
 	<version>2.0.0</version>
 	<packaging>jar</packaging>
 
-	<!-- ============================================= -->
-	<!-- Project Properties                            -->
-	<!-- ============================================= -->
+	<!-- ================================================================================ -->
+	<!-- Properties -->
+	<!-- ================================================================================ -->
 	<properties>
-		<!-- Java Version (matching your JDK 21) -->
 		<java.version>21</java.version>
-
-		<!-- Spring Cloud version compatible with Spring Boot 3.2.x -->
 		<spring-cloud.version>2023.0.3</spring-cloud.version>
-
-		<!-- Encoding -->
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-
-		<!-- Compiler Configuration -->
-		<maven.compiler.source>21</maven.compiler.source>
-		<maven.compiler.target>21</maven.compiler.target>
-		<maven.compiler.release>21</maven.compiler.release>
 
 		<!-- Plugin Versions -->
 		<maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
@@ -55,82 +44,95 @@
 		<!-- Dependency Versions -->
 		<lombok.version>1.18.32</lombok.version>
 
-		<!-- Docker Configuration -->
-		<docker.image.name>youthconnect/service-registry</docker.image.name>
+		<!-- Docker Image Configuration -->
+		<docker.image.name>ebp/service-registry</docker.image.name>
 		<docker.image.tag>${project.version}</docker.image.tag>
 	</properties>
 
-	<!-- ============================================= -->
-	<!-- Dependencies                                  -->
-	<!-- ============================================= -->
+	<!-- ================================================================================ -->
+	<!-- Dependencies -->
+	<!-- ================================================================================ -->
 	<dependencies>
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
+		<!-- Spring Boot Starters -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
 
-		<!-- ========================================== -->
-		<!-- SPRING BOOT STARTERS                       -->
-		<!-- ========================================== -->
-
-		<!-- Web Support for Eureka Dashboard -->
+		<!-- Spring Boot Web Starter - REST API and embedded Tomcat -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
 
-		<!-- Security for Eureka Dashboard Protection (Optional) -->
+		<!-- Spring Boot Security - Authentication and authorization -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
-		<!-- Actuator for Health Checks & Monitoring -->
+		<!-- Spring Boot Actuator - Health checks and metrics -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
-		<!-- ========================================== -->
-		<!-- SPRING CLOUD NETFLIX EUREKA                -->
-		<!-- ========================================== -->
+		<!-- ✅ NEW: Thymeleaf Template Engine - For custom login page -->
+		<!-- Required to render login.html template -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-thymeleaf</artifactId>
+		</dependency>
 
-		<!-- Eureka Server - Main Dependency -->
+		<!-- ✅ NEW: Thymeleaf Spring Security Integration -->
+		<!-- Provides security-specific Thymeleaf tags (th:authentication, etc.) -->
+		<dependency>
+			<groupId>org.thymeleaf.extras</groupId>
+			<artifactId>thymeleaf-extras-springsecurity6</artifactId>
+		</dependency>
+
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
+		<!-- Spring Cloud Netflix Eureka -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
+
+		<!-- Eureka Server - Core service registry functionality -->
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-netflix-eureka-server</artifactId>
 		</dependency>
 
-		<!-- Load Balancer Support (included with Eureka) -->
+		<!-- Load Balancer - Client-side load balancing support -->
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
 		</dependency>
 
-		<!-- Caching Support for Eureka -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
+		<!-- Monitoring & Observability -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
+
+		<!-- Caching Support - Response caching for better performance -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-cache</artifactId>
 		</dependency>
 
-		<!-- ========================================== -->
-		<!-- MONITORING & METRICS                       -->
-		<!-- ========================================== -->
-
-		<!-- Micrometer Core for Metrics -->
+		<!-- Micrometer Core - Metrics collection -->
 		<dependency>
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-core</artifactId>
 		</dependency>
 
-		<!-- Prometheus Metrics Export -->
+		<!-- Prometheus Registry - Export metrics in Prometheus format -->
 		<dependency>
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
 			<scope>runtime</scope>
 		</dependency>
 
-		<!-- ========================================== -->
-		<!-- DEVELOPMENT TOOLS                          -->
-		<!-- ========================================== -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
+		<!-- Development Tools -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
 
-		<!-- Spring Boot DevTools for Hot Reload -->
+		<!-- DevTools - Hot reload and development features -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-devtools</artifactId>
@@ -138,7 +140,7 @@
 			<optional>true</optional>
 		</dependency>
 
-		<!-- Lombok for Reducing Boilerplate Code -->
+		<!-- Lombok - Reduce boilerplate code -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
@@ -146,40 +148,38 @@
 			<optional>true</optional>
 		</dependency>
 
-		<!-- Configuration Metadata Processor -->
+		<!-- Configuration Processor - Generate metadata for IDE autocomplete -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-configuration-processor</artifactId>
 			<optional>true</optional>
 		</dependency>
 
-		<!-- ========================================== -->
-		<!-- TESTING DEPENDENCIES                       -->
-		<!-- ========================================== -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
+		<!-- Testing -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
 
-		<!-- Spring Boot Test Starter -->
+		<!-- Spring Boot Test - Testing framework -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 
-		<!-- Spring Security Test Support -->
+		<!-- Spring Security Test - Security testing utilities -->
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-
 	</dependencies>
 
-	<!-- ============================================= -->
-	<!-- Dependency Management                         -->
-	<!-- Ensures Spring Cloud versions are compatible -->
-	<!-- ============================================= -->
+	<!-- ================================================================================ -->
+	<!-- Dependency Management -->
+	<!-- ================================================================================ -->
 	<dependencyManagement>
 		<dependencies>
-			<!-- Spring Cloud BOM (Bill of Materials) -->
+			<!-- Spring Cloud BOM - Manages versions of all Spring Cloud dependencies -->
 			<dependency>
 				<groupId>org.springframework.cloud</groupId>
 				<artifactId>spring-cloud-dependencies</artifactId>
@@ -190,15 +190,17 @@
 		</dependencies>
 	</dependencyManagement>
 
-	<!-- ============================================= -->
-	<!-- Build Configuration                           -->
-	<!-- ============================================= -->
+	<!-- ================================================================================ -->
+	<!-- Build Configuration -->
+	<!-- ================================================================================ -->
 	<build>
 		<finalName>service-registry</finalName>
 
-		<!-- Resource Filtering Configuration -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
+		<!-- Resource Filtering -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
 		<resources>
-			<!-- Enable filtering for configuration files -->
+			<!-- Filter application.yml to inject Maven properties -->
 			<resource>
 				<directory>src/main/resources</directory>
 				<filtering>true</filtering>
@@ -213,7 +215,7 @@
 				</includes>
 			</resource>
 
-			<!-- Disable filtering for binary files -->
+			<!-- Don't filter binary files -->
 			<resource>
 				<directory>src/main/resources</directory>
 				<filtering>false</filtering>
@@ -229,15 +231,27 @@
 			</resource>
 		</resources>
 
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
+		<!-- Build Plugins -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
 		<plugins>
-
-			<!-- ====================================== -->
-			<!-- Spring Boot Maven Plugin               -->
-			<!-- ====================================== -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<!-- Spring Boot Maven Plugin - Creates executable JAR -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
+					<!-- Docker image configuration -->
+					<image>
+						<name>${docker.image.name}:${docker.image.tag}</name>
+					</image>
+
+					<!-- Java version -->
+					<jvmArguments>
+						--add-opens java.base/java.lang=ALL-UNNAMED
+					</jvmArguments>
+
 					<!-- Exclude Lombok from final JAR -->
 					<excludes>
 						<exclude>
@@ -245,22 +259,10 @@
 							<artifactId>lombok</artifactId>
 						</exclude>
 					</excludes>
-
-					<!-- Docker Image Configuration -->
-					<image>
-						<name>${docker.image.name}:${docker.image.tag}</name>
-						<env>
-							<BP_JVM_VERSION>21</BP_JVM_VERSION>
-						</env>
-					</image>
-
-					<!-- Enable layer extraction for Docker -->
-					<layers>
-						<enabled>true</enabled>
-					</layers>
 				</configuration>
 
 				<executions>
+					<!-- Repackage goal creates executable JAR -->
 					<execution>
 						<goals>
 							<goal>repackage</goal>
@@ -270,9 +272,9 @@
 				</executions>
 			</plugin>
 
-			<!-- ====================================== -->
-			<!-- Maven Compiler Plugin (Java 21)        -->
-			<!-- ====================================== -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<!-- Maven Compiler Plugin - Java compilation configuration -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
@@ -283,13 +285,15 @@
 					<release>${java.version}</release>
 					<encoding>UTF-8</encoding>
 
-					<!-- Lombok Annotation Processing -->
+					<!-- Annotation processors -->
 					<annotationProcessorPaths>
+						<!-- Lombok annotation processor -->
 						<path>
 							<groupId>org.projectlombok</groupId>
 							<artifactId>lombok</artifactId>
 							<version>${lombok.version}</version>
 						</path>
+						<!-- Spring Boot configuration processor -->
 						<path>
 							<groupId>org.springframework.boot</groupId>
 							<artifactId>spring-boot-configuration-processor</artifactId>
@@ -297,32 +301,27 @@
 						</path>
 					</annotationProcessorPaths>
 
-					<!-- Compiler Arguments -->
+					<!-- Preserve parameter names for better debugging -->
 					<compilerArgs>
 						<arg>-parameters</arg>
 					</compilerArgs>
 				</configuration>
 			</plugin>
 
-			<!-- ====================================== -->
-			<!-- Maven Surefire Plugin (Testing)        -->
-			<!-- ====================================== -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<!-- Maven Surefire Plugin - Unit tests -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
 				<version>${maven-surefire-plugin.version}</version>
 				<configuration>
-					<!-- Test Configuration -->
 					<argLine>
 						-Djava.security.egd=file:/dev/./urandom
 						-Dspring.profiles.active=test
 					</argLine>
-
-					<!-- Parallel Execution for Faster Tests -->
-					<parallel>methods</parallel>
-					<threadCount>2</threadCount>
-
-					<!-- Exclude Integration Tests from Unit Test Phase -->
+					<runOrder>methods</runOrder>
+					<forkCount>2</forkCount>
 					<excludes>
 						<exclude>**/*IntegrationTest.java</exclude>
 						<exclude>**/*IT.java</exclude>
@@ -330,9 +329,9 @@
 				</configuration>
 			</plugin>
 
-			<!-- ====================================== -->
-			<!-- Maven Failsafe Plugin (Integration Tests) -->
-			<!-- ====================================== -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<!-- Maven Failsafe Plugin - Integration tests -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-failsafe-plugin</artifactId>
@@ -353,9 +352,9 @@
 				</configuration>
 			</plugin>
 
-			<!-- ====================================== -->
-			<!-- Maven Resources Plugin                 -->
-			<!-- ====================================== -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<!-- Maven Resources Plugin - Resource processing -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-resources-plugin</artifactId>
@@ -369,9 +368,9 @@
 				</configuration>
 			</plugin>
 
-			<!-- ====================================== -->
-			<!-- Maven JAR Plugin                       -->
-			<!-- ====================================== -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<!-- Maven JAR Plugin - JAR packaging configuration -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jar-plugin</artifactId>
@@ -385,23 +384,21 @@
 						<manifestEntries>
 							<Implementation-Title>${project.name}</Implementation-Title>
 							<Implementation-Version>${project.version}</Implementation-Version>
-							<Built-By>Youth Connect Uganda Team</Built-By>
+							<Implementation-Vendor>EBP Development Team</Implementation-Vendor>
 						</manifestEntries>
 					</archive>
 				</configuration>
 			</plugin>
-
 		</plugins>
 	</build>
 
-	<!-- ============================================= -->
-	<!-- Build Profiles                                -->
-	<!-- ============================================= -->
+	<!-- ================================================================================ -->
+	<!-- Build Profiles -->
+	<!-- ================================================================================ -->
 	<profiles>
-
-		<!-- ====================================== -->
-		<!-- Development Profile (Default)          -->
-		<!-- ====================================== -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
+		<!-- Development Profile -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
 		<profile>
 			<id>dev</id>
 			<activation>
@@ -409,28 +406,29 @@
 			</activation>
 			<properties>
 				<spring.profiles.active>dev</spring.profiles.active>
-				<log.level>DEBUG</log.level>
+				<logging.level>DEBUG</logging.level>
 			</properties>
 		</profile>
 
-		<!-- ====================================== -->
-		<!-- Production Profile                     -->
-		<!-- ====================================== -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
+		<!-- Production Profile -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
 		<profile>
 			<id>prod</id>
 			<properties>
 				<spring.profiles.active>prod</spring.profiles.active>
-				<log.level>INFO</log.level>
+				<logging.level>INFO</logging.level>
 			</properties>
 			<build>
 				<plugins>
-					<!-- Enable JAR compression for production -->
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-jar-plugin</artifactId>
 						<configuration>
 							<archive>
-								<compress>true</compress>
+								<manifestEntries>
+									<Environment>production</Environment>
+								</manifestEntries>
 							</archive>
 						</configuration>
 					</plugin>
@@ -438,18 +436,17 @@
 			</build>
 		</profile>
 
-		<!-- ====================================== -->
-		<!-- Docker Profile                         -->
-		<!-- ====================================== -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
+		<!-- Docker Profile -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
 		<profile>
 			<id>docker</id>
 			<properties>
 				<spring.profiles.active>docker</spring.profiles.active>
-				<log.level>INFO</log.level>
+				<logging.level>INFO</logging.level>
 			</properties>
 			<build>
 				<plugins>
-					<!-- Docker build with Spring Boot -->
 					<plugin>
 						<groupId>org.springframework.boot</groupId>
 						<artifactId>spring-boot-maven-plugin</artifactId>
@@ -465,31 +462,34 @@
 			</build>
 		</profile>
 
-		<!-- ====================================== -->
-		<!-- Testing Profile                        -->
-		<!-- ====================================== -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
+		<!-- Test Profile -->
+		<!-- ════════════════════════════════════════════════════════════════════════ -->
 		<profile>
 			<id>test</id>
 			<properties>
 				<spring.profiles.active>test</spring.profiles.active>
-				<log.level>DEBUG</log.level>
+				<logging.level>DEBUG</logging.level>
 			</properties>
 		</profile>
-
 	</profiles>
 
-	<!-- ============================================= -->
-	<!-- Repository Configuration                      -->
-	<!-- ============================================= -->
+	<!-- ================================================================================ -->
+	<!-- Repositories -->
+	<!-- ================================================================================ -->
 	<repositories>
 		<repository>
 			<id>central</id>
 			<name>Maven Central</name>
 			<url>https://repo.maven.apache.org/maven2</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
 			<snapshots>
 				<enabled>false</enabled>
 			</snapshots>
 		</repository>
+
 		<repository>
 			<id>spring-milestones</id>
 			<name>Spring Milestones</name>
@@ -498,6 +498,7 @@
 				<enabled>false</enabled>
 			</snapshots>
 		</repository>
+
 		<repository>
 			<id>spring-snapshots</id>
 			<name>Spring Snapshots</name>
@@ -513,10 +514,14 @@
 			<id>central</id>
 			<name>Maven Central</name>
 			<url>https://repo.maven.apache.org/maven2</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
 			<snapshots>
 				<enabled>false</enabled>
 			</snapshots>
 		</pluginRepository>
+
 		<pluginRepository>
 			<id>spring-milestones</id>
 			<name>Spring Milestones</name>
@@ -525,6 +530,7 @@
 				<enabled>false</enabled>
 			</snapshots>
 		</pluginRepository>
+
 		<pluginRepository>
 			<id>spring-snapshots</id>
 			<name>Spring Snapshots</name>
@@ -534,5 +540,4 @@
 			</releases>
 		</pluginRepository>
 	</pluginRepositories>
-
 </project>

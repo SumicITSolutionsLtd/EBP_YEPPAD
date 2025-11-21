@@ -29,24 +29,19 @@ import java.util.List;
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * Security Configuration for Auth Service
+ * Security Configuration
  * ═══════════════════════════════════════════════════════════════════════════
-
- * SOLUTION: Use simple String injection with default values, then split into arrays
+ *
+ * CORS configuration to use String injection with default values
  *
  * @author Douglas Kings Kato
- * @since 2025-11-16
- * ═══════════════════════════════════════════════════════════════════════════
+ * @version 2.0.0 (Fixed)
  */
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity(prePostEnabled = true, securedEnabled = true, jsr250Enabled = true)
+@EnableMethodSecurity(prePostEnabled = true)
 @RequiredArgsConstructor
 public class SecurityConfig {
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // DEPENDENCIES (Injected via Constructor)
-    // ═══════════════════════════════════════════════════════════════════════
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
@@ -54,20 +49,17 @@ public class SecurityConfig {
     private final OAuth2SuccessHandler oauth2SuccessHandler;
     private final PasswordEncoder passwordEncoder;
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // ✅ FIXED: CORS CONFIGURATION PROPERTIES (Using String with defaults)
-    // ═══════════════════════════════════════════════════════════════════════
-
-    @Value("${app.security.allowed-origins:http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:4200}")
+    // ✅ FIXED: Use String with default values, then parse to arrays
+    @Value("${app.security.allowed-origins:http://localhost:3000,http://localhost:3001}")
     private String allowedOriginsString;
 
     @Value("${app.security.allowed-methods:GET,POST,PUT,DELETE,PATCH,OPTIONS}")
     private String allowedMethodsString;
 
-    @Value("${app.security.allowed-headers:Authorization,Content-Type,X-Requested-With,Accept,Origin,Access-Control-Request-Method,Access-Control-Request-Headers}")
+    @Value("${app.security.allowed-headers:Authorization,Content-Type,X-Requested-With}")
     private String allowedHeadersString;
 
-    @Value("${app.security.exposed-headers:Authorization,X-Total-Count,X-Page-Number,X-Page-Size}")
+    @Value("${app.security.exposed-headers:Authorization,X-Total-Count}")
     private String exposedHeadersString;
 
     @Value("${app.security.allow-credentials:true}")
@@ -76,10 +68,9 @@ public class SecurityConfig {
     @Value("${app.security.max-age:3600}")
     private long maxAge;
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // SECURITY FILTER CHAIN
-    // ═══════════════════════════════════════════════════════════════════════
-
+    /**
+     * Security Filter Chain
+     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -93,16 +84,9 @@ public class SecurityConfig {
                                 "/validate/**",
                                 "/health/**",
                                 "/actuator/**",
-                                "/actuator/health/**",
-                                "/actuator/prometheus",
-                                "/actuator/info",
                                 "/api-docs/**",
                                 "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**",
-                                "/password/forgot",
-                                "/password/reset/**",
-                                "/password/validate-reset-token",
+                                "/password/**",
                                 "/oauth2/**",
                                 "/login/oauth2/**"
                         ).permitAll()
@@ -124,15 +108,14 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // ✅ FIXED: CORS CONFIGURATION (Parse strings into arrays)
-    // ═══════════════════════════════════════════════════════════════════════
-
+    /**
+     * ✅ FIXED: CORS Configuration (Parse strings into arrays)
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // ✅ Convert comma-separated strings to lists
+        // ✅ Parse comma-separated strings to lists
         configuration.setAllowedOrigins(parseCommaSeparated(allowedOriginsString));
         configuration.setAllowedMethods(parseCommaSeparated(allowedMethodsString));
         configuration.setAllowedHeaders(parseCommaSeparated(allowedHeadersString));
@@ -148,10 +131,7 @@ public class SecurityConfig {
     }
 
     /**
-     * Helper method to parse comma-separated string into list
-     *
-     * @param commaSeparated Comma-separated string
-     * @return List of trimmed strings
+     * Parse comma-separated string into list
      */
     private List<String> parseCommaSeparated(String commaSeparated) {
         if (commaSeparated == null || commaSeparated.trim().isEmpty()) {
@@ -163,19 +143,20 @@ public class SecurityConfig {
                 .toList();
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // AUTHENTICATION PROVIDER & MANAGER
-    // ═══════════════════════════════════════════════════════════════════════
-
+    /**
+     * Authentication Provider
+     */
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
         authProvider.setUserDetailsService(userDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder);
-        authProvider.setHideUserNotFoundExceptions(false);
         return authProvider;
     }
 
+    /**
+     * Authentication Manager
+     */
     @Bean
     public AuthenticationManager authenticationManager(
             AuthenticationConfiguration config) throws Exception {

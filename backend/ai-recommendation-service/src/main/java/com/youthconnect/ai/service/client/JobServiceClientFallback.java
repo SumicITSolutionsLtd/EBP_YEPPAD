@@ -12,6 +12,8 @@ import java.util.List;
  *
  * Provides fallback responses when job-service is unavailable.
  * Returns empty or default data to prevent recommendation failures.
+ * @author Douglas Kings Kato
+ * @version 1.0.0
  */
 @Slf4j
 @Component

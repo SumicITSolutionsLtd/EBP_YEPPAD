@@ -12,18 +12,18 @@ import org.springframework.context.annotation.Profile;
 import javax.sql.DataSource;
 
 /**
- * Database Configuration with optimized connection pooling for Entrepreneurship Booster Platform Uganda
+ * ═══════════════════════════════════════════════════════════════════════════
+ * DATABASE CONFIGURATION - POSTGRESQL (FIXED)
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * This configuration class sets up HikariCP connection pool with optimized settings
- * for MySQL database. It includes environment-specific configurations and
- * performance optimizations for production workloads.
+ * FIXES APPLIED:
+ * 1. Changed from MySQL to PostgreSQL driver
+ * 2. Updated connection pool settings for PostgreSQL
+ * 3. Removed MySQL-specific optimizations
+ * 4. Added PostgreSQL-specific configurations
  *
- * Features:
- * - Optimized HikariCP connection pool settings
- * - MySQL-specific performance optimizations
- * - Connection leak detection
- * - Proper timeout configurations
- * - Environment-specific pool sizing
+ * @author Douglas Kings Kato
+ * @version 2.0.0 (PostgreSQL Migration)
  */
 @Slf4j
 @Configuration
@@ -61,20 +61,20 @@ public class DatabaseConfig {
 
     /**
      * Primary DataSource bean with HikariCP connection pool
-     * Configured with MySQL-specific optimizations and monitoring
+     * Configured for PostgreSQL with performance optimizations
      */
     @Bean
     @Primary
     public DataSource dataSource() {
-        log.info("Configuring HikariCP DataSource for Youth Connect Uganda User Service");
+        log.info("Configuring HikariCP DataSource for PostgreSQL");
 
         HikariConfig config = new HikariConfig();
 
-        // Basic connection settings
+        // Basic connection settings - FIXED: PostgreSQL driver
         config.setJdbcUrl(jdbcUrl);
         config.setUsername(username);
         config.setPassword(password);
-        config.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        config.setDriverClassName("org.postgresql.Driver"); // FIXED: Changed from MySQL
 
         // Pool configuration
         config.setMaximumPoolSize(maximumPoolSize);
@@ -84,19 +84,19 @@ public class DatabaseConfig {
         config.setMaxLifetime(maxLifetime);
         config.setValidationTimeout(validationTimeout);
 
-        // Pool name for monitoring and debugging
+        // Pool name for monitoring
         config.setPoolName("YouthConnectUserServicePool");
 
-        // Connection validation - crucial for production stability
-        config.setConnectionTestQuery("SELECT 1");
+        // Connection validation
+        config.setConnectionTestQuery("SELECT 1"); // Works for both MySQL and PostgreSQL
         config.setValidationTimeout(validationTimeout);
 
         // Performance and reliability settings
-        config.setAutoCommit(false); // Better transaction control
-        config.setLeakDetectionThreshold(leakDetectionThreshold); // Detect connection leaks
+        config.setAutoCommit(true); // FIXED: Changed to true for PostgreSQL
+        config.setLeakDetectionThreshold(leakDetectionThreshold);
 
-        // MySQL specific optimizations for better performance
-        addMySQLOptimizations(config);
+        // PostgreSQL-specific optimizations
+        addPostgreSQLOptimizations(config);
 
         log.info("HikariCP configured with pool size: {} (min: {}, max: {})",
                 minimumIdle, minimumIdle, maximumPoolSize);
@@ -105,55 +105,39 @@ public class DatabaseConfig {
     }
 
     /**
-     * Adds MySQL-specific optimizations to HikariCP configuration
-     * These settings improve performance and reduce memory usage
+     * FIXED: PostgreSQL-specific optimizations
+     * Replaces MySQL optimizations with PostgreSQL equivalents
      */
-    private void addMySQLOptimizations(HikariConfig config) {
-        // PreparedStatement caching - improves query performance
+    private void addPostgreSQLOptimizations(HikariConfig config) {
+        // PreparedStatement caching - PostgreSQL supports this
         config.addDataSourceProperty("cachePrepStmts", "true");
-        config.addDataSourceProperty("prepStmtCacheSize", "250");
-        config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
-
-        // Server-side prepared statements - better for repeated queries
-        config.addDataSourceProperty("useServerPrepStmts", "true");
-
-        // Local session state - reduces network calls
-        config.addDataSourceProperty("useLocalSessionState", "true");
-
-        // Batch statement optimization - better for bulk operations
-        config.addDataSourceProperty("rewriteBatchedStatements", "true");
-
-        // Metadata caching - reduces database round trips
-        config.addDataSourceProperty("cacheResultSetMetadata", "true");
-        config.addDataSourceProperty("cacheServerConfiguration", "true");
+        config.addDataSourceProperty("prepareThreshold", "3");
 
         // Connection optimization
-        config.addDataSourceProperty("elideSetAutoCommits", "true");
-        config.addDataSourceProperty("maintainTimeStats", "false");
+        config.addDataSourceProperty("defaultRowFetchSize", "50");
 
-        // Unicode and timezone settings for Uganda context
-        config.addDataSourceProperty("useUnicode", "true");
-        config.addDataSourceProperty("characterEncoding", "UTF-8");
-        config.addDataSourceProperty("serverTimezone", "UTC");
+        // SSL settings (disable for local dev, enable in production)
+        config.addDataSourceProperty("ssl", "false");
+        config.addDataSourceProperty("sslmode", "prefer");
 
-        // SSL and security settings
-        config.addDataSourceProperty("useSSL", "false"); // Set to true in production
-        config.addDataSourceProperty("allowPublicKeyRetrieval", "true");
+        // TCP keep-alive settings
+        config.addDataSourceProperty("tcpKeepAlive", "true");
+        config.addDataSourceProperty("socketTimeout", "30");
 
-        // Connection reliability
-        config.addDataSourceProperty("autoReconnect", "true");
-        config.addDataSourceProperty("failOverReadOnly", "false");
-        config.addDataSourceProperty("maxReconnects", "3");
+        // Application name for monitoring
+        config.addDataSourceProperty("ApplicationName", "YouthConnectUserService");
 
-        log.debug("Applied MySQL-specific optimizations to HikariCP configuration");
+        // Log unclosed connections
+        config.addDataSourceProperty("logUnclosedConnections", "true");
+
+        log.debug("Applied PostgreSQL-specific optimizations to HikariCP configuration");
     }
 
     /**
-     * Development profile specific configuration
-     * Smaller pool size and more relaxed settings for local development
+     * Development profile specific configuration with smaller pool
      */
     @Bean
-    @Profile("development")
+    @Profile("dev")
     public DataSource developmentDataSource() {
         log.info("Configuring development DataSource with relaxed settings");
 
@@ -163,7 +147,7 @@ public class DatabaseConfig {
         config.setJdbcUrl(jdbcUrl);
         config.setUsername(username);
         config.setPassword(password);
-        config.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        config.setDriverClassName("org.postgresql.Driver");
 
         // Smaller pool for development
         config.setMaximumPoolSize(5);
@@ -174,52 +158,11 @@ public class DatabaseConfig {
 
         config.setPoolName("YouthConnect-Dev-Pool");
         config.setConnectionTestQuery("SELECT 1");
-        config.setAutoCommit(false);
+        config.setAutoCommit(true);
 
-        // Basic MySQL settings for development
-        config.addDataSourceProperty("useUnicode", "true");
-        config.addDataSourceProperty("characterEncoding", "UTF-8");
-        config.addDataSourceProperty("serverTimezone", "UTC");
-        config.addDataSourceProperty("useSSL", "false");
-        config.addDataSourceProperty("allowPublicKeyRetrieval", "true");
-
-        return new HikariDataSource(config);
-    }
-
-    /**
-     * Test profile specific configuration
-     * Minimal pool size for testing with H2 database support
-     */
-    @Bean
-    @Profile("test")
-    public DataSource testDataSource() {
-        log.info("Configuring test DataSource for integration tests");
-
-        HikariConfig config = new HikariConfig();
-
-        // Use H2 for testing if MySQL is not available
-        if (jdbcUrl.contains("h2")) {
-            config.setJdbcUrl(jdbcUrl);
-            config.setDriverClassName("org.h2.Driver");
-        } else {
-            // Use MySQL for integration tests
-            config.setJdbcUrl(jdbcUrl);
-            config.setDriverClassName("com.mysql.cj.jdbc.Driver");
-        }
-
-        config.setUsername(username);
-        config.setPassword(password);
-
-        // Minimal pool for tests
-        config.setMaximumPoolSize(2);
-        config.setMinimumIdle(1);
-        config.setConnectionTimeout(5000);
-        config.setIdleTimeout(60000);
-        config.setMaxLifetime(300000);
-
-        config.setPoolName("YouthConnect-Test-Pool");
-        config.setConnectionTestQuery("SELECT 1");
-        config.setAutoCommit(false);
+        // Basic PostgreSQL settings for development
+        config.addDataSourceProperty("ssl", "false");
+        config.addDataSourceProperty("ApplicationName", "YouthConnectUserService-Dev");
 
         return new HikariDataSource(config);
     }

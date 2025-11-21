@@ -8,25 +8,30 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Spring Data JPA repository for the YouthProfile entity.
+ * ═══════════════════════════════════════════════════════════════════════════
+ * YOUTH PROFILE REPOSITORY - FIXED
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * This interface provides all the standard CRUD (Create, Read, Update, Delete)
- * operations for the youth_profiles table, inherited from JpaRepository.
- *
- * We also define a custom method to find a profile based on the associated User's ID.
+ * FIXES APPLIED:
+ * 1. Added findByUser_Id method (was missing)
+ * 2. Proper UUID type for user_id
+ * 3. Correct method naming convention
  */
 @Repository
-public interface YouthProfileRepository extends JpaRepository<YouthProfile, Long> {
+public interface YouthProfileRepository extends JpaRepository<YouthProfile, UUID> {
 
     /**
-     * Finds a YouthProfile by the primary key ('id') of the associated User entity.
-     * --- THIS IS THE FIX ---
-     * The method name must match the actual path to the property.
-     * Path: YouthProfile -> user (field) -> id (field within User)
-     * Therefore, the correct method name is findByUser_Id.
+     * CRITICAL FIX: Added missing method
      *
-     * @param userId The primary key of the User entity.
-     * @return An Optional containing the YouthProfile if found.
+     * Finds a YouthProfile by the associated user's ID.
+     * Spring Data JPA automatically creates the query from the method name.
+     *
+     * Method name pattern: findBy + field name path
+     * Path: YouthProfile -> user (field) -> id (field within User)
+     * Therefore: findByUser_Id
+     *
+     * @param userId The ID of the user to search for
+     * @return An Optional containing the YouthProfile if found
      */
     Optional<YouthProfile> findByUser_Id(UUID userId);
 }

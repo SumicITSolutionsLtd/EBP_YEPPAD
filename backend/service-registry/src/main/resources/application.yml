@@ -1,98 +1,142 @@
 # ================================================================================
 # Service Registry (Eureka Server) - Development Configuration
-# ✅ FIXED: Added Spring Security credentials that match API Gateway
 # ================================================================================
 
 spring:
   application:
     name: service-registry
 
-  # ✅ CRITICAL: Spring Security credentials for Eureka authentication
-  # These MUST match the credentials used by API Gateway and other services
+  # ✅ CRITICAL FIX: Spring Security User Configuration
+  # These credentials are used for HTTP Basic Authentication on Eureka dashboard
+  # and for client authentication (API Gateway, microservices connecting to Eureka)
   security:
     user:
-      name: ${EUREKA_USERNAME:admin}        # Must match EUREKA_USERNAME in .env
-      password: ${EUREKA_PASSWORD:changeme} # Must match EUREKA_PASSWORD in .env
+      # Username for Eureka dashboard login and client authentication
+      # MUST match EUREKA_USERNAME in all microservices' .env files
+      name: ${EUREKA_USERNAME:admin}
+
+      # Password for Eureka dashboard login and client authentication
+      # MUST match EUREKA_PASSWORD in all microservices' .env files
+      password: ${EUREKA_PASSWORD:changeme}
 
   # Banner configuration
   banner:
     location: classpath:banner.txt
 
+# ================================================================================
+# Server Configuration
+# ================================================================================
 server:
   port: ${SERVER_PORT:8761}
+
+  # Enable response compression for better performance
   compression:
     enabled: true
     mime-types: text/html,text/xml,text/plain,application/json
+
+  # Tomcat thread pool configuration
   tomcat:
     threads:
-      max: 200
-      min-spare: 10
+      max: 200        # Maximum number of worker threads
+      min-spare: 10   # Minimum number of spare threads
+    connection-timeout: 20000  # 20 seconds connection timeout
 
 # ================================================================================
 # Eureka Server Configuration
 # ================================================================================
 eureka:
   instance:
+    # Hostname for this Eureka instance
     hostname: ${HOSTNAME:localhost}
+
+    # Use hostname instead of IP address for registration
     prefer-ip-address: false
+
+    # Heartbeat configuration (how often clients send heartbeat)
     lease-renewal-interval-in-seconds: 10
+
+    # How long Eureka waits before removing inactive instance
     lease-expiration-duration-in-seconds: 30
 
   client:
-    # ✅ Standalone mode - don't register with itself
+    # ✅ Standalone Eureka Server Mode
+    # Don't register this Eureka server with itself
     register-with-eureka: false
+
+    # Don't fetch registry since we ARE the registry
     fetch-registry: false
+
+    # Service URL where clients connect
+    # ✅ NOTE: Clients connecting to Eureka MUST include credentials in URL:
+    # http://admin:changeme@localhost:8761/eureka/
     service-url:
       defaultZone: http://${HOSTNAME:localhost}:${SERVER_PORT:8761}/eureka/
+
+    # How often to fetch registry (not used since fetch-registry=false)
     registry-fetch-interval-seconds: 5
 
   server:
-    # Development settings - disable self-preservation for faster testing
+    # ✅ Development Setting: Disable self-preservation
+    # Self-preservation prevents Eureka from removing instances during network issues
+    # Disabled in development for faster testing (instances removed immediately)
+    # SHOULD BE ENABLED (true) IN PRODUCTION
     enable-self-preservation: false
+
+    # How often to check for expired instances (milliseconds)
     eviction-interval-timer-in-ms: 5000
 
-    # Response cache settings
+    # Response cache settings (improves performance)
     response-cache-auto-expiration-in-seconds: 30
     response-cache-update-interval-ms: 5000
 
-    # Peer replication settings (for cluster mode)
+    # Peer replication settings (for clustered Eureka setup)
     peer-eureka-nodes-update-interval-ms: 10000
     peer-eureka-status-refresh-time-interval-ms: 10000
 
-    # ✅ Rate limiting (prevent abuse)
+    # ✅ Rate Limiting Configuration
+    # Protects Eureka server from being overwhelmed by requests
     rate-limiter-enabled: true
-    rate-limiter-burst-size: 100
-    rate-limiter-registry-fetch-average-rate: 500
-    rate-limiter-full-fetch-average-rate: 100
+    rate-limiter-burst-size: 100                      # Max burst requests
+    rate-limiter-registry-fetch-average-rate: 500     # Avg requests/sec for registry fetch
+    rate-limiter-full-fetch-average-rate: 100         # Avg requests/sec for full fetch
 
 # ================================================================================
-# Management & Monitoring
+# Management & Monitoring (Actuator)
 # ================================================================================
 management:
   endpoints:
     web:
+      # Expose these actuator endpoints
       exposure:
         include:
-          - health
-          - info
-          - metrics
-          - prometheus
-          - env
+          - health       # Health check endpoint
+          - info         # Application info
+          - metrics      # Metrics data
+          - prometheus   # Prometheus-formatted metrics
+          - env          # Environment variables
       base-path: /actuator
+
   endpoint:
     health:
+      # Always show detailed health information
       show-details: always
       show-components: always
+
+  # Enable liveness and readiness probes (Kubernetes-style)
   health:
     livenessstate:
       enabled: true
     readinessstate:
       enabled: true
+
+  # Enable metrics collection
   metrics:
     enabled: true
     export:
       prometheus:
         enabled: true
+
+  # Enable environment info in /actuator/info
   info:
     env:
       enabled: true
@@ -106,27 +150,57 @@ management:
 # ================================================================================
 logging:
   level:
-    root: INFO
-    com.netflix.eureka: INFO
-    com.netflix.discovery: INFO
-    com.youthconnect.service_registry: DEBUG
+    root: INFO                                         # Root logger level
+    com.netflix.eureka: INFO                           # Eureka core logs
+    com.netflix.discovery: INFO                        # Discovery client logs
+    com.youthconnect.service_registry: DEBUG           # Application logs
+
+  # Log pattern for console output (colored)
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
+
+  # File logging configuration
   file:
-    name: logs/service-registry.log
-    max-size: 50MB
-    max-history: 30
-    total-size-cap: 1GB
+    name: logs/service-registry.log   # Log file location
+    max-size: 50MB                     # Max size per log file
+    max-history: 30                    # Keep last 30 days
+    total-size-cap: 1GB                # Max total size of all logs
 
 # ================================================================================
-# Application Info (for /actuator/info)
+# Application Info (exposed via /actuator/info)
+# Maven properties are injected during build
 # ================================================================================
 info:
   app:
     name: ${spring.application.name}
     description: Service Registry for YouthConnect Uganda Platform
-    version: '@project.version@'
-    encoding: '@project.build.sourceEncoding@'
+    version: '@project.version@'                      # Injected from pom.xml
+    encoding: '@project.build.sourceEncoding@'        # Injected from pom.xml
     java:
-      version: '@java.version@'
+      version: '@java.version@'                       # Injected from pom.xml
+
+# ================================================================================
+# ✅ KEY POINTS FOR TROUBLESHOOTING:
+# ================================================================================
+# 1. Dashboard Login:
+#    - URL: http://localhost:8761
+#    - Username: admin (from EUREKA_USERNAME)
+#    - Password: changeme (from EUREKA_PASSWORD)
+#
+# 2. Client Connection URL (for microservices):
+#    - Format: http://admin:changeme@localhost:8761/eureka/
+#    - Credentials MUST be included in URL
+#
+# 3. If login fails:
+#    - Verify .env file has EUREKA_USERNAME=admin and EUREKA_PASSWORD=changeme
+#    - Restart service-registry after changing .env
+#    - Clear browser cache/cookies
+#    - Try incognito/private browsing mode
+#
+# 4. For production:
+#    - Change default password immediately
+#    - Use strong password (min 16 characters)
+#    - Enable HTTPS
+#    - Consider using Spring Security for more granular access control
+# ================================================================================

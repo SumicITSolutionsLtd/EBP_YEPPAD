@@ -1,29 +1,30 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- COMPLETE DATABASE SCHEMA RESET
+-- COMPLETE DATABASE SCHEMA RESET (FIXED - INCLUDES ALL TABLES)
+-- ═══════════════════════════════════════════════════════════════════════════
 -- File: V1__Initial_Schema_Reset.sql
 -- Location: backend/auth-service/src/main/resources/db/migration/
--- ═══════════════════════════════════════════════════════════════════════════
--- PURPOSE: Clean slate migration to fix checksum mismatch
--- This completely rebuilds the schema with correct checksums
+-- Author: Douglas Kings Kato
+-- Date: 2025-11-19
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- Step 1: Drop ALL existing tables (clean slate)
-DROP TABLE IF EXISTS email_verification_tokens CASCADE;
-DROP TABLE IF EXISTS login_attempts CASCADE;
+-- ═══════════════════════════════════════════════════════════════════════════
+-- STEP 1: DROP ALL EXISTING TABLES (Clean Slate)
+-- ═══════════════════════════════════════════════════════════════════════════
+
 DROP TABLE IF EXISTS security_audit_log CASCADE;
-DROP TABLE IF EXISTS ussd_sessions CASCADE;
+DROP TABLE IF EXISTS email_verification_tokens CASCADE;
 DROP TABLE IF EXISTS password_reset_tokens CASCADE;
 DROP TABLE IF EXISTS refresh_tokens CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
--- Step 2: Drop custom types
+-- ═══════════════════════════════════════════════════════════════════════════
+-- STEP 2: DROP AND RECREATE CUSTOM TYPES
+-- ═══════════════════════════════════════════════════════════════════════════
+
 DROP TYPE IF EXISTS user_role CASCADE;
 DROP TYPE IF EXISTS account_status CASCADE;
 
--- ═══════════════════════════════════════════════════════════════════════════
--- CUSTOM TYPES (ENUMS)
--- ═══════════════════════════════════════════════════════════════════════════
-
+-- User roles enum
 CREATE TYPE user_role AS ENUM (
     'YOUTH',
     'NGO',
@@ -31,55 +32,56 @@ CREATE TYPE user_role AS ENUM (
     'SERVICE_PROVIDER',
     'MENTOR',
     'ADMIN',
-    'SUPER_ADMIN',
-    'MODERATOR'
+    'SUPER_ADMIN'
 );
 
+-- Account status enum
 CREATE TYPE account_status AS ENUM (
     'ACTIVE',
     'INACTIVE',
     'SUSPENDED',
     'LOCKED',
-    'PENDING_VERIFICATION',
-    'DELETED'
+    'PENDING_VERIFICATION'
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- USERS TABLE (Core Authentication)
+-- STEP 3: CREATE USERS TABLE
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE TABLE users (
     -- Primary Key
-    user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
-    -- Credentials
-    email VARCHAR(100) NOT NULL UNIQUE,
-    phone_number VARCHAR(20) UNIQUE,
+    -- Authentication Credentials
+    email VARCHAR(100) NOT NULL,
+    phone_number VARCHAR(20),
     password_hash VARCHAR(255) NOT NULL,
 
-    -- Profile
+    -- Personal Information
     first_name VARCHAR(100),
     last_name VARCHAR(100),
 
-    -- Authorization
+    -- User Role and Status
     role user_role NOT NULL DEFAULT 'YOUTH',
-
-    -- Status
+    status account_status NOT NULL DEFAULT 'PENDING_VERIFICATION',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+    -- Verification Flags
     email_verified BOOLEAN NOT NULL DEFAULT FALSE,
     phone_verified BOOLEAN NOT NULL DEFAULT FALSE,
 
-    -- Security
+    -- OAuth2 Integration
+    oauth2_provider VARCHAR(50),
+    oauth2_user_id VARCHAR(255),
+
+    -- Security Fields
     last_login TIMESTAMP,
     last_login_ip VARCHAR(45),
     failed_login_attempts INTEGER NOT NULL DEFAULT 0,
     account_locked_until TIMESTAMP,
+    password_changed_at TIMESTAMP,
 
-    -- OAuth2 Integration
-    oauth2_provider VARCHAR(50), -- 'google', 'facebook', 'apple', null for email/password
-    oauth2_user_id VARCHAR(255), -- Provider's user ID
-
-    -- Audit
+    -- Audit Fields
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by UUID,
@@ -88,140 +90,242 @@ CREATE TABLE users (
     -- Soft Delete
     is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
     deleted_at TIMESTAMP,
+    deleted_by UUID,
 
-    -- Indexes
+    -- Constraints
+    CONSTRAINT uk_users_email UNIQUE (email),
+    CONSTRAINT uk_users_phone_number UNIQUE (phone_number),
     CONSTRAINT chk_oauth2_consistency CHECK (
         (oauth2_provider IS NULL AND oauth2_user_id IS NULL) OR
         (oauth2_provider IS NOT NULL AND oauth2_user_id IS NOT NULL)
     )
 );
 
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_phone ON users(phone_number);
+-- Indexes for users table
+CREATE INDEX idx_users_email ON users(email) WHERE is_deleted = FALSE;
+CREATE INDEX idx_users_phone ON users(phone_number) WHERE is_deleted = FALSE;
 CREATE INDEX idx_users_oauth2 ON users(oauth2_provider, oauth2_user_id);
 CREATE INDEX idx_users_active ON users(is_active) WHERE is_deleted = FALSE;
+CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_users_status ON users(status);
+
+-- Comments
+COMMENT ON TABLE users IS 'Central user authentication and authorization';
+COMMENT ON COLUMN users.oauth2_provider IS 'OAuth2 provider (google, facebook, etc.)';
+COMMENT ON COLUMN users.status IS 'Account status for workflow management';
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- REFRESH TOKENS TABLE (JWT Session Management)
+-- STEP 4: CREATE REFRESH TOKENS TABLE
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE TABLE refresh_tokens (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    -- Primary Key
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
-    -- Token
-    token VARCHAR(500) NOT NULL UNIQUE,
+    -- Token Data
+    token VARCHAR(500) NOT NULL,
 
     -- User Reference
     user_id UUID NOT NULL,
     user_email VARCHAR(255) NOT NULL,
     user_role VARCHAR(50) NOT NULL,
 
-    -- Lifecycle
+    -- Expiration
     expires_at TIMESTAMP NOT NULL,
+
+    -- Tracking
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_used_at TIMESTAMP,
 
     -- Revocation
     revoked BOOLEAN NOT NULL DEFAULT FALSE,
     revoked_at TIMESTAMP,
+    revoked_reason VARCHAR(255),
 
-    -- Device Tracking
+    -- Metadata
     ip_address VARCHAR(45),
     user_agent TEXT,
+    device_info JSONB,
 
     -- Constraints
-    CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    CONSTRAINT uk_refresh_tokens_token UNIQUE (token),
+    CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id)
+        REFERENCES users(user_id) ON DELETE CASCADE
 );
 
+-- Indexes
 CREATE INDEX idx_refresh_tokens_token ON refresh_tokens(token);
 CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
 CREATE INDEX idx_refresh_tokens_expires ON refresh_tokens(expires_at);
+CREATE INDEX idx_refresh_tokens_revoked ON refresh_tokens(revoked) WHERE revoked = FALSE;
+
+COMMENT ON TABLE refresh_tokens IS 'JWT refresh tokens for session management';
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PASSWORD RESET TOKENS TABLE (Password Recovery)
+-- STEP 5: CREATE PASSWORD RESET TOKENS TABLE
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE TABLE password_reset_tokens (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    -- Primary Key
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
-    -- Token
-    token VARCHAR(255) NOT NULL UNIQUE,
+    -- Token Data
+    token VARCHAR(255) NOT NULL,
 
     -- User Reference
     user_id UUID NOT NULL,
     user_email VARCHAR(255) NOT NULL,
 
-    -- Lifecycle
+    -- Expiration
     expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    -- Usage
+    -- Usage Tracking
     used BOOLEAN NOT NULL DEFAULT FALSE,
     used_at TIMESTAMP,
-
-    -- Security (Brute Force Protection)
     attempts INTEGER NOT NULL DEFAULT 0,
     max_attempts INTEGER NOT NULL DEFAULT 3,
 
-    -- Device Tracking
+    -- Metadata
     ip_address VARCHAR(45),
     user_agent TEXT,
 
     -- Constraints
-    CONSTRAINT fk_password_reset_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    CONSTRAINT chk_password_reset_attempts CHECK (attempts >= 0),
-    CONSTRAINT chk_password_reset_max_attempts CHECK (max_attempts > 0)
+    CONSTRAINT uk_password_reset_tokens_token UNIQUE (token),
+    CONSTRAINT fk_password_reset_user FOREIGN KEY (user_id)
+        REFERENCES users(user_id) ON DELETE CASCADE,
+    CONSTRAINT chk_attempts CHECK (attempts <= max_attempts)
 );
 
+-- Indexes
 CREATE INDEX idx_password_reset_token ON password_reset_tokens(token);
 CREATE INDEX idx_password_reset_user ON password_reset_tokens(user_id);
 CREATE INDEX idx_password_reset_expires ON password_reset_tokens(expires_at);
+CREATE INDEX idx_password_reset_used ON password_reset_tokens(used) WHERE used = FALSE;
+
+COMMENT ON TABLE password_reset_tokens IS 'Password reset workflow tokens';
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- EMAIL VERIFICATION TOKENS TABLE
+-- STEP 6: CREATE EMAIL VERIFICATION TOKENS TABLE (MISSING IN ORIGINAL V1)
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE TABLE email_verification_tokens (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    token VARCHAR(255) NOT NULL UNIQUE,
-    user_id UUID NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
-    verified_at TIMESTAMP,
-    is_verified BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- Primary Key
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
-    CONSTRAINT fk_email_verify_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    -- Token Data
+    token VARCHAR(255) NOT NULL,
+
+    -- User Reference
+    user_id UUID NOT NULL,
+    user_email VARCHAR(255) NOT NULL,
+
+    -- Expiration
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    -- Usage Tracking
+    used BOOLEAN NOT NULL DEFAULT FALSE,
+    used_at TIMESTAMP,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 5,
+
+    -- Metadata
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+
+    -- Constraints
+    CONSTRAINT uk_email_verification_tokens_token UNIQUE (token),
+    CONSTRAINT fk_email_verification_user FOREIGN KEY (user_id)
+        REFERENCES users(user_id) ON DELETE CASCADE,
+    CONSTRAINT chk_email_verification_attempts CHECK (attempts <= max_attempts)
 );
 
-CREATE INDEX idx_email_verify_token ON email_verification_tokens(token);
-CREATE INDEX idx_email_verify_user ON email_verification_tokens(user_id);
+-- Indexes
+CREATE INDEX idx_email_verification_token ON email_verification_tokens(token);
+CREATE INDEX idx_email_verification_user ON email_verification_tokens(user_id);
+CREATE INDEX idx_email_verification_expires ON email_verification_tokens(expires_at);
+CREATE INDEX idx_email_verification_used ON email_verification_tokens(used) WHERE used = FALSE;
+
+COMMENT ON TABLE email_verification_tokens IS 'Email verification workflow tokens';
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- SECURITY AUDIT LOG TABLE
+-- STEP 7: CREATE SECURITY AUDIT LOG TABLE
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE TABLE security_audit_log (
-    log_id BIGSERIAL PRIMARY KEY,
+    -- Primary Key
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- User Reference (nullable for failed attempts)
     user_id UUID,
-    event_type VARCHAR(50) NOT NULL,
+    user_email VARCHAR(255),
+
+    -- Event Details
+    event_type VARCHAR(100) NOT NULL,
+    event_status VARCHAR(50) NOT NULL,
     event_description TEXT,
+
+    -- Request Metadata
     ip_address VARCHAR(45),
     user_agent TEXT,
     request_path VARCHAR(500),
-    http_method VARCHAR(10),
-    metadata JSONB DEFAULT '{}'::jsonb,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    request_method VARCHAR(10),
 
-    CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
+    -- Additional Data
+    metadata JSONB,
+
+    -- Timestamp
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    -- Constraints
+    CONSTRAINT fk_audit_log_user FOREIGN KEY (user_id)
+        REFERENCES users(user_id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_audit_user ON security_audit_log(user_id, created_at DESC);
-CREATE INDEX idx_audit_event ON security_audit_log(event_type, created_at DESC);
-CREATE INDEX idx_audit_metadata ON security_audit_log USING gin(metadata);
+-- Indexes
+CREATE INDEX idx_audit_log_user ON security_audit_log(user_id);
+CREATE INDEX idx_audit_log_event_type ON security_audit_log(event_type);
+CREATE INDEX idx_audit_log_created_at ON security_audit_log(created_at);
+CREATE INDEX idx_audit_log_ip ON security_audit_log(ip_address);
+
+COMMENT ON TABLE security_audit_log IS 'Security events and audit trail';
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- SEED DATA (Admin User)
+-- STEP 8: CREATE TRIGGER FUNCTIONS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Function to update 'updated_at' timestamp automatically
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to clean up expired tokens
+CREATE OR REPLACE FUNCTION cleanup_expired_tokens()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM refresh_tokens WHERE expires_at < CURRENT_TIMESTAMP;
+    DELETE FROM password_reset_tokens WHERE expires_at < CURRENT_TIMESTAMP AND used = FALSE;
+    DELETE FROM email_verification_tokens WHERE expires_at < CURRENT_TIMESTAMP AND used = FALSE;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- STEP 9: CREATE TRIGGERS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Trigger to auto-update 'updated_at' on users table
+CREATE TRIGGER trg_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- STEP 10: SEED DEFAULT ADMIN USER
 -- ═══════════════════════════════════════════════════════════════════════════
 
 INSERT INTO users (
@@ -230,6 +334,7 @@ INSERT INTO users (
     first_name,
     last_name,
     role,
+    status,
     is_active,
     email_verified
 ) VALUES (
@@ -238,52 +343,11 @@ INSERT INTO users (
     'System',
     'Administrator',
     'ADMIN',
+    'ACTIVE',
     TRUE,
     TRUE
 ) ON CONFLICT (email) DO NOTHING;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- CLEANUP FUNCTION (Scheduled Task)
+-- MIGRATION V1 COMPLETE
 -- ═══════════════════════════════════════════════════════════════════════════
-
-CREATE OR REPLACE FUNCTION cleanup_expired_tokens()
-RETURNS INTEGER AS $$
-DECLARE
-    deleted_count INTEGER := 0;
-    temp_count INTEGER;
-BEGIN
-    -- Delete expired refresh tokens
-    DELETE FROM refresh_tokens WHERE expires_at < CURRENT_TIMESTAMP AND revoked = FALSE;
-    GET DIAGNOSTICS temp_count = ROW_COUNT;
-    deleted_count := deleted_count + temp_count;
-
-    -- Delete used/expired password reset tokens
-    DELETE FROM password_reset_tokens
-    WHERE (used = TRUE OR expires_at < CURRENT_TIMESTAMP)
-    AND created_at < CURRENT_TIMESTAMP - INTERVAL '24 hours';
-    GET DIAGNOSTICS temp_count = ROW_COUNT;
-    deleted_count := deleted_count + temp_count;
-
-    -- Delete verified email tokens
-    DELETE FROM email_verification_tokens
-    WHERE is_verified = TRUE
-    AND created_at < CURRENT_TIMESTAMP - INTERVAL '24 hours';
-    GET DIAGNOSTICS temp_count = ROW_COUNT;
-    deleted_count := deleted_count + temp_count;
-
-    RETURN deleted_count;
-END;
-$$ LANGUAGE plpgsql;
-
--- ═══════════════════════════════════════════════════════════════════════════
--- COMMENTS FOR DOCUMENTATION
--- ═══════════════════════════════════════════════════════════════════════════
-
-COMMENT ON TABLE users IS 'Central user authentication and authorization';
-COMMENT ON TABLE refresh_tokens IS 'JWT refresh tokens for session management';
-COMMENT ON TABLE password_reset_tokens IS 'Password reset workflow tokens';
-COMMENT ON TABLE email_verification_tokens IS 'Email verification tokens';
-COMMENT ON TABLE security_audit_log IS 'Security event audit trail';
-
-COMMENT ON COLUMN users.oauth2_provider IS 'OAuth2 provider: google, facebook, apple, or NULL';
-COMMENT ON COLUMN users.oauth2_user_id IS 'Provider-specific user ID';

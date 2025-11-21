@@ -1,8 +1,6 @@
 # ============================================================================
 # Entrepreneurship Booster Platform - User Service Docker Compose
 # ============================================================================
-# UPDATED: Fixed database initialization path
-#
 # Services:
 # - user-service: Main application
 # - postgres-db: PostgreSQL database with initialization scripts
@@ -19,327 +17,55 @@
 version: '3.8'
 
 services:
-  # ==========================================================================
-  # USER SERVICE - Main Application
-  # ==========================================================================
+  # PostgreSQL Database for User Service
+  postgres-user-db:
+    image: postgres:16-alpine
+    container_name: youthconnect-user-postgres
+    environment:
+      POSTGRES_USER: youthconnect_user
+      POSTGRES_PASSWORD: YouthConnect2024!
+      POSTGRES_DB: youthconnect_user
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-user-data:/var/lib/postgresql/data
+      - ./src/main/resources/db/migration:/docker-entrypoint-initdb.d:ro
+    networks:
+      - youthconnect-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U youthconnect_user -d youthconnect_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # User Service
   user-service:
     build:
       context: .
-      dockerfile: docker/Dockerfile
-    container_name: epb-user-service
+      dockerfile: Dockerfile
+    container_name: youthconnect-user-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: postgres-user-db
+      DB_PORT: 5432
+      DB_NAME: youthconnect_user
+      DB_USER: youthconnect_user
+      DB_PASSWORD: YouthConnect2024!
+      EUREKA_URL: http://service-registry:8761/eureka/
     ports:
       - "8081:8081"
-    environment:
-      # Spring Profile
-      - SPRING_PROFILES_ACTIVE=docker
-
-      # PostgreSQL Configuration
-      - DB_HOST=postgres-db
-      - DB_PORT=5432
-      - DB_NAME=epb_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=Douglas20!
-
-      # Service Discovery (OPTIONAL - Only if Eureka is running)
-      - EUREKA_ENABLED=${EUREKA_ENABLED:-false}
-      - EUREKA_URL=${EUREKA_URL:-http://localhost:8761/eureka/}
-
-      # Security
-      - INTERNAL_API_KEY=${INTERNAL_API_KEY:-internal-secret-key-2024}
-      - JWT_SECRET=${JWT_SECRET:-your-256-bit-secret-key-change-in-production}
-
-      # Application Settings
-      - APP_ENVIRONMENT=docker
-      - APP_UPLOAD_DIR=/app/uploads
-
-      # Redis
-      - REDIS_HOST=redis-cache
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=redis123
-
     depends_on:
-      postgres-db:
-        condition: service_healthy
-      redis-cache:
+      postgres-user-db:
         condition: service_healthy
     networks:
-      - epb-network
-    volumes:
-      # Persistent storage for logs and uploads
-      - user-service-logs:/app/logs
-      - user-service-uploads:/app/uploads
+      - youthconnect-network
 
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    restart: unless-stopped
-
-  # ==========================================================================
-  # POSTGRESQL DATABASE - Primary Data Store
-  # ==========================================================================
-  postgres-db:
-    image: postgres:16-alpine
-    container_name: epb-postgres
-    environment:
-      - POSTGRES_USER=${DB_USERNAME:-postgres}
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-Douglas20!}
-      - POSTGRES_DB=${DB_NAME:-epb_db}
-      - PGDATA=/var/lib/postgresql/data/pgdata
-    ports:
-      - "5432:5432"  # External:Internal
-    networks:
-      - epb-network
-    volumes:
-      # Persistent database storage
-      - postgres-data:/var/lib/postgresql/data
-
-      # ✅ FIXED: Auto-run initialization scripts on first start
-      - ./src/main/resources/db/migration:/docker-entrypoint-initdb.d:ro
-
-    command:
-      - "postgres"
-      - "-c"
-      - "max_connections=200"
-      - "-c"
-      - "shared_buffers=256MB"
-      - "-c"
-      - "effective_cache_size=1GB"
-      - "-c"
-      - "maintenance_work_mem=64MB"
-      - "-c"
-      - "checkpoint_completion_target=0.9"
-      - "-c"
-      - "wal_buffers=16MB"
-      - "-c"
-      - "default_statistics_target=100"
-      - "-c"
-      - "random_page_cost=1.1"
-      - "-c"
-      - "effective_io_concurrency=200"
-      - "-c"
-      - "work_mem=2621kB"
-      - "-c"
-      - "min_wal_size=1GB"
-      - "-c"
-      - "max_wal_size=4GB"
-
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-epb_db}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-
-  # ==========================================================================
-  # MYSQL DATABASE - Legacy/Job Service Support
-  # ==========================================================================
-  mysql-db:
-    image: mysql:8.0
-    container_name: epb-mysql
-    environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD:-Douglas20!}
-      - MYSQL_DATABASE=${MYSQL_DATABASE:-job_service_db}
-      - MYSQL_USER=epb_user
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-Douglas20!}
-    ports:
-      - "3307:3306"  # External:Internal (avoid conflict with local MySQL)
-    networks:
-      - epb-network
-    volumes:
-      # Persistent database storage
-      - mysql-data:/var/lib/mysql
-
-      # ✅ FIXED: Auto-run MySQL initialization scripts
-      - ./src/main/resources/db/mysql:/docker-entrypoint-initdb.d:ro
-
-    command:
-      - --default-authentication-plugin=mysql_native_password
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-      - --innodb_buffer_pool_size=256M
-      - --max_connections=200
-      - --slow_query_log=1
-      - --long_query_time=2
-
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_PASSWORD:-Douglas20!}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    restart: unless-stopped
-
-  # ==========================================================================
-  # REDIS CACHE - Performance Layer
-  # ==========================================================================
-  redis-cache:
-    image: redis:7.2-alpine
-    container_name: epb-redis
-    ports:
-      - "6379:6379"
-    networks:
-      - epb-network
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
-    restart: unless-stopped
-
-  # ==========================================================================
-  # PGADMIN - PostgreSQL Management (Optional)
-  # ==========================================================================
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: epb-pgadmin
-    environment:
-      - PGADMIN_DEFAULT_EMAIL=admin@entrepreneurshipbooster.ug
-      - PGADMIN_DEFAULT_PASSWORD=admin123
-      - PGADMIN_LISTEN_PORT=80
-    ports:
-      - "5050:80"
-    networks:
-      - epb-network
-    volumes:
-      - pgadmin-data:/var/lib/pgadmin
-    restart: unless-stopped
-    profiles:
-      - tools  # Only start when explicitly requested
-
-  # ==========================================================================
-  # PHPMYADMIN - MySQL Management (Optional)
-  # ==========================================================================
-  phpmyadmin:
-    image: phpmyadmin:latest
-    container_name: epb-phpmyadmin
-    environment:
-      - PMA_HOST=mysql-db
-      - PMA_PORT=3306
-      - PMA_USER=root
-      - PMA_PASSWORD=${MYSQL_PASSWORD:-Douglas20!}
-    ports:
-      - "8080:80"
-    networks:
-      - epb-network
-    depends_on:
-      - mysql-db
-    restart: unless-stopped
-    profiles:
-      - tools  # Only start when explicitly requested
-
-# ============================================================================
-# NETWORKS
-# ============================================================================
-networks:
-  epb-network:
-    driver: bridge
-    name: epb-network
-
-# ============================================================================
-# PERSISTENT VOLUMES
-# ============================================================================
 volumes:
-  postgres-data:
-    driver: local
-    name: epb-postgres-data
+  postgres-user-data:
+    name: youthconnect-user-postgres-data
 
-  mysql-data:
-    driver: local
-    name: epb-mysql-data
-
-  redis-data:
-    driver: local
-    name: epb-redis-data
-
-  pgadmin-data:
-    driver: local
-    name: epb-pgadmin-data
-
-  user-service-logs:
-    driver: local
-    name: epb-user-logs
-
-  user-service-uploads:
-    driver: local
-    name: epb-user-uploads
-
-# ============================================================================
-# USAGE INSTRUCTIONS
-# ============================================================================
-#
-# Basic Commands:
-# ---------------
-# Start all services:
-#   docker-compose up -d
-#
-# Start with management tools (pgAdmin, phpMyAdmin):
-#   docker-compose --profile tools up -d
-#
-# View logs:
-#   docker-compose logs -f user-service
-#   docker-compose logs -f postgres-db
-#   docker-compose logs -f mysql-db
-#
-# Stop services:
-#   docker-compose down
-#
-# Stop and remove volumes (⚠️ WARNING: This deletes all data!):
-#   docker-compose down -v
-#
-# Rebuild images:
-#   docker-compose up -d --build
-#
-# Restart a specific service:
-#   docker-compose restart user-service
-#
-# Access Services:
-# ----------------
-# User Service: http://localhost:8081
-# Swagger UI: http://localhost:8081/swagger-ui.html
-# Health Check: http://localhost:8081/actuator/health
-# PostgreSQL: localhost:5432 (postgres/Douglas20!)
-# MySQL: localhost:3307 (root/Douglas20!)
-# Redis: localhost:6379 (password: redis123)
-# pgAdmin: http://localhost:5050 (admin@entrepreneurshipbooster.ug/admin123)
-# phpMyAdmin: http://localhost:8080
-#
-# Database Connections from Host:
-# --------------------------------
-# PostgreSQL:
-#   psql -h localhost -p 5432 -U postgres -d epb_db
-#
-# MySQL:
-#   mysql -h 127.0.0.1 -P 3307 -u root -pDouglas20!
-#
-# Troubleshooting:
-# ----------------
-# Check container status:
-#   docker-compose ps
-#
-# Check resource usage:
-#   docker stats
-#
-# Access container shell:
-#   docker exec -it epb-user-service sh
-#   docker exec -it epb-postgres sh
-#   docker exec -it epb-mysql sh
-#
-# View database logs:
-#   docker-compose logs -f postgres-db
-#   docker-compose logs -f mysql-db
-#
-# Verify network connectivity:
-#   docker network inspect epb-network
-#
-# Clean up everything:
-#   docker-compose down -v --remove-orphans
-#   docker system prune -a
-# ============================================================================
+networks:
+  youthconnect-network:
+    name: youthconnect-network
+    driver: bridge

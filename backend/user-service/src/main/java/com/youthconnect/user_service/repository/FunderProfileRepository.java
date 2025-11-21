@@ -19,17 +19,7 @@ import java.util.UUID;
 @Repository
 public interface FunderProfileRepository extends JpaRepository<FunderProfile, Long> {
 
-    /**
-     * Finds a FunderProfile by the associated user's ID.
-     * Spring Data JPA automatically creates the query from the method name.
-     *
-     * Method name pattern: findBy + field name path
-     * Path: FunderProfile -> user (field) -> id (field within User)
-     * Therefore: findByUser_Id
-     *
-     * @param userId The ID of the user to search for
-     * @return An Optional containing the FunderProfile if found
-     */
+    // FunderProfileRepository
     Optional<FunderProfile> findByUser_Id(UUID userId);
 
     // Optional: Add custom query methods as needed

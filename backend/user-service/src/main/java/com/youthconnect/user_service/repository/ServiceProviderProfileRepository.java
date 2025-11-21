@@ -19,17 +19,7 @@ import java.util.UUID;
 @Repository
 public interface ServiceProviderProfileRepository extends JpaRepository<ServiceProviderProfile, Long> {
 
-    /**
-     * Finds a ServiceProviderProfile by the associated user's ID.
-     * Spring Data JPA automatically creates the query from the method name.
-     *
-     * Method name pattern: findBy + field name path
-     * Path: ServiceProviderProfile -> user (field) -> id (field within User)
-     * Therefore: findByUser_Id
-     *
-     * @param userId The ID of the user to search for
-     * @return An Optional containing the ServiceProviderProfile if found
-     */
+    // ServiceProviderProfileRepository
     Optional<ServiceProviderProfile> findByUser_Id(UUID userId);
 
     // Optional: Add custom query methods as needed

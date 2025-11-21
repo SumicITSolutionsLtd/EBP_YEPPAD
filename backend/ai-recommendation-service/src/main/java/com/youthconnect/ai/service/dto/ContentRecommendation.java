@@ -5,6 +5,10 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/*
+ * @author Douglas Kings Kato
+ * @version 1.0.0
+ **/
 @Data
 @Builder
 @NoArgsConstructor

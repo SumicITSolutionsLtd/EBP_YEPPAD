@@ -21,7 +21,7 @@ import java.util.Arrays;
  * - Performance threshold alerts
  *
  * @author Douglas Kings Kato
- * @version 1.0.0
+ * @version 1.0.1 - FIXED package references
  */
 @Slf4j
 @Aspect
@@ -30,21 +30,21 @@ public class LoggingAspect {
 
     /**
      * Pointcut for all service layer methods
-     * FIXED: Updated package name from com.entrepreneurshipboosterplatform to com.youthconnect
+     * ✅ FIXED: Updated package name to com.youthconnect
      */
     @Pointcut("execution(* com.youthconnect.user_service.service..*(..))")
     public void serviceLayer() {}
 
     /**
      * Pointcut for all repository layer methods
-     * FIXED: Updated package name from com.entrepreneurshipboosterplatform to com.youthconnect
+     * ✅ FIXED: Updated package name to com.youthconnect
      */
     @Pointcut("execution(* com.youthconnect.user_service.repository..*(..))")
     public void repositoryLayer() {}
 
     /**
      * Pointcut for all controller layer methods
-     * FIXED: Updated package name from com.entrepreneurshipboosterplatform to com.youthconnect
+     * ✅ FIXED: Updated package name to com.youthconnect
      */
     @Pointcut("execution(* com.youthconnect.user_service.controller..*(..))")
     public void controllerLayer() {}

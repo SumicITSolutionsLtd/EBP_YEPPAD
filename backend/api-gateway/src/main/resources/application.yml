@@ -1,19 +1,42 @@
 # ═══════════════════════════════════════════════════════════════════════════
-# API GATEWAY - OAuth2 Routes Configuration
+# API GATEWAY - COMPLETE CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
 # File: backend/api-gateway/src/main/resources/application.yml
+# Version: 3.0.0 (Production-Ready)
+# Author: Douglas Kings Kato
+# Date: 2024-11-19
 # ═══════════════════════════════════════════════════════════════════════════
 
 spring:
+  application:
+    name: api-gateway  # Service name registered in Eureka
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # SPRING CLOUD GATEWAY CONFIGURATION
+  # ═════════════════════════════════════════════════════════════════════════
   cloud:
     gateway:
-      routes:
-        # ═══════════════════════════════════════════════════════════════════
-        # ✅ NEW: OAuth2 Authentication Routes
-        # ═══════════════════════════════════════════════════════════════════
+      # ───────────────────────────────────────────────────────────────────
+      # DISCOVERY LOCATOR
+      # Automatically creates routes from Eureka service registry
+      # ───────────────────────────────────────────────────────────────────
+      discovery:
+        locator:
+          enabled: true  # Enable automatic route creation
+          lower-case-service-id: true  # Use lowercase service IDs in URLs
 
-        # Google Sign-In
-        - id: auth-service-oauth2-google
-          uri: lb://AUTH-SERVICE
+      # ───────────────────────────────────────────────────────────────────
+      # ROUTE DEFINITIONS
+      # Manual route definitions for fine-grained control
+      # ───────────────────────────────────────────────────────────────────
+      routes:
+        # ═════════════════════════════════════════════════════════════════
+        # OAUTH2 AUTHENTICATION ROUTES
+        # ═════════════════════════════════════════════════════════════════
+
+        # Google OAuth2 Login
+        - id: auth-oauth2-google
+          uri: lb://AUTH-SERVICE  # Load-balanced routing to auth-service
           predicates:
             - Path=/api/auth/oauth2/google
             - Method=POST
@@ -23,12 +46,12 @@ spring:
                 name: authServiceCircuitBreaker
                 fallbackUri: forward:/fallback/auth
           metadata:
-            description: "Google OAuth2 login endpoint"
+            description: "Google OAuth2 authentication"
             public: true
             response-timeout: 10000
 
-        # Facebook Login (Future)
-        - id: auth-service-oauth2-facebook
+        # Facebook OAuth2 Login
+        - id: auth-oauth2-facebook
           uri: lb://AUTH-SERVICE
           predicates:
             - Path=/api/auth/oauth2/facebook
@@ -39,12 +62,11 @@ spring:
                 name: authServiceCircuitBreaker
                 fallbackUri: forward:/fallback/auth
           metadata:
-            description: "Facebook OAuth2 login endpoint"
+            description: "Facebook OAuth2 authentication"
             public: true
-            response-timeout: 10000
 
-        # Apple Sign-In (Future)
-        - id: auth-service-oauth2-apple
+        # Apple Sign-In
+        - id: auth-oauth2-apple
           uri: lb://AUTH-SERVICE
           predicates:
             - Path=/api/auth/oauth2/apple
@@ -55,12 +77,11 @@ spring:
                 name: authServiceCircuitBreaker
                 fallbackUri: forward:/fallback/auth
           metadata:
-            description: "Apple Sign-In endpoint"
+            description: "Apple Sign-In authentication"
             public: true
-            response-timeout: 10000
 
-        # OAuth2 Success Callback (from Spring Security)
-        - id: auth-service-oauth2-callback
+        # OAuth2 Callback Endpoint (Spring Security)
+        - id: auth-oauth2-callback
           uri: lb://AUTH-SERVICE
           predicates:
             - Path=/login/oauth2/code/**
@@ -70,11 +91,11 @@ spring:
               args:
                 name: authServiceCircuitBreaker
           metadata:
-            description: "OAuth2 provider callback endpoint"
+            description: "OAuth2 provider callback"
             public: true
 
         # OAuth2 Authorization Redirect
-        - id: auth-service-oauth2-authorize
+        - id: auth-oauth2-authorize
           uri: lb://AUTH-SERVICE
           predicates:
             - Path=/oauth2/authorization/**
@@ -87,11 +108,12 @@ spring:
             description: "OAuth2 authorization redirect"
             public: true
 
-        # ═══════════════════════════════════════════════════════════════════
-        # Existing Auth Service Routes (Updated)
-        # ═══════════════════════════════════════════════════════════════════
+        # ═════════════════════════════════════════════════════════════════
+        # TRADITIONAL AUTHENTICATION ROUTES
+        # ═════════════════════════════════════════════════════════════════
 
-        - id: auth-service-register
+        # User Registration
+        - id: auth-register
           uri: lb://AUTH-SERVICE
           predicates:
             - Path=/api/auth/register
@@ -101,8 +123,12 @@ spring:
               args:
                 name: authServiceCircuitBreaker
                 fallbackUri: forward:/fallback/auth
+          metadata:
+            description: "User registration"
+            public: true
 
-        - id: auth-service-login
+        # User Login
+        - id: auth-login
           uri: lb://AUTH-SERVICE
           predicates:
             - Path=/api/auth/login
@@ -112,20 +138,57 @@ spring:
               args:
                 name: authServiceCircuitBreaker
                 fallbackUri: forward:/fallback/auth
+          metadata:
+            description: "User login"
+            public: true
 
-        - id: auth-service-refresh
+        # USSD Login
+        - id: auth-ussd-login
+          uri: lb://AUTH-SERVICE
+          predicates:
+            - Path=/api/auth/ussd/login
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+          metadata:
+            description: "USSD login"
+            public: true
+
+        # Token Refresh
+        - id: auth-refresh
           uri: lb://AUTH-SERVICE
           predicates:
             - Path=/api/auth/refresh
             - Method=POST
+          metadata:
+            description: "Refresh access token"
+            public: true
 
-        - id: auth-service-logout
+        # User Logout
+        - id: auth-logout
           uri: lb://AUTH-SERVICE
           predicates:
             - Path=/api/auth/logout
             - Method=POST
+          metadata:
+            description: "User logout"
+            auth-required: true
 
-        - id: auth-service-password-reset
+        # Token Validation
+        - id: auth-validate
+          uri: lb://AUTH-SERVICE
+          predicates:
+            - Path=/api/auth/validate
+            - Method=GET
+          metadata:
+            description: "Validate JWT token"
+            internal: true
+
+        # Password Management
+        - id: auth-password
           uri: lb://AUTH-SERVICE
           predicates:
             - Path=/api/auth/password/**
@@ -134,22 +197,98 @@ spring:
               args:
                 name: authServiceCircuitBreaker
                 fallbackUri: forward:/fallback/auth
+          metadata:
+            description: "Password reset/change"
+            public: true
 
-      # ═══════════════════════════════════════════════════════════════════
-      # ✅ UPDATED: CORS Configuration (Add OAuth2 Callback URLs)
-      # ═══════════════════════════════════════════════════════════════════
+        # Health Check
+        - id: auth-health
+          uri: lb://AUTH-SERVICE
+          predicates:
+            - Path=/api/auth/health
+            - Method=GET
+          metadata:
+            description: "Auth service health"
+            public: true
+
+        # ═════════════════════════════════════════════════════════════════
+        # USER SERVICE ROUTES
+        # ═════════════════════════════════════════════════════════════════
+
+        # Internal User API (Microservice-to-Microservice)
+        - id: user-internal
+          uri: lb://USER-SERVICE
+          predicates:
+            - Path=/api/v1/users/internal/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+                fallbackUri: forward:/fallback/users
+          metadata:
+            description: "Internal user API"
+            internal: true
+
+        # Current User Profile
+        - id: user-me
+          uri: lb://USER-SERVICE
+          predicates:
+            - Path=/api/v1/users/me
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+          metadata:
+            description: "Get current user profile"
+            auth-required: true
+
+        # User Profile Management
+        - id: user-profile
+          uri: lb://USER-SERVICE
+          predicates:
+            - Path=/api/v1/users/profile/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+          metadata:
+            description: "User profile CRUD"
+            auth-required: true
+
+        # Mentor Listings
+        - id: user-mentors
+          uri: lb://USER-SERVICE
+          predicates:
+            - Path=/api/v1/users/mentors/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+          metadata:
+            description: "Mentor operations"
+            auth-required: false
+
+      # ───────────────────────────────────────────────────────────────────
+      # GLOBAL CORS CONFIGURATION
+      # ───────────────────────────────────────────────────────────────────
       globalcors:
         cors-configurations:
           '[/**]':
             allowedOrigins:
-              - "http://localhost:3000"
-              - "http://localhost:3001"
-              - "http://localhost:19006"
-              - "https://youthconnect.ug"
+              - "http://localhost:3000"      # React dev
+              - "http://localhost:3001"      # React alternate
+              - "http://localhost:19006"     # Expo web
+              - "http://localhost:8083"      # Auth service
+              - "https://youthconnect.ug"    # Production
               - "https://www.youthconnect.ug"
-              # ✅ OAuth2 callback URLs
-              - "http://localhost:8083"  # Auth service direct access
-            allowedMethods: [GET, POST, PUT, DELETE, PATCH, OPTIONS]
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
             allowedHeaders: "*"
             exposedHeaders:
               - "Authorization"
@@ -159,4 +298,122 @@ spring:
               - "X-File-Name"
               - "X-File-Size"
             allowCredentials: true
-            maxAge: 3600
+            maxAge: 3600  # 1 hour
+
+      # ───────────────────────────────────────────────────────────────────
+      # DEFAULT FILTERS (Applied to all routes)
+      # ───────────────────────────────────────────────────────────────────
+      default-filters:
+        - name: Retry
+          args:
+            retries: 3
+            statuses: BAD_GATEWAY,GATEWAY_TIMEOUT
+            methods: GET,POST
+            backoff:
+              firstBackoff: 50ms
+              maxBackoff: 500ms
+              factor: 2
+              basedOnPreviousValue: true
+
+# ═══════════════════════════════════════════════════════════════════════════
+# JWT CONFIGURATION
+# CRITICAL: Must match auth-service JWT secret
+# ═══════════════════════════════════════════════════════════════════════════
+jwt:
+  secret: ${JWT_SECRET:aVeryLongAndSecureSecretKeyForYouthConnectUgandaHackathonProjectWith256BitsMinimum}
+  expiration: ${JWT_EXPIRATION:86400000}  # 24 hours
+  issuer: ${JWT_ISSUER:youth-connect-auth-service}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# RESILIENCE4J CIRCUIT BREAKER
+# ═══════════════════════════════════════════════════════════════════════════
+resilience4j:
+  circuitbreaker:
+    instances:
+      authServiceCircuitBreaker:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 10s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+        recordExceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.client.ResourceAccessException
+
+      userServiceCircuitBreaker:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 10s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+
+  retry:
+    instances:
+      authServiceRetry:
+        maxAttempts: 3
+        waitDuration: 1000ms
+        retryExceptions:
+          - java.io.IOException
+          - org.springframework.web.client.ResourceAccessException
+
+      userServiceRetry:
+        maxAttempts: 3
+        waitDuration: 1000ms
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SERVER CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+server:
+  port: ${SERVER_PORT:8088}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EUREKA CLIENT (FIXED - WITH CREDENTIALS)
+# ═══════════════════════════════════════════════════════════════════════════
+eureka:
+  client:
+    enabled: ${EUREKA_ENABLED:true}
+    service-url:
+      # ✅ CRITICAL FIX: Embedded credentials in URL
+      defaultZone: http://${EUREKA_USERNAME:admin}:${EUREKA_PASSWORD:changeme}@${EUREKA_HOST:localhost}:${EUREKA_PORT:8761}/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+    registry-fetch-interval-seconds: 30
+  instance:
+    prefer-ip-address: ${EUREKA_PREFER_IP:false}
+    hostname: ${INSTANCE_HOSTNAME:localhost}
+    instance-id: ${spring.application.name}:${server.port}
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LOGGING
+# ═══════════════════════════════════════════════════════════════════════════
+logging:
+  level:
+    root: INFO
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.web: DEBUG
+    com.youthconnect.api_gateway: DEBUG
+    com.netflix.discovery: INFO
+    io.github.resilience4j: DEBUG
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ACTUATOR ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,gateway,circuitbreakers
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true

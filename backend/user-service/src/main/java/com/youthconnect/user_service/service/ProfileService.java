@@ -4,16 +4,19 @@ import com.youthconnect.user_service.dto.request.ProfileUpdateRequest;
 import com.youthconnect.user_service.dto.request.ProfileUpdateRequestDTO;
 import com.youthconnect.user_service.dto.UserProfileDTO;
 import com.youthconnect.user_service.entity.*;
+import com.youthconnect.user_service.exception.UserNotFoundException;
 import com.youthconnect.user_service.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
 import java.util.UUID;
 
 /**
  * ============================================================================
- * ProfileService - Role-Specific Profile Management Service
+ * ProfileService - Role-Specific Profile Management Service (ENHANCED v1.0.2)
  * ============================================================================
  *
  * Handles profile operations for all user types in the Youth Connect platform.
@@ -34,20 +37,18 @@ import java.util.UUID;
  * 3. Profile completion tracking
  * 4. Data consistency and validation
  *
- * DESIGN PATTERN:
- * ==============
- * - Service Layer with Repository Aggregation
- * - Transaction Management: Read-only by default, @Transactional for writes
- *
- * FIXES APPLIED (v1.0.1):
+ * ENHANCEMENTS IN v1.0.2:
  * ======================
- * ✅ All repository methods now use findByUser_Id() consistently
- * ✅ All entity getters match actual field names from entities
- * ✅ Removed non-existent fields (getBusinessStage from YouthProfile)
- * ✅ Fixed all profile completeness calculations
+ * ✅ Added comprehensive null checks and input validation
+ * ✅ Enhanced error handling with UserNotFoundException
+ * ✅ Added role-based access control for updates
+ * ✅ Improved logging for better debugging
+ * ✅ String trimming to prevent whitespace issues
+ * ✅ Better fallback mechanisms for missing profiles
+ * ✅ Transaction management for atomic operations
  *
  * @author Douglas Kings Kato
- * @version 1.0.1
+ * @version 1.0.2
  */
 @Slf4j
 @Service
@@ -58,7 +59,6 @@ public class ProfileService {
     // ========================================================================
     // REPOSITORY DEPENDENCIES
     // ========================================================================
-
     private final YouthProfileRepository youthProfileRepository;
     private final MentorProfileRepository mentorProfileRepository;
     private final NgoProfileRepository ngoProfileRepository;
@@ -72,70 +72,122 @@ public class ProfileService {
     /**
      * Update user profile via web interface
      *
-     * Handles profile updates from authenticated web users.
-     * Currently optimized for Youth profiles but can be extended for other roles.
+     * Handles profile updates from authenticated web users with validation.
      *
-     * USAGE:
-     * ------
-     * YouthProfile profile = profileService.updateUserProfile(user, request);
+     * ENHANCEMENTS:
+     * - Null checks for user and request
+     * - Role validation (YOUTH only)
+     * - String trimming to prevent whitespace issues
+     * - Enhanced error messages
+     * - Atomic transaction handling
      *
      * @param user Authenticated user entity (must have YOUTH role)
      * @param request Profile update request with new data
      * @return Updated YouthProfile entity
-     * @throws RuntimeException if profile save fails
+     * @throws IllegalArgumentException if user role is invalid or inputs are null
+     * @throws UserNotFoundException if profile not found
      */
     @Transactional
     public YouthProfile updateUserProfile(User user, ProfileUpdateRequest request) {
-        log.info("Updating profile for user: {}", user.getEmail());
+        // Input validation
+        if (user == null) {
+            log.error("Attempted profile update with null user");
+            throw new IllegalArgumentException("User cannot be null");
+        }
+        if (request == null) {
+            log.error("Attempted profile update with null request for user: {}", user.getId());
+            throw new IllegalArgumentException("Profile update request cannot be null");
+        }
 
-        // Retrieve existing profile or create new one if doesn't exist
+        log.info("Updating profile for user: {} (ID: {})", user.getEmail(), user.getId());
+
+        // Role-based access control
+        if (!Role.YOUTH.equals(user.getRole())) {
+            log.warn("Unauthorized profile update attempt for user {} with role {}",
+                    user.getId(), user.getRole());
+            throw new IllegalArgumentException(
+                    "Profile update only supported for YOUTH role. Current role: " + user.getRole());
+        }
+
+        // Retrieve existing profile or throw exception
         YouthProfile profile = youthProfileRepository.findByUser_Id(user.getId())
-                .orElse(new YouthProfile(user));
+                .orElseThrow(() -> {
+                    log.error("Youth profile not found for user: {}", user.getId());
+                    return new UserNotFoundException("Youth profile not found for user: " + user.getId());
+                });
 
-        // Update profile fields from request
-        profile.setFirstName(request.getFirstName());
-        profile.setLastName(request.getLastName());
-        profile.setProfession(request.getProfession());
-        profile.setDescription(request.getDescription());
-        profile.setDistrict(request.getDistrict());
+        // Update fields with validation and trimming
+        if (StringUtils.hasText(request.getFirstName())) {
+            profile.setFirstName(request.getFirstName().trim());
+        }
+        if (StringUtils.hasText(request.getLastName())) {
+            profile.setLastName(request.getLastName().trim());
+        }
+        if (StringUtils.hasText(request.getProfession())) {
+            profile.setProfession(request.getProfession().trim());
+        }
+        if (StringUtils.hasText(request.getDescription())) {
+            profile.setDescription(request.getDescription().trim());
+        }
+        if (StringUtils.hasText(request.getDistrict())) {
+            profile.setDistrict(request.getDistrict().trim());
+        }
 
-        // Save and return updated profile
+        // Save and return
         YouthProfile savedProfile = youthProfileRepository.save(profile);
-        log.debug("Profile updated successfully for user: {}", user.getId());
-
+        log.info("Profile updated successfully for user: {} (ID: {})", user.getEmail(), user.getId());
         return savedProfile;
     }
 
     /**
      * Update user profile via USSD interface
      *
-     * Simplified profile update for feature phone users accessing via USSD.
-     * USSD updates are limited to basic fields due to interface constraints.
+     * Simplified profile update for feature phone users.
+     * Limited to basic fields due to USSD interface constraints.
      *
-     * USSD LIMITATIONS:
-     * ----------------
-     * - Only firstName and lastName can be updated
-     * - No file uploads (profile pictures, documents)
-     * - No complex nested data
+     * ENHANCEMENTS:
+     * - Null checks for inputs
+     * - Creates profile if missing (USSD-friendly)
+     * - String trimming for clean data
+     * - Enhanced logging
      *
      * @param user User entity identified by phone number
-     * @param request USSD profile update request (simplified)
+     * @param request USSD profile update request
      * @return UserProfileDTO with updated information
+     * @throws IllegalArgumentException if inputs are null
      */
     @Transactional
     public UserProfileDTO updateUserProfileByPhone(User user, ProfileUpdateRequestDTO request) {
-        log.info("Updating USSD profile for user: {}", user.getPhoneNumber());
+        // Input validation
+        if (user == null) {
+            log.error("Attempted USSD profile update with null user");
+            throw new IllegalArgumentException("User cannot be null");
+        }
+        if (request == null) {
+            log.error("Attempted USSD profile update with null request for user: {}", user.getId());
+            throw new IllegalArgumentException("USSD profile update request cannot be null");
+        }
 
-        // Retrieve existing profile or create new one
+        log.info("Updating USSD profile for user: {} (Phone: {})", user.getId(), user.getPhoneNumber());
+
+        // Retrieve or create profile (USSD may create if missing)
         YouthProfile profile = youthProfileRepository.findByUser_Id(user.getId())
-                .orElse(new YouthProfile(user));
+                .orElseGet(() -> {
+                    log.info("Creating new youth profile for USSD user: {}", user.getId());
+                    return new YouthProfile(user);
+                });
 
-        // Update basic fields only (USSD constraint)
-        profile.setFirstName(request.getFirstName());
-        profile.setLastName(request.getLastName());
+        // Update basic fields only (USSD limitation)
+        if (StringUtils.hasText(request.getFirstName())) {
+            profile.setFirstName(request.getFirstName().trim());
+        }
+        if (StringUtils.hasText(request.getLastName())) {
+            profile.setLastName(request.getLastName().trim());
+        }
 
         YouthProfile savedProfile = youthProfileRepository.save(profile);
-        log.debug("USSD profile updated for user: {}", user.getId());
+        log.info("USSD profile updated successfully for user: {} (Phone: {})",
+                user.getId(), user.getPhoneNumber());
 
         return buildUserProfileDTO(user, savedProfile);
     }
@@ -147,24 +199,26 @@ public class ProfileService {
     /**
      * Get user profile by user ID with intelligent role-based routing
      *
-     * This method acts as a smart dispatcher that routes profile retrieval
-     * to the appropriate role-specific method. If a role-specific profile
-     * doesn't exist, it gracefully falls back to a basic profile.
-     *
-     * ROUTING LOGIC:
-     * -------------
-     * YOUTH          → getYouthProfile()
-     * MENTOR         → getMentorProfile()
-     * NGO            → getNgoProfile()
-     * FUNDER         → getFunderProfile()
-     * SERVICE_PROVIDER → getServiceProviderProfile()
-     * ADMIN (default) → getBasicProfile()
+     * ENHANCEMENTS:
+     * - Null checks for inputs
+     * - Improved logging
+     * - Better error messages
      *
      * @param userId User's unique identifier
      * @param role User's role enum value
      * @return UserProfileDTO with role-specific data populated
+     * @throws IllegalArgumentException if inputs are null
      */
     public UserProfileDTO getUserProfileById(UUID userId, Role role) {
+        if (userId == null) {
+            log.error("Attempted to retrieve profile with null userId");
+            throw new IllegalArgumentException("User ID cannot be null");
+        }
+        if (role == null) {
+            log.error("Attempted to retrieve profile with null role for userId: {}", userId);
+            throw new IllegalArgumentException("Role cannot be null");
+        }
+
         log.debug("Retrieving profile for user: {} with role: {}", userId, role);
 
         return switch (role) {
@@ -178,26 +232,13 @@ public class ProfileService {
     }
 
     // ========================================================================
-    // ROLE-SPECIFIC PROFILE RETRIEVERS
+    // ROLE-SPECIFIC PROFILE RETRIEVERS (WITH ENHANCED ERROR HANDLING)
     // ========================================================================
 
-    /**
-     * Retrieve Youth profile with fallback to basic profile
-     *
-     * Returns comprehensive youth profile including:
-     * - Demographic information (name, gender, district)
-     * - Professional details (profession, academic qualification)
-     * - District information for opportunity matching
-     *
-     * FALLBACK BEHAVIOR:
-     * -----------------
-     * If youth profile doesn't exist → returns basic profile
-     *
-     * @param userId User's unique identifier
-     * @return UserProfileDTO with youth-specific fields
-     */
     private UserProfileDTO getYouthProfile(UUID userId) {
-        log.debug("Fetching youth profile for user: {}", userId);
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID cannot be null");
+        }
 
         return youthProfileRepository.findByUser_Id(userId)
                 .map(profile -> UserProfileDTO.builder()
@@ -212,20 +253,10 @@ public class ProfileService {
                 });
     }
 
-    /**
-     * Retrieve Mentor profile with fallback to basic profile
-     *
-     * Returns mentor profile including:
-     * - Bio and professional background
-     * - Expertise areas (areaOfExpertise field)
-     * - Experience years (experienceYears field)
-     * - Availability status for mentorship matching
-     *
-     * @param userId User's unique identifier
-     * @return UserProfileDTO with mentor-specific fields
-     */
     private UserProfileDTO getMentorProfile(UUID userId) {
-        log.debug("Fetching mentor profile for user: {}", userId);
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID cannot be null");
+        }
 
         return mentorProfileRepository.findByUser_Id(userId)
                 .map(profile -> UserProfileDTO.builder()
@@ -240,29 +271,15 @@ public class ProfileService {
                 });
     }
 
-    /**
-     * Retrieve NGO profile with fallback to basic profile
-     *
-     * Returns NGO organization profile including:
-     * - Organization name (organisationName field - British spelling)
-     * - Location and operational areas
-     * - Description of services/programs
-     * - Verification status
-     *
-     * IMPORTANT:
-     * ---------
-     * Uses getOrganisationName() with British spelling as defined in entity
-     *
-     * @param userId User's unique identifier
-     * @return UserProfileDTO with NGO-specific fields
-     */
     private UserProfileDTO getNgoProfile(UUID userId) {
-        log.debug("Fetching NGO profile for user: {}", userId);
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID cannot be null");
+        }
 
         return ngoProfileRepository.findByUser_Id(userId)
                 .map(profile -> UserProfileDTO.builder()
                         .userId(userId)
-                        .firstName(profile.getOrganisationName())  // British spelling
+                        .firstName(profile.getOrganisationName())
                         .lastName("Organization")
                         .phoneNumber(profile.getUser().getPhoneNumber())
                         .build())
@@ -272,19 +289,10 @@ public class ProfileService {
                 });
     }
 
-    /**
-     * Retrieve Funder profile with fallback to basic profile
-     *
-     * Returns funder organization profile including:
-     * - Funder name (funderName field)
-     * - Funding focus areas (fundingFocus field)
-     * - Active funding programs
-     *
-     * @param userId User's unique identifier
-     * @return UserProfileDTO with funder-specific fields
-     */
     private UserProfileDTO getFunderProfile(UUID userId) {
-        log.debug("Fetching funder profile for user: {}", userId);
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID cannot be null");
+        }
 
         return funderProfileRepository.findByUser_Id(userId)
                 .map(profile -> UserProfileDTO.builder()
@@ -299,20 +307,10 @@ public class ProfileService {
                 });
     }
 
-    /**
-     * Retrieve Service Provider profile with fallback to basic profile
-     *
-     * Returns service provider profile including:
-     * - Provider name (providerName field)
-     * - Location and service areas
-     * - Expertise areas (areaOfExpertise field)
-     * - Verification status
-     *
-     * @param userId User's unique identifier
-     * @return UserProfileDTO with service provider-specific fields
-     */
     private UserProfileDTO getServiceProviderProfile(UUID userId) {
-        log.debug("Fetching service provider profile for user: {}", userId);
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID cannot be null");
+        }
 
         return serviceProviderProfileRepository.findByUser_Id(userId)
                 .map(profile -> UserProfileDTO.builder()
@@ -327,25 +325,8 @@ public class ProfileService {
                 });
     }
 
-    /**
-     * Basic profile fallback for users without role-specific profiles
-     *
-     * Used when:
-     * - Role-specific profile doesn't exist yet
-     * - Role doesn't require detailed profile (e.g., ADMIN)
-     * - Profile creation is in progress
-     *
-     * Returns minimal profile with:
-     * - User ID
-     * - Generic first name: "User"
-     * - Generic last name: User ID as string
-     *
-     * @param userId User's unique identifier
-     * @return Generic UserProfileDTO
-     */
     private UserProfileDTO getBasicProfile(UUID userId) {
         log.debug("Returning basic profile for user: {}", userId);
-
         return UserProfileDTO.builder()
                 .userId(userId)
                 .firstName("User")
@@ -360,18 +341,20 @@ public class ProfileService {
     /**
      * Build UserProfileDTO from User and YouthProfile entities
      *
-     * Centralized method for consistent DTO construction across the service.
-     * Ensures all DTOs are built with the same field mappings.
-     *
-     * @param user User entity (contains phone number, email, etc.)
-     * @param profile YouthProfile entity (contains firstName, lastName, etc.)
-     * @return Complete UserProfileDTO
+     * ENHANCEMENTS:
+     * - Added null check for user
+     * - Safe null handling for profile fields
      */
     private UserProfileDTO buildUserProfileDTO(User user, YouthProfile profile) {
+        if (user == null) {
+            log.error("Attempted to build UserProfileDTO with null user");
+            throw new IllegalArgumentException("User cannot be null");
+        }
+
         return UserProfileDTO.builder()
                 .userId(user.getId())
-                .firstName(profile.getFirstName())
-                .lastName(profile.getLastName())
+                .firstName(profile != null ? profile.getFirstName() : null)
+                .lastName(profile != null ? profile.getLastName() : null)
                 .phoneNumber(user.getPhoneNumber())
                 .build();
     }
@@ -383,25 +366,25 @@ public class ProfileService {
     /**
      * Calculate profile completion percentage for any user role
      *
-     * Profile completeness is important for:
-     * - Encouraging users to complete their profiles
-     * - Improving recommendation quality (more data = better matches)
-     * - Unlocking platform features (some require complete profiles)
-     *
-     * COMPLETION CRITERIA BY ROLE:
-     * ---------------------------
-     * YOUTH: 7 fields tracked
-     * MENTOR: 5 fields tracked
-     * NGO: 3 fields tracked
-     * FUNDER: 2 fields tracked
-     * SERVICE_PROVIDER: 3 fields tracked
-     * ADMIN: Always 100% (no profile required)
+     * ENHANCEMENTS:
+     * - Added null checks
+     * - Better error handling with try-catch
+     * - Safe fallback to 0% on error
      *
      * @param userId User's unique identifier
-     * @param role User's role (determines which fields to check)
+     * @param role User's role
      * @return Completion percentage (0-100)
      */
     public int calculateProfileCompleteness(UUID userId, Role role) {
+        if (userId == null) {
+            log.error("Attempted to calculate completeness with null userId");
+            return 0;
+        }
+        if (role == null) {
+            log.error("Attempted to calculate completeness with null role for userId: {}", userId);
+            return 0;
+        }
+
         log.debug("Calculating profile completeness for user: {} with role: {}", userId, role);
 
         try {
@@ -411,91 +394,43 @@ public class ProfileService {
                 case NGO -> calculateNgoProfileCompleteness(userId);
                 case FUNDER -> calculateFunderProfileCompleteness(userId);
                 case SERVICE_PROVIDER -> calculateServiceProviderProfileCompleteness(userId);
-                default -> 100; // Admin and other roles are always "complete"
+                default -> 100;
             };
         } catch (Exception e) {
             log.error("Failed to calculate profile completeness for user: {}", userId, e);
-            return 0; // Safe fallback to incomplete on error
+            return 0;
         }
     }
 
-    /**
-     * Calculate Youth profile completeness
-     *
-     * TRACKED FIELDS (7 total):
-     * ========================
-     * ✅ Required fields:
-     *    - firstName
-     *    - lastName
-     *    - gender
-     *    - district
-     *    - profession
-     *
-     * ✅ Optional fields (improve recommendations):
-     *    - dateOfBirth
-     *    - description
-     *
-     * ❌ Removed: businessStage (field doesn't exist in YouthProfile entity)
-     *
-     * @param userId User's unique identifier
-     * @return Completion percentage (0-100)
-     */
     private int calculateYouthProfileCompleteness(UUID userId) {
         return youthProfileRepository.findByUser_Id(userId)
                 .map(profile -> {
                     int totalFields = 7;
                     int completedFields = 0;
 
-                    // Check each field for completeness
-                    if (profile.getFirstName() != null && !profile.getFirstName().isEmpty())
-                        completedFields++;
-                    if (profile.getLastName() != null && !profile.getLastName().isEmpty())
-                        completedFields++;
-                    if (profile.getGender() != null && !profile.getGender().isEmpty())
-                        completedFields++;
-                    if (profile.getDistrict() != null && !profile.getDistrict().isEmpty())
-                        completedFields++;
-                    if (profile.getProfession() != null && !profile.getProfession().isEmpty())
-                        completedFields++;
-                    if (profile.getDateOfBirth() != null)
-                        completedFields++;
-                    if (profile.getDescription() != null && !profile.getDescription().isEmpty())
-                        completedFields++;
+                    if (StringUtils.hasText(profile.getFirstName())) completedFields++;
+                    if (StringUtils.hasText(profile.getLastName())) completedFields++;
+                    if (StringUtils.hasText(profile.getGender())) completedFields++;
+                    if (StringUtils.hasText(profile.getDistrict())) completedFields++;
+                    if (StringUtils.hasText(profile.getProfession())) completedFields++;
+                    if (profile.getDateOfBirth() != null) completedFields++;
+                    if (StringUtils.hasText(profile.getDescription())) completedFields++;
 
-                    // Calculate percentage
                     return (completedFields * 100) / totalFields;
                 })
-                .orElse(0); // No profile = 0% complete
+                .orElse(0);
     }
 
-    /**
-     * Calculate Mentor profile completeness
-     *
-     * TRACKED FIELDS (5 total):
-     * ========================
-     * - firstName
-     * - lastName
-     * - bio
-     * - areaOfExpertise (not 'expertise')
-     * - experienceYears (not 'yearsOfExperience')
-     *
-     * @param userId User's unique identifier
-     * @return Completion percentage (0-100)
-     */
     private int calculateMentorProfileCompleteness(UUID userId) {
         return mentorProfileRepository.findByUser_Id(userId)
                 .map(profile -> {
                     int totalFields = 5;
                     int completedFields = 0;
 
-                    if (profile.getFirstName() != null && !profile.getFirstName().isEmpty())
-                        completedFields++;
-                    if (profile.getLastName() != null && !profile.getLastName().isEmpty())
-                        completedFields++;
-                    if (profile.getBio() != null && !profile.getBio().isEmpty())
-                        completedFields++;
-                    if (profile.getAreaOfExpertise() != null && !profile.getAreaOfExpertise().isEmpty())
-                        completedFields++;
+                    if (StringUtils.hasText(profile.getFirstName())) completedFields++;
+                    if (StringUtils.hasText(profile.getLastName())) completedFields++;
+                    if (StringUtils.hasText(profile.getBio())) completedFields++;
+                    if (StringUtils.hasText(profile.getAreaOfExpertise())) completedFields++;
                     if (profile.getExperienceYears() != null && profile.getExperienceYears() > 0)
                         completedFields++;
 
@@ -504,87 +439,44 @@ public class ProfileService {
                 .orElse(0);
     }
 
-    /**
-     * Calculate NGO profile completeness
-     *
-     * TRACKED FIELDS (3 total):
-     * ========================
-     * - organisationName (British spelling)
-     * - location
-     * - description
-     *
-     * @param userId User's unique identifier
-     * @return Completion percentage (0-100)
-     */
     private int calculateNgoProfileCompleteness(UUID userId) {
         return ngoProfileRepository.findByUser_Id(userId)
                 .map(profile -> {
                     int totalFields = 3;
                     int completedFields = 0;
 
-                    if (profile.getOrganisationName() != null && !profile.getOrganisationName().isEmpty())
-                        completedFields++;
-                    if (profile.getLocation() != null && !profile.getLocation().isEmpty())
-                        completedFields++;
-                    if (profile.getDescription() != null && !profile.getDescription().isEmpty())
-                        completedFields++;
+                    if (StringUtils.hasText(profile.getOrganisationName())) completedFields++;
+                    if (StringUtils.hasText(profile.getLocation())) completedFields++;
+                    if (StringUtils.hasText(profile.getDescription())) completedFields++;
 
                     return (completedFields * 100) / totalFields;
                 })
                 .orElse(0);
     }
 
-    /**
-     * Calculate Funder profile completeness
-     *
-     * TRACKED FIELDS (2 total):
-     * ========================
-     * - funderName
-     * - fundingFocus (not 'focus')
-     *
-     * @param userId User's unique identifier
-     * @return Completion percentage (0-100)
-     */
     private int calculateFunderProfileCompleteness(UUID userId) {
         return funderProfileRepository.findByUser_Id(userId)
                 .map(profile -> {
                     int totalFields = 2;
                     int completedFields = 0;
 
-                    if (profile.getFunderName() != null && !profile.getFunderName().isEmpty())
-                        completedFields++;
-                    if (profile.getFundingFocus() != null && !profile.getFundingFocus().isEmpty())
-                        completedFields++;
+                    if (StringUtils.hasText(profile.getFunderName())) completedFields++;
+                    if (StringUtils.hasText(profile.getFundingFocus())) completedFields++;
 
                     return (completedFields * 100) / totalFields;
                 })
                 .orElse(0);
     }
 
-    /**
-     * Calculate Service Provider profile completeness
-     *
-     * TRACKED FIELDS (3 total):
-     * ========================
-     * - providerName
-     * - location
-     * - areaOfExpertise (not 'expertise')
-     *
-     * @param userId User's unique identifier
-     * @return Completion percentage (0-100)
-     */
     private int calculateServiceProviderProfileCompleteness(UUID userId) {
         return serviceProviderProfileRepository.findByUser_Id(userId)
                 .map(profile -> {
                     int totalFields = 3;
                     int completedFields = 0;
 
-                    if (profile.getProviderName() != null && !profile.getProviderName().isEmpty())
-                        completedFields++;
-                    if (profile.getLocation() != null && !profile.getLocation().isEmpty())
-                        completedFields++;
-                    if (profile.getAreaOfExpertise() != null && !profile.getAreaOfExpertise().isEmpty())
-                        completedFields++;
+                    if (StringUtils.hasText(profile.getProviderName())) completedFields++;
+                    if (StringUtils.hasText(profile.getLocation())) completedFields++;
+                    if (StringUtils.hasText(profile.getAreaOfExpertise())) completedFields++;
 
                     return (completedFields * 100) / totalFields;
                 })

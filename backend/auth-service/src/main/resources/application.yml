@@ -1,344 +1,459 @@
 # ═══════════════════════════════════════════════════════════════════════════
-# Entrepreneurship Booster Platform - AUTH SERVICE CONFIGURATION (COMPLETE)
+# AUTH SERVICE - PRODUCTION-READY CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════
-# Service: auth-service
-# Version: 2.0.0
+# Version: 4.0.0 (Security Enhanced)
 # Author: Douglas Kings Kato
-# Date: 2025-11-16
+# Date: 2025-11-19
+# Description: Complete authentication service configuration with OAuth2,
+#              JWT, security, and service discovery settings
 # ═══════════════════════════════════════════════════════════════════════════
 
-# ═══════════════════════════════════════════════════════════════════════════
-# SPRING CONFIGURATION
-# ═══════════════════════════════════════════════════════════════════════════
+# ───────────────────────────────────────────────────────────────────────────
+# SPRING APPLICATION CONFIGURATION
+# ───────────────────────────────────────────────────────────────────────────
 spring:
-  # Application Metadata
   application:
+    # Service name used for Eureka registration and service discovery
     name: auth-service
-    description: Authentication and Authorization Service for Entrepreneurship Booster Platform
-    version: '@project.version@'
 
   # ───────────────────────────────────────────────────────────────────────────
-  # SECURITY CONFIGURATION (OAuth2 Client)
+  # OAUTH2 CLIENT CONFIGURATION
   # ───────────────────────────────────────────────────────────────────────────
   security:
     oauth2:
       client:
         registration:
+          # ─────────────────────────────────────────────────────────────────
+          # GOOGLE OAUTH2 PROVIDER
+          # ─────────────────────────────────────────────────────────────────
           google:
-            # ✅ FIXED: Default placeholder values prevent startup failures
-            client-id: ${GOOGLE_CLIENT_ID:placeholder-client-id-not-configured}
-            client-secret: ${GOOGLE_CLIENT_SECRET:placeholder-client-secret-not-configured}
+            # Get from: https://console.cloud.google.com/apis/credentials
+            client-id: ${GOOGLE_CLIENT_ID:placeholder-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:placeholder-client-secret}
+            # Scopes to request from Google
             scope:
-              - email
-              - profile
-              - openid
-            authorization-grant-type: authorization_code
-            client-authentication-method: client_secret_post
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+              - email      # Access user's email address
+              - profile    # Access user's basic profile info (name, picture)
+            # Optional: Explicit redirect URI
+            # redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            # Optional: Authorization grant type (default: authorization_code)
+            # authorization-grant-type: authorization_code
+            # Optional: Client authentication method
+            # client-authentication-method: client_secret_basic
 
-        provider:
-          google:
-            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
-            token-uri: https://oauth2.googleapis.com/token
-            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
-            user-name-attribute: sub
-            issuer-uri: https://accounts.google.com
+          # ─────────────────────────────────────────────────────────────────
+          # FACEBOOK OAUTH2 PROVIDER (Optional - Uncomment to enable)
+          # ─────────────────────────────────────────────────────────────────
+          # facebook:
+          #   client-id: ${FACEBOOK_CLIENT_ID:placeholder-facebook-id}
+          #   client-secret: ${FACEBOOK_CLIENT_SECRET:placeholder-facebook-secret}
+          #   scope:
+          #     - email
+          #     - public_profile
+
+          # ─────────────────────────────────────────────────────────────────
+          # APPLE SIGN-IN PROVIDER (Optional - Uncomment to enable)
+          # ─────────────────────────────────────────────────────────────────
+          # apple:
+          #   client-id: ${APPLE_CLIENT_ID:placeholder-apple-id}
+          #   client-secret: ${APPLE_CLIENT_SECRET:placeholder-apple-secret}
+          #   scope:
+          #     - email
+          #     - name
+          #   authorization-grant-type: authorization_code
+          #   redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+          #   client-authentication-method: client_secret_post
 
   # ───────────────────────────────────────────────────────────────────────────
   # DATABASE CONFIGURATION (PostgreSQL)
   # ───────────────────────────────────────────────────────────────────────────
   datasource:
+    # JDBC connection URL with environment variable fallbacks
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:youthconnect_auth}
     username: ${DB_USER:youthconnect_user}
     password: ${DB_PASSWORD:YouthConnect2024!}
     driver-class-name: org.postgresql.Driver
 
+    # ─────────────────────────────────────────────────────────────────────
+    # HIKARICP CONNECTION POOL SETTINGS
+    # ─────────────────────────────────────────────────────────────────────
     hikari:
+      # Maximum number of connections in the pool
       maximum-pool-size: ${DB_POOL_SIZE:10}
-      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      # Minimum number of idle connections maintained
+      minimum-idle: 2
+      # Maximum time to wait for a connection (30 seconds)
       connection-timeout: 30000
+      # Maximum lifetime of a connection (30 minutes)
       max-lifetime: 1800000
+      # Maximum time a connection can sit idle (10 minutes)
       idle-timeout: 600000
+      # Custom pool name for monitoring
       pool-name: AuthServiceHikariPool
-      connection-test-query: SELECT 1
-      auto-commit: true
+      # Optional: Additional settings for production
+      # leak-detection-threshold: 60000
+      # connection-test-query: SELECT 1
 
   # ───────────────────────────────────────────────────────────────────────────
   # JPA/HIBERNATE CONFIGURATION
   # ───────────────────────────────────────────────────────────────────────────
   jpa:
     hibernate:
+      # DDL mode: validate (don't modify schema, only validate)
+      # Options: none, validate, update, create, create-drop
       ddl-auto: validate
+
+      # ─────────────────────────────────────────────────────────────────────
+      # NAMING STRATEGIES
+      # ─────────────────────────────────────────────────────────────────────
+      naming:
+        # Use exact database column names as defined in entities
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        # JPA-compliant implicit naming (camelCase → snake_case)
+        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyJpaCompliantImpl
+
+    # Database dialect for PostgreSQL
     database-platform: org.hibernate.dialect.PostgreSQLDialect
-    show-sql: ${SHOW_SQL:true}
+
+    # Show SQL in console (disable in production)
+    show-sql: ${SHOW_SQL:false}
+
+    # ─────────────────────────────────────────────────────────────────────
+    # HIBERNATE ADDITIONAL PROPERTIES
+    # ─────────────────────────────────────────────────────────────────────
     properties:
       hibernate:
+        # Format SQL for better readability
         format_sql: true
-        use_sql_comments: true
+        # Disable global identifier quoting (use explicit @Column quotes)
+        globally_quoted_identifiers: false
+        # Use new identifier generator mappings
+        id:
+          new_generator_mappings: true
+        # JDBC batch processing for better performance
         jdbc:
           batch_size: 20
-        cache:
-          use_second_level_cache: false
-        generate_statistics: ${HIBERNATE_STATS:false}
+        # Schema validation
+        hbm2ddl:
+          auto: validate
+        # Optional: Enable second-level cache
+        # cache:
+        #   use_second_level_cache: true
+        #   region.factory_class: org.hibernate.cache.jcache.JCacheRegionFactory
 
   # ───────────────────────────────────────────────────────────────────────────
-  # FLYWAY DATABASE MIGRATION
+  # FLYWAY DATABASE MIGRATION CONFIGURATION
   # ───────────────────────────────────────────────────────────────────────────
   flyway:
+    # Enable Flyway migrations
     enabled: true
+    # Create baseline for existing schemas
     baseline-on-migrate: true
+    # Baseline version number
     baseline-version: 0
+    # Location of migration scripts
     locations: classpath:db/migration
+    # Validate migrations before applying
     validate-on-migrate: true
-    out-of-order: ${FLYWAY_OUT_OF_ORDER:false}
+    # Prevent accidental clean operations in production
+    clean-disabled: false
+    # Allow out-of-order migrations (use with caution)
+    out-of-order: false
+    # Flyway metadata table name
     table: flyway_schema_history
-    sql-migration-prefix: V
-    sql-migration-separator: __
-    sql-migration-suffixes: .sql
+    # Optional: Placeholder replacement
+    # placeholders:
+    #   schema: youthconnect_auth
 
   # ───────────────────────────────────────────────────────────────────────────
-  # REDIS CONFIGURATION
+  # REDIS CONFIGURATION (Session & Cache Storage)
   # ───────────────────────────────────────────────────────────────────────────
   data:
     redis:
+      # Redis server connection details
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
-      database: ${REDIS_DB:0}
-      timeout: 3000ms
-      lettuce:
-        pool:
-          max-active: 8
-          max-idle: 8
-          min-idle: 2
-          max-wait: -1ms
+      password: ${REDIS_PASSWORD:}  # Empty for no authentication
+      database: ${REDIS_DB:0}       # Database index (0-15)
+      timeout: 3000ms               # Connection timeout
+      # Optional: Redis pool settings
+      # lettuce:
+      #   pool:
+      #     max-active: 8
+      #     max-idle: 8
+      #     min-idle: 0
+      #     max-wait: -1ms
 
 # ═══════════════════════════════════════════════════════════════════════════
 # SERVER CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════
 server:
+  # Server port (auth-service runs on 8083)
   port: ${SERVER_PORT:8083}
+
   servlet:
+    # Context path for all endpoints: /api/auth/*
     context-path: /api/auth
-  compression:
-    enabled: true
-    mime-types: application/json,application/xml,text/html,text/xml,text/plain
-  error:
-    include-message: always
-    include-binding-errors: always
-    include-stacktrace: on_param
-    include-exception: false
-  http2:
-    enabled: true
+
+  # Optional: Error handling
+  # error:
+  #   include-message: always
+  #   include-binding-errors: always
+  #   include-stacktrace: on_param
+  #   include-exception: false
 
 # ═══════════════════════════════════════════════════════════════════════════
-# EUREKA SERVICE DISCOVERY
+# EUREKA SERVICE DISCOVERY CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════
 eureka:
   client:
+    # Enable/disable Eureka registration
     enabled: ${EUREKA_ENABLED:true}
+
+    # Eureka server URL with basic authentication
     service-url:
-      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+      defaultZone: http://${EUREKA_USERNAME:admin}:${EUREKA_PASSWORD:changeme}@${EUREKA_HOST:localhost}:${EUREKA_PORT:8761}/eureka/
+
+    # Register this service with Eureka
     register-with-eureka: true
+
+    # Fetch service registry from Eureka
     fetch-registry: true
+
+    # How often to fetch registry updates (30 seconds)
     registry-fetch-interval-seconds: 30
-    healthcheck:
-      enabled: true
+
+    # Optional: Additional client settings
+    # healthcheck:
+    #   enabled: true
+    # disable-delta: false
 
   instance:
+    # Use IP address instead of hostname for registration
     prefer-ip-address: ${EUREKA_PREFER_IP:false}
+
+    # Instance hostname (used when prefer-ip-address is false)
     hostname: ${INSTANCE_HOSTNAME:localhost}
+
+    # How often to send heartbeat to Eureka (30 seconds)
     lease-renewal-interval-in-seconds: 30
+
+    # Time Eureka waits before removing instance (90 seconds)
     lease-expiration-duration-in-seconds: 90
-    metadata-map:
-      zone: ${INSTANCE_ZONE:zone1}
-      version: '@project.version@'
-      environment: ${SPRING_PROFILES_ACTIVE:dev}
+
+    # Optional: Custom instance ID
+    # instance-id: ${spring.application.name}:${random.value}
+
+    # Optional: Metadata for instance
+    # metadata-map:
+    #   zone: primary
+    #   version: 1.0.0
 
 # ═══════════════════════════════════════════════════════════════════════════
-# JWT CONFIGURATION
+# JWT (JSON WEB TOKEN) CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════
 jwt:
+  # ─────────────────────────────────────────────────────────────────────────
+  # SECRET KEY - MUST BE 256+ BITS FOR HS256
+  # ─────────────────────────────────────────────────────────────────────────
+  # IMPORTANT: In production, use a strong random key and store in secrets manager
+  # Generate with: openssl rand -base64 64
   secret: ${JWT_SECRET:aVeryLongAndSecureSecretKeyForYouthConnectUgandaHackathonProjectWith256BitsMinimum}
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # TOKEN EXPIRATION TIMES (in milliseconds)
+  # ─────────────────────────────────────────────────────────────────────────
+  # Access token expiration: 24 hours (86400000 ms)
   expiration: ${JWT_EXPIRATION:86400000}
+
+  # Refresh token expiration: 7 days (604800000 ms)
   refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # TOKEN CLAIMS
+  # ─────────────────────────────────────────────────────────────────────────
+  # Token issuer (identifies who created the token)
   issuer: ${JWT_ISSUER:youth-connect-auth-service}
+
+  # Token audience (identifies who the token is for)
   audience: ${JWT_AUDIENCE:youth-connect-platform}
 
-# ═══════════════════════════════════════════════════════════════════════════
-# ACTUATOR CONFIGURATION
-# ═══════════════════════════════════════════════════════════════════════════
-management:
-  endpoints:
-    web:
-      base-path: /actuator
-      exposure:
-        include: health,info,metrics,prometheus,flyway,loggers
-  endpoint:
-    health:
-      show-details: ${HEALTH_SHOW_DETAILS:always}
-      show-components: always
-      probes:
-        enabled: true
-  health:
-    db:
-      enabled: true
-    diskspace:
-      enabled: true
-      threshold: 10MB
-    redis:
-      enabled: true
-  metrics:
-    export:
-      prometheus:
-        enabled: true
-    enable:
-      jvm: true
-      process: true
-      system: true
-      http: true
-      logback: true
-  info:
-    env:
-      enabled: true
-    java:
-      enabled: true
-    os:
-      enabled: true
+  # Optional: Additional JWT settings
+  # header: Authorization
+  # prefix: Bearer
+  # type: JWT
 
 # ═══════════════════════════════════════════════════════════════════════════
 # LOGGING CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════
 logging:
   level:
+    # Root logger level (applies to all packages)
     root: ${LOG_LEVEL_ROOT:INFO}
+
+    # Application-specific logging
     com.youthconnect.auth_service: ${LOG_LEVEL_APP:DEBUG}
-    org.springframework: ${LOG_LEVEL_SPRING:INFO}
-    org.springframework.web: ${LOG_LEVEL_WEB:DEBUG}
-    org.springframework.security: ${LOG_LEVEL_SECURITY:DEBUG}
-    org.hibernate: ${LOG_LEVEL_HIBERNATE:INFO}
+
+    # Spring Security logging (useful for debugging auth issues)
+    org.springframework.security: ${LOG_LEVEL_SECURITY:INFO}
+
+    # SQL query logging (disable in production for performance)
     org.hibernate.SQL: ${LOG_LEVEL_SQL:DEBUG}
-    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_LEVEL_SQL_PARAMS:TRACE}
-    org.flywaydb: ${LOG_LEVEL_FLYWAY:INFO}
-    com.zaxxer.hikari: ${LOG_LEVEL_HIKARI:INFO}
-    com.netflix.discovery: ${LOG_LEVEL_EUREKA:INFO}
-    feign: ${LOG_LEVEL_FEIGN:DEBUG}
 
-  pattern:
-    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %highlight(%-5level) %logger{36} - %msg%n'
-    file: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n'
+    # SQL parameter values (shows ? values in queries)
+    # org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 
-  file:
-    name: ${LOG_FILE:logs/auth-service.log}
-    max-size: 10MB
-    max-history: 30
+    # Flyway migration logging
+    org.flywaydb: INFO
+
+    # Optional: Additional logging configurations
+    # org.springframework.web: DEBUG
+    # org.springframework.cloud.gateway: DEBUG
+
+  # Optional: File logging configuration
+  # file:
+  #   name: logs/auth-service.log
+  # pattern:
+  #   console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+  #   file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ✅ APPLICATION-SPECIFIC CONFIGURATION (CRITICAL FIX)
+# APPLICATION-SPECIFIC CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════
 app:
-  # ✅ OAuth2 Configuration (Optional - Disabled by Default)
-  oauth2:
-    enabled: ${OAUTH2_ENABLED:false}
-    redirect-uri: ${OAUTH2_REDIRECT_URI:http://localhost:3000/auth/callback}
-
-  # ✅ CRITICAL FIX: CORS Security Configuration (REQUIRED for SecurityConfig)
-  # This section was MISSING and causing the startup failure
+  # ─────────────────────────────────────────────────────────────────────────
+  # CORS (Cross-Origin Resource Sharing) CONFIGURATION
+  # ─────────────────────────────────────────────────────────────────────────
   security:
-    # Allowed origins for CORS requests (comma-separated list converted to array)
-    allowed-origins:
-      - http://localhost:3000      # React development server
-      - http://localhost:3001      # Alternative React port
-      - http://localhost:5173      # Vite development server
-      - http://localhost:4200      # Angular development server
+    # Origins allowed to access this API
+    allowed-origins: "http://localhost:3000,http://localhost:3001,http://localhost:5173"
 
-    # Allowed HTTP methods
-    allowed-methods:
-      - GET
-      - POST
-      - PUT
-      - DELETE
-      - PATCH
-      - OPTIONS
+    # HTTP methods allowed
+    allowed-methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
 
-    # Allowed request headers
-    allowed-headers:
-      - Authorization
-      - Content-Type
-      - X-Requested-With
-      - Accept
-      - Origin
-      - Access-Control-Request-Method
-      - Access-Control-Request-Headers
+    # Headers allowed in requests
+    allowed-headers: "Authorization,Content-Type,X-Requested-With"
 
-    # Headers exposed to browser
-    exposed-headers:
-      - Authorization
-      - X-Total-Count
-      - X-Page-Number
-      - X-Page-Size
-
-    # Allow credentials (cookies, auth)
+    # Allow credentials (cookies, authorization headers)
     allow-credentials: true
 
-    # Cache preflight response (seconds)
-    max-age: 3600
+    # Optional: Exposed headers
+    # exposed-headers: "Authorization,X-Total-Count"
 
-    # Password policy
-    password:
-      min-length: 8
-      require-uppercase: true
-      require-lowercase: true
-      require-digit: true
-      require-special-char: true
+    # Optional: Pre-flight cache duration (seconds)
+    # max-age: 3600
 
-    # Account lockout settings
-    lockout:
-      max-attempts: ${LOCKOUT_MAX_ATTEMPTS:5}
-      duration-minutes: ${LOCKOUT_DURATION:30}
-
-  # Password reset configuration
-  password-reset:
-    token-expiry-minutes: ${PASSWORD_RESET_EXPIRY:15}
-    max-attempts: ${PASSWORD_RESET_MAX_ATTEMPTS:3}
-    cleanup-cron: ${PASSWORD_RESET_CLEANUP_CRON:0 0 3 * * ?}
-
-  # Email verification configuration
-  email-verification:
-    token-expiry-hours: ${EMAIL_VERIFY_EXPIRY:24}
-    resend-limit: ${EMAIL_VERIFY_RESEND_LIMIT:5}
-
-  # Token management
-  token:
-    blacklist-cleanup-cron: ${TOKEN_BLACKLIST_CLEANUP_CRON:0 0 2 * * ?}
-
-  # USSD configuration
-  ussd:
-    enabled: ${USSD_ENABLED:true}
-    session-timeout-minutes: ${USSD_SESSION_TIMEOUT:5}
+  # ─────────────────────────────────────────────────────────────────────────
+  # PUBLIC ENDPOINTS (No authentication required)
+  # ─────────────────────────────────────────────────────────────────────────
+  # These endpoints bypass JWT authentication filters
+  # public-endpoints:
+  #   - /health
+  #   - /login
+  #   - /register
+  #   - /oauth2/**
+  #   - /password/**
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PROFILE: Docker
+# SPRING BOOT ACTUATOR CONFIGURATION (Health & Metrics)
 # ═══════════════════════════════════════════════════════════════════════════
+management:
+  endpoints:
+    web:
+      exposure:
+        # Expose health and info endpoints
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+
+  endpoint:
+    health:
+      # Show detailed health information
+      show-details: ${ACTUATOR_HEALTH_DETAILS:when-authorized}
+      # Include database, redis, and diskspace checks
+      show-components: when-authorized
+
+  health:
+    # Enable specific health indicators
+    db:
+      enabled: true
+    redis:
+      enabled: true
+    diskspace:
+      enabled: true
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PROFILE SEPARATOR - REQUIRED TO PREVENT DUPLICATE KEY ERRORS
+# ═══════════════════════════════════════════════════════════════════════════
+# This separator is critical - it prevents the "duplicate key" YAML error
+# by creating separate profile documents
 ---
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DOCKER PROFILE CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+# This profile is activated when running in Docker containers
+# Usage: spring.profiles.active=docker
+# ═══════════════════════════════════════════════════════════════════════════
+
 spring:
   config:
     activate:
+      # Activate this configuration when profile is 'docker'
       on-profile: docker
 
-  # Docker database (container networking)
+  # ─────────────────────────────────────────────────────────────────────────
+  # DOCKER DATABASE CONFIGURATION
+  # ─────────────────────────────────────────────────────────────────────────
   datasource:
+    # Use Docker service name instead of localhost
     url: jdbc:postgresql://postgres:5432/youthconnect_auth
 
-  # Docker Redis
+  # ─────────────────────────────────────────────────────────────────────────
+  # DOCKER REDIS CONFIGURATION
+  # ─────────────────────────────────────────────────────────────────────────
   data:
     redis:
+      # Use Docker service name instead of localhost
       host: redis
 
-# Docker Eureka
-eureka:
-  client:
-    service-url:
-      defaultZone: http://service-registry:8761/eureka/
-  instance:
-    prefer-ip-address: true
+  # ─────────────────────────────────────────────────────────────────────────
+  # DOCKER EUREKA CONFIGURATION
+  # ─────────────────────────────────────────────────────────────────────────
+  eureka:
+    client:
+      service-url:
+        # Use Docker service name for Eureka server
+        defaultZone: http://service-registry:8761/eureka/
+    instance:
+      # Use IP address for inter-container communication
+      prefer-ip-address: true
+
+# ═══════════════════════════════════════════════════════════════════════════
+# END OF CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+# Additional Notes:
+#
+# 1. SECURITY BEST PRACTICES:
+#    - Never commit real secrets to version control
+#    - Use environment variables for sensitive data
+#    - Rotate JWT secrets regularly in production
+#    - Use strong passwords for database and Redis
+#
+# 2. PERFORMANCE TUNING:
+#    - Adjust database pool sizes based on load
+#    - Enable Hibernate caching for read-heavy workloads
+#    - Use Redis for distributed sessions
+#    - Monitor connection pool metrics
+#
+# 3. MONITORING:
+#    - Enable Actuator endpoints for health checks
+#    - Integrate with Prometheus for metrics
+#    - Set up log aggregation (ELK stack)
+#    - Configure alerts for critical errors
+#
+# 4. SCALING:
+#    - This configuration supports horizontal scaling
+#    - All instances share Redis for sessions
+#    - Eureka handles service discovery
+#    - Consider database connection pooling limits
+# ═══════════════════════════════════════════════════════════════════════════
