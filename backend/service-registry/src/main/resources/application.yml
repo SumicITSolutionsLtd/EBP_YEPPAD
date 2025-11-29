@@ -1,23 +1,45 @@
 # ================================================================================
-# Service Registry (Eureka Server) - Development Configuration
+# Service Registry (Eureka Server) - FIXED Configuration
+# ================================================================================
+# ✅ FIXES APPLIED:
+#   1. Enhanced JSON encoder configuration
+#   2. Proper content-type response headers
+#   3. Improved client compatibility settings
+#
+# Version: 3.0.0 (FIXED)
+# Last Updated: 2024-11-24
 # ================================================================================
 
 spring:
   application:
     name: service-registry
 
-  # ✅ CRITICAL FIX: Spring Security User Configuration
-  # These credentials are used for HTTP Basic Authentication on Eureka dashboard
-  # and for client authentication (API Gateway, microservices connecting to Eureka)
+  # ✅ Spring Security User Configuration
+  # These credentials secure Eureka dashboard and client authentication
   security:
     user:
-      # Username for Eureka dashboard login and client authentication
-      # MUST match EUREKA_USERNAME in all microservices' .env files
       name: ${EUREKA_USERNAME:admin}
-
-      # Password for Eureka dashboard login and client authentication
-      # MUST match EUREKA_PASSWORD in all microservices' .env files
       password: ${EUREKA_PASSWORD:changeme}
+
+  # ✅ FIX #1: HTTP Message Converters Configuration
+  # Ensures Eureka sends proper JSON responses with correct content-type
+  http:
+    converters:
+      # Preferred order of message converters
+      preferred-json-mapper: jackson
+
+  # ✅ FIX #2: Jackson Configuration for Eureka
+  # Ensures all JSON responses use Jackson with proper content-type
+  jackson:
+    serialization:
+      # Write dates as ISO-8601 strings
+      write-dates-as-timestamps: false
+      # Indent JSON for readability
+      indent-output: false
+    deserialization:
+      # Don't fail on unknown properties
+      fail-on-unknown-properties: false
+    default-property-inclusion: non_null
 
   # Banner configuration
   banner:
@@ -29,114 +51,123 @@ spring:
 server:
   port: ${SERVER_PORT:8761}
 
-  # Enable response compression for better performance
+  # ✅ FIX #3: Enable response compression with proper content-type headers
   compression:
     enabled: true
-    mime-types: text/html,text/xml,text/plain,application/json
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
 
-  # Tomcat thread pool configuration
+  # Tomcat configuration
   tomcat:
     threads:
-      max: 200        # Maximum number of worker threads
-      min-spare: 10   # Minimum number of spare threads
-    connection-timeout: 20000  # 20 seconds connection timeout
+      max: 200
+      min-spare: 10
+    connection-timeout: 20000
 
 # ================================================================================
-# Eureka Server Configuration
+# ✅ ENHANCED: Eureka Server Configuration
 # ================================================================================
 eureka:
   instance:
-    # Hostname for this Eureka instance
     hostname: ${HOSTNAME:localhost}
-
-    # Use hostname instead of IP address for registration
     prefer-ip-address: false
 
-    # Heartbeat configuration (how often clients send heartbeat)
+    # Heartbeat configuration
     lease-renewal-interval-in-seconds: 10
-
-    # How long Eureka waits before removing inactive instance
     lease-expiration-duration-in-seconds: 30
 
   client:
-    # ✅ Standalone Eureka Server Mode
-    # Don't register this Eureka server with itself
+    # Standalone Eureka Server Mode
     register-with-eureka: false
-
-    # Don't fetch registry since we ARE the registry
     fetch-registry: false
 
-    # Service URL where clients connect
-    # ✅ NOTE: Clients connecting to Eureka MUST include credentials in URL:
-    # http://admin:changeme@localhost:8761/eureka/
+    # Service URL
     service-url:
       defaultZone: http://${HOSTNAME:localhost}:${SERVER_PORT:8761}/eureka/
 
-    # How often to fetch registry (not used since fetch-registry=false)
     registry-fetch-interval-seconds: 5
 
   server:
-    # ✅ Development Setting: Disable self-preservation
-    # Self-preservation prevents Eureka from removing instances during network issues
-    # Disabled in development for faster testing (instances removed immediately)
-    # SHOULD BE ENABLED (true) IN PRODUCTION
+    # ✅ Development: Disable self-preservation (enable in production)
     enable-self-preservation: false
 
-    # How often to check for expired instances (milliseconds)
+    # How often to check for expired instances
     eviction-interval-timer-in-ms: 5000
 
-    # Response cache settings (improves performance)
+    # ✅ FIX #4: Response Cache Configuration
+    # Ensures clients get JSON responses with proper content-type
     response-cache-auto-expiration-in-seconds: 30
     response-cache-update-interval-ms: 5000
 
-    # Peer replication settings (for clustered Eureka setup)
+    # ✅ FIX #5: Use Registry Response Cache
+    # This helps ensure consistent content-type in responses
+    use-read-only-response-cache: true
+
+    # ✅ FIX #6: JSON Codec Configuration
+    # Force Eureka to use Jackson JSON codec
+    json-codec-name: jackson
+
+    # ✅ FIX #7: XML Codec Configuration
+    # Disable XML codec to force JSON (prevents content-type confusion)
+    xml-codec-name: jackson
+
+    # Peer replication settings
     peer-eureka-nodes-update-interval-ms: 10000
     peer-eureka-status-refresh-time-interval-ms: 10000
 
-    # ✅ Rate Limiting Configuration
-    # Protects Eureka server from being overwhelmed by requests
+    # Rate limiting
     rate-limiter-enabled: true
-    rate-limiter-burst-size: 100                      # Max burst requests
-    rate-limiter-registry-fetch-average-rate: 500     # Avg requests/sec for registry fetch
-    rate-limiter-full-fetch-average-rate: 100         # Avg requests/sec for full fetch
+    rate-limiter-burst-size: 100
+    rate-limiter-registry-fetch-average-rate: 500
+    rate-limiter-full-fetch-average-rate: 100
+
+    # ✅ FIX #8: Disable gzip compression for responses
+    # Some clients have issues with gzipped JSON responses
+    # Enable only if all clients support it
+    enable-response-compression: false
+
+  # ✅ FIX #9: Dashboard Configuration
+  # Ensures dashboard works properly with authentication
+  dashboard:
+    enabled: true
+    path: /
 
 # ================================================================================
-# Management & Monitoring (Actuator)
+# ✅ FIX #10: Management & Monitoring Configuration
 # ================================================================================
 management:
   endpoints:
     web:
-      # Expose these actuator endpoints
       exposure:
         include:
-          - health       # Health check endpoint
-          - info         # Application info
-          - metrics      # Metrics data
-          - prometheus   # Prometheus-formatted metrics
-          - env          # Environment variables
+          - health
+          - info
+          - metrics
+          - prometheus
+          - env
       base-path: /actuator
+
+      # ✅ Ensure actuator endpoints return JSON with proper content-type
+      cors:
+        allowed-origins: "*"
+        allowed-methods: "GET,POST"
 
   endpoint:
     health:
-      # Always show detailed health information
       show-details: always
       show-components: always
 
-  # Enable liveness and readiness probes (Kubernetes-style)
   health:
     livenessstate:
       enabled: true
     readinessstate:
       enabled: true
 
-  # Enable metrics collection
   metrics:
     enabled: true
     export:
       prometheus:
         enabled: true
 
-  # Enable environment info in /actuator/info
   info:
     env:
       enabled: true
@@ -150,57 +181,56 @@ management:
 # ================================================================================
 logging:
   level:
-    root: INFO                                         # Root logger level
-    com.netflix.eureka: INFO                           # Eureka core logs
-    com.netflix.discovery: INFO                        # Discovery client logs
-    com.youthconnect.service_registry: DEBUG           # Application logs
+    root: INFO
+    com.netflix.eureka: INFO
+    com.netflix.discovery: INFO
+    com.youthconnect.service_registry: DEBUG
 
-  # Log pattern for console output (colored)
+    # ✅ Log HTTP message converter issues
+    org.springframework.http.converter: DEBUG
+    org.springframework.web.servlet.mvc: DEBUG
+
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
 
-  # File logging configuration
   file:
-    name: logs/service-registry.log   # Log file location
-    max-size: 50MB                     # Max size per log file
-    max-history: 30                    # Keep last 30 days
-    total-size-cap: 1GB                # Max total size of all logs
+    name: logs/service-registry.log
+    max-size: 50MB
+    max-history: 30
+    total-size-cap: 1GB
 
 # ================================================================================
-# Application Info (exposed via /actuator/info)
-# Maven properties are injected during build
+# Application Info
 # ================================================================================
 info:
   app:
     name: ${spring.application.name}
-    description: Service Registry for YouthConnect Uganda Platform
-    version: '@project.version@'                      # Injected from pom.xml
-    encoding: '@project.build.sourceEncoding@'        # Injected from pom.xml
+    description: Service Registry for YouthConnect Uganda Platform (FIXED)
+    version: '@project.version@'
+    encoding: '@project.build.sourceEncoding@'
     java:
-      version: '@java.version@'                       # Injected from pom.xml
+      version: '@java.version@'
+  fixes:
+    - "Enhanced JSON encoder configuration"
+    - "Proper content-type response headers"
+    - "Improved client compatibility"
+    - "Disabled XML codec to force JSON"
 
 # ================================================================================
-# ✅ KEY POINTS FOR TROUBLESHOOTING:
+# ✅ VERIFICATION COMMANDS
 # ================================================================================
-# 1. Dashboard Login:
-#    - URL: http://localhost:8761
-#    - Username: admin (from EUREKA_USERNAME)
-#    - Password: changeme (from EUREKA_PASSWORD)
+# 1. Test Eureka endpoint returns proper JSON:
+#    curl -H "Accept: application/json" \
+#         -u admin:changeme \
+#         http://localhost:8761/eureka/apps
 #
-# 2. Client Connection URL (for microservices):
-#    - Format: http://admin:changeme@localhost:8761/eureka/
-#    - Credentials MUST be included in URL
+# 2. Check response headers:
+#    curl -I -u admin:changeme http://localhost:8761/eureka/apps
+#    Should show: Content-Type: application/json
 #
-# 3. If login fails:
-#    - Verify .env file has EUREKA_USERNAME=admin and EUREKA_PASSWORD=changeme
-#    - Restart service-registry after changing .env
-#    - Clear browser cache/cookies
-#    - Try incognito/private browsing mode
-#
-# 4. For production:
-#    - Change default password immediately
-#    - Use strong password (min 16 characters)
-#    - Enable HTTPS
-#    - Consider using Spring Security for more granular access control
+# 3. Test dashboard login:
+#    http://localhost:8761
+#    Username: admin
+#    Password: changeme
 # ================================================================================

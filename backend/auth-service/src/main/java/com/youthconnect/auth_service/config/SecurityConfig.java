@@ -29,13 +29,17 @@ import java.util.List;
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * Security Configuration
+ * SECURITY CONFIGURATION (v3.1.0 - SWAGGER & ENDPOINT FIX)
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * CORS configuration to use String injection with default values
+ * Configures Spring Security filter chains, CORS, and authentication providers.
+ *
+ * Updates:
+ * 1. Whitelisted /api/auth/** (Since global context-path was removed)
+ * 2. Whitelisted Swagger V3 endpoints (/v3/api-docs/**, /swagger-ui/**)
+ * 3. Whitelisted Actuator endpoints
  *
  * @author Douglas Kings Kato
- * @version 2.0.0 (Fixed)
  */
 @Configuration
 @EnableWebSecurity
@@ -49,8 +53,10 @@ public class SecurityConfig {
     private final OAuth2SuccessHandler oauth2SuccessHandler;
     private final PasswordEncoder passwordEncoder;
 
-    // ✅ FIXED: Use String with default values, then parse to arrays
-    @Value("${app.security.allowed-origins:http://localhost:3000,http://localhost:3001}")
+    // ────────────────────────────────────────────────────────────────────────
+    // CORS CONFIGURATION PROPERTIES
+    // ────────────────────────────────────────────────────────────────────────
+    @Value("${app.security.allowed-origins:http://localhost:3000,http://localhost:3001,http://localhost:5173}")
     private String allowedOriginsString;
 
     @Value("${app.security.allowed-methods:GET,POST,PUT,DELETE,PATCH,OPTIONS}")
@@ -69,39 +75,65 @@ public class SecurityConfig {
     private long maxAge;
 
     /**
-     * Security Filter Chain
+     * Defines the security filter chain.
      */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                // Disable CSRF (Not needed for stateless JWT APIs)
                 .csrf(AbstractHttpConfigurer::disable)
+
+                // Enable CORS with custom configuration
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
+                // ────────────────────────────────────────────────────────────────
+                // AUTHORIZATION RULES
+                // ────────────────────────────────────────────────────────────────
                 .authorizeHttpRequests(auth -> auth
+                        // 1. Allow Auth Endpoints
+                        // Note: We removed the global context path, so specific paths are required here
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/auth/oauth2/**").permitAll()
+
+                        // 2. Allow Swagger UI (CRITICAL)
+                        // These paths allow the OpenAPI JSON docs and the Swagger UI HTML/Assets to load
                         .requestMatchers(
-                                "/login/**",
-                                "/register/**",
-                                "/ussd/login/**",
-                                "/validate/**",
-                                "/health/**",
-                                "/actuator/**",
-                                "/api-docs/**",
+                                "/v3/api-docs/**",
                                 "/swagger-ui/**",
-                                "/password/**",
-                                "/oauth2/**",
-                                "/login/oauth2/**"
+                                "/swagger-ui.html",
+                                "/webjars/**"
                         ).permitAll()
+
+                        // 3. Allow Actuator (Health Checks)
+                        .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers("/health/**").permitAll()
+
+                        // 4. All other requests require authentication
                         .anyRequest().authenticated()
                 )
+
+                // ────────────────────────────────────────────────────────────────
+                // EXCEPTION HANDLING & SESSION
+                // ────────────────────────────────────────────────────────────────
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                )
+
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+
+                // ────────────────────────────────────────────────────────────────
+                // OAUTH2 LOGIN
+                // ────────────────────────────────────────────────────────────────
                 .oauth2Login(oauth2 -> oauth2
                         .successHandler(oauth2SuccessHandler)
                         .failureUrl("/login?error=oauth2_failed")
                 )
-                .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
-                )
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
+
+                // ────────────────────────────────────────────────────────────────
+                // FILTERS & PROVIDERS
+                // ────────────────────────────────────────────────────────────────
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -109,29 +141,29 @@ public class SecurityConfig {
     }
 
     /**
-     * ✅ FIXED: CORS Configuration (Parse strings into arrays)
+     * CORS Configuration Source
+     * Parses comma-separated strings from application.yml into lists.
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // ✅ Parse comma-separated strings to lists
         configuration.setAllowedOrigins(parseCommaSeparated(allowedOriginsString));
         configuration.setAllowedMethods(parseCommaSeparated(allowedMethodsString));
         configuration.setAllowedHeaders(parseCommaSeparated(allowedHeadersString));
         configuration.setExposedHeaders(parseCommaSeparated(exposedHeadersString));
-
         configuration.setAllowCredentials(allowCredentials);
         configuration.setMaxAge(maxAge);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        // Apply CORS settings to all paths
         source.registerCorsConfiguration("/**", configuration);
 
         return source;
     }
 
     /**
-     * Parse comma-separated string into list
+     * Helper to parse comma-separated strings into List<String>
      */
     private List<String> parseCommaSeparated(String commaSeparated) {
         if (commaSeparated == null || commaSeparated.trim().isEmpty()) {
@@ -143,9 +175,6 @@ public class SecurityConfig {
                 .toList();
     }
 
-    /**
-     * Authentication Provider
-     */
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
@@ -154,12 +183,8 @@ public class SecurityConfig {
         return authProvider;
     }
 
-    /**
-     * Authentication Manager
-     */
     @Bean
-    public AuthenticationManager authenticationManager(
-            AuthenticationConfiguration config) throws Exception {
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
 }

@@ -4,15 +4,16 @@ import com.youthconnect.auth_service.client.NotificationServiceClient;
 import com.youthconnect.auth_service.client.UserServiceClient;
 import com.youthconnect.auth_service.dto.request.LoginRequest;
 import com.youthconnect.auth_service.dto.request.RegisterRequest;
-import com.youthconnect.auth_service.dto.request.UssdLoginRequest; // Ensure this import is correct
+import com.youthconnect.auth_service.dto.request.UssdLoginRequest;
 import com.youthconnect.auth_service.dto.response.ApiResponse;
 import com.youthconnect.auth_service.dto.response.AuthResponse;
 import com.youthconnect.auth_service.dto.response.UserInfoResponse;
 import com.youthconnect.auth_service.entity.RefreshToken;
 import com.youthconnect.auth_service.exception.InvalidCredentialsException;
 import com.youthconnect.auth_service.exception.UserNotFoundException;
-import com.youthconnect.auth_service.repository.RefreshTokenRepository; // Ensure this import is correct
+import com.youthconnect.auth_service.repository.RefreshTokenRepository;
 import com.youthconnect.auth_service.util.JwtUtil;
+import feign.FeignException; // ✅ Added Import
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
@@ -22,22 +23,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
  * ============================================================================
- *  Youth Connect - Authentication Service
+ *  Youth Connect Uganda - Authentication Service
  * ============================================================================
  *
- *  ✅ Handles login (web & USSD)
- *  ✅ Handles registration with notification
- *  ✅ Manages JWT and refresh tokens
- *  ✅ Supports token validation, refresh, and logout
- *  ✅ Uses Resilience4j for circuit-breaking and retries
+ *  Core authentication service handling:
+ *  ✅ User login (web & USSD)
+ *  ✅ User registration with welcome notifications
+ *  ✅ JWT access token generation and validation
+ *  ✅ Refresh token management
+ *  ✅ Token blacklisting and logout
+ *  ✅ Resilience patterns (circuit breaker, retry)
  *
  *  @author DOUGLAS KINGS
- *  @version 2.1.0 (Refined Edition)
+ *  @version 2.2.0 (Updated Error Handling)
  */
 @Slf4j
 @Service
@@ -45,6 +47,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuthService {
 
+    // =========================================================================
+    // DEPENDENCIES
+    // =========================================================================
     private final UserServiceClient userServiceClient;
     private final NotificationServiceClient notificationServiceClient;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -53,17 +58,28 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
 
     // =========================================================================
-    // LOGIN (Web)
+    // LOGIN (Web) - Email/Phone + Password Authentication
     // =========================================================================
     /**
-     * Authenticate a user via email or phone and password.
-     * Generates both access and refresh tokens upon successful login.
+     * Authenticates a user using email or phone number with password.
+     *
+     * Process:
+     * 1. Fetch user from User Service by identifier
+     * 2. Validate password hash
+     * 3. Check account active status
+     * 4. Generate access and refresh tokens
+     *
+     * @param request LoginRequest containing identifier (email/phone) and password
+     * @return AuthResponse with tokens and user details
+     * @throws UserNotFoundException if user doesn't exist
+     * @throws InvalidCredentialsException if password incorrect or account inactive
      */
     @CircuitBreaker(name = "userService", fallbackMethod = "loginFallback")
     @Retry(name = "userService")
     public AuthResponse login(LoginRequest request) {
         log.info("Processing login for identifier: {}", maskIdentifier(request.getIdentifier()));
 
+        // Fetch user from User Service
         ApiResponse<UserInfoResponse> response =
                 userServiceClient.getUserByIdentifier(request.getIdentifier());
 
@@ -78,41 +94,42 @@ public class AuthService {
             throw new InvalidCredentialsException("Invalid email/phone or password");
         }
 
+        // Check account status
         if (!user.isActive()) {
             throw new InvalidCredentialsException("Account is inactive. Please contact support.");
         }
 
-        // Generate tokens
+        // Generate authentication tokens
         String accessToken = jwtUtil.generateAccessToken(
                 user.getEmail(), user.getUserId(), user.getRole());
-        String refreshToken = generateAndSaveRefreshToken(user.getUserId(), user.getEmail(), user.getRole());
+        String refreshToken = generateAndSaveRefreshToken(
+                user.getUserId(), user.getEmail(), user.getRole());
 
         log.info("Login successful for {}", maskIdentifier(user.getEmail()));
 
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .tokenType("Bearer")
-                .expiresIn(jwtUtil.getTokenExpirationSeconds(accessToken))
-                .userId(user.getUserId())
-                .email(user.getEmail())
-                .role(user.getRole())
-                .message("Login successful")
-                .build();
+        return buildAuthResponse(accessToken, refreshToken, user, "Login successful");
     }
 
     // =========================================================================
-    // LOGIN (USSD)
+    // LOGIN (USSD) - Phone Number Only Authentication
     // =========================================================================
     /**
-     * Simplified login for USSD users (phone number only).
+     * Simplified authentication for USSD channel using phone number only.
+     * No password required - relies on telecom provider authentication.
+     *
+     * @param request UssdLoginRequest containing phone number
+     * @return AuthResponse with tokens and user details
+     * @throws UserNotFoundException if phone not registered
+     * @throws InvalidCredentialsException if account inactive
      */
     @CircuitBreaker(name = "userService", fallbackMethod = "ussdLoginFallback")
     @Retry(name = "userService")
     public AuthResponse loginUssd(UssdLoginRequest request) {
         log.info("Processing USSD login for phone: {}", maskPhoneNumber(request.getPhoneNumber()));
 
-        ApiResponse<UserInfoResponse> response = userServiceClient.getUserByPhone(request.getPhoneNumber());
+        // Fetch user by phone number
+        ApiResponse<UserInfoResponse> response =
+                userServiceClient.getUserByPhone(request.getPhoneNumber());
 
         if (response == null || !response.isSuccess() || response.getData() == null) {
             throw new UserNotFoundException("Phone number not registered: " + request.getPhoneNumber());
@@ -120,84 +137,118 @@ public class AuthService {
 
         UserInfoResponse user = response.getData();
 
+        // Check account status
         if (!user.isActive()) {
             throw new InvalidCredentialsException("Account is inactive");
         }
 
+        // Generate authentication tokens
         String accessToken = jwtUtil.generateAccessToken(
                 user.getEmail(), user.getUserId(), user.getRole());
-        String refreshToken = generateAndSaveRefreshToken(user.getUserId(), user.getEmail(), user.getRole());
+        String refreshToken = generateAndSaveRefreshToken(
+                user.getUserId(), user.getEmail(), user.getRole());
 
         log.info("USSD login successful for {}", maskPhoneNumber(request.getPhoneNumber()));
 
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .tokenType("Bearer")
-                .expiresIn(jwtUtil.getTokenExpirationSeconds(accessToken))
-                .userId(user.getUserId())
-                .email(user.getEmail())
-                .role(user.getRole())
-                .message("USSD login successful")
-                .build();
+        return buildAuthResponse(accessToken, refreshToken, user, "USSD login successful");
     }
 
     // =========================================================================
-    // REGISTER
+    // REGISTER - New User Registration
     // =========================================================================
     /**
-     * Registers a new user and automatically logs them in with generated tokens.
+     * Registers a new user and automatically authenticates them.
+     *
+     * Process:
+     * 1. Call User Service to create user profile
+     * 2. Send welcome notification (async, non-blocking)
+     * 3. Generate authentication tokens
+     * 4. Return credentials for immediate login
+     *
+     * @param request RegisterRequest with user details
+     * @return AuthResponse with tokens for newly registered user
+     * @throws RuntimeException if registration fails at User Service
      */
     @CircuitBreaker(name = "userService", fallbackMethod = "registerFallback")
     @Retry(name = "userService")
     public AuthResponse register(RegisterRequest request) {
         log.info("Processing registration for email: {}", request.getEmail());
 
-        ApiResponse<UserInfoResponse> response = userServiceClient.registerUser(request);
+        UserInfoResponse newUser;
 
-        if (response == null || !response.isSuccess() || response.getData() == null) {
-            throw new RuntimeException("User registration failed");
+        try {
+            // 1. Call User Service to create user profile
+            // Wrapped in try-catch to handle Feign errors explicitly
+            ApiResponse<UserInfoResponse> response = userServiceClient.registerUser(request);
+
+            if (response == null || !response.isSuccess() || response.getData() == null) {
+                String errorMsg = (response != null) ? response.getMessage() : "No response from user service";
+                throw new RuntimeException("User registration failed: " + errorMsg);
+            }
+
+            newUser = response.getData();
+
+        } catch (FeignException.Forbidden e) {
+            // Handle 403 Forbidden - Likely API Key mismatch
+            log.error("Access denied calling User Service: {}", e.getMessage());
+            throw new RuntimeException("Access to User Service denied. Check Internal API Key configuration.");
+
+        } catch (FeignException.Conflict e) {
+            // Handle 409 Conflict - User already exists
+            log.warn("Registration conflict for email {}: {}", request.getEmail(), e.getMessage());
+            throw new RuntimeException("User with this email or phone number already exists.");
+
+        } catch (FeignException.BadRequest e) {
+            // Handle 400 Bad Request - Validation errors
+            log.warn("Invalid registration data: {}", e.getMessage());
+            throw new RuntimeException("Invalid registration data provided.");
+
+        } catch (Exception e) {
+            // Handle other crashes
+            log.error("Unexpected error during registration: {}", e.getMessage());
+            throw new RuntimeException("Registration failed: " + e.getMessage());
         }
 
-        UserInfoResponse newUser = response.getData();
-
+        // 2. Send welcome notification (non-blocking)
         sendWelcomeNotification(newUser);
 
+        // 3. Generate authentication tokens
         String accessToken = jwtUtil.generateAccessToken(
                 newUser.getEmail(), newUser.getUserId(), newUser.getRole());
-        String refreshToken = generateAndSaveRefreshToken(newUser.getUserId(), newUser.getEmail(), newUser.getRole());
+        String refreshToken = generateAndSaveRefreshToken(
+                newUser.getUserId(), newUser.getEmail(), newUser.getRole());
 
         log.info("Registration successful for user {}", newUser.getEmail());
 
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .tokenType("Bearer")
-                .expiresIn(jwtUtil.getTokenExpirationSeconds(accessToken))
-                .userId(newUser.getUserId())
-                .email(newUser.getEmail())
-                .role(newUser.getRole())
-                .message("Registration successful. Welcome to Youth Connect Uganda!")
-                .build();
+        return buildAuthResponse(accessToken, refreshToken, newUser,
+                "Registration successful. Welcome to Youth Connect Uganda!");
     }
 
     // =========================================================================
-    // REFRESH TOKEN
+    // REFRESH TOKEN - Generate New Access Token
     // =========================================================================
     /**
-     * Generates a new access token using a valid refresh token.
+     * Issues a new access token using a valid refresh token.
+     * Updates the refresh token's last used timestamp.
+     *
+     * @param refreshTokenValue The refresh token string
+     * @return AuthResponse with new access token
+     * @throws InvalidCredentialsException if token invalid, revoked, or expired
      */
     public AuthResponse refreshAccessToken(String refreshTokenValue) {
         log.debug("Processing token refresh");
 
+        // Validate refresh token JWT structure
         if (!jwtUtil.validateRefreshToken(refreshTokenValue)) {
             throw new InvalidCredentialsException("Invalid refresh token");
         }
 
+        // Fetch refresh token from database
         RefreshToken refreshToken = refreshTokenRepository
                 .findByTokenAndRevokedFalse(refreshTokenValue)
                 .orElseThrow(() -> new InvalidCredentialsException("Refresh token not found or revoked"));
 
+        // Check expiration
         if (refreshToken.getExpiresAt().isBefore(LocalDateTime.now())) {
             refreshToken.setRevoked(true);
             refreshToken.setRevokedAt(LocalDateTime.now());
@@ -205,12 +256,15 @@ public class AuthService {
             throw new InvalidCredentialsException("Refresh token expired");
         }
 
+        // Extract user info from token
         String username = jwtUtil.extractUsername(refreshTokenValue);
         UUID userId = jwtUtil.extractUserId(refreshTokenValue);
 
+        // Generate new access token
         String newAccessToken = jwtUtil.generateAccessToken(
                 username, userId, refreshToken.getUserRole());
 
+        // Update last used timestamp
         refreshToken.setLastUsedAt(LocalDateTime.now());
         refreshTokenRepository.save(refreshToken);
 
@@ -229,27 +283,37 @@ public class AuthService {
     }
 
     /**
-     * ⚙️ Compatibility wrapper for tests expecting `refreshToken()` instead of `refreshAccessToken()`.
+     * Compatibility wrapper for legacy code using refreshToken() method name.
+     * Delegates to refreshAccessToken().
      */
     public AuthResponse refreshToken(String refreshTokenValue) {
         return refreshAccessToken(refreshTokenValue);
     }
 
     // =========================================================================
-    // LOGOUT
+    // LOGOUT - Invalidate User Session
     // =========================================================================
     /**
-     * Invalidates both access and refresh tokens.
+     * Logs out a user by invalidating both access and refresh tokens.
+     *
+     * Process:
+     * 1. Blacklist access token (prevents reuse until natural expiration)
+     * 2. Revoke refresh token in database
+     *
+     * @param accessToken The access token to blacklist
+     * @param refreshTokenValue The refresh token to revoke
      */
     public void logout(String accessToken, String refreshTokenValue) {
         log.info("Processing logout request");
 
         try {
+            // Blacklist access token for remaining lifetime
             Long expirationSeconds = jwtUtil.getTokenExpirationSeconds(accessToken);
             if (expirationSeconds > 0) {
                 tokenBlacklistService.blacklistToken(accessToken, expirationSeconds);
             }
 
+            // Revoke refresh token if provided
             if (refreshTokenValue != null && !refreshTokenValue.isBlank()) {
                 refreshTokenRepository.findByTokenAndRevokedFalse(refreshTokenValue)
                         .ifPresent(token -> {
@@ -267,41 +331,51 @@ public class AuthService {
     }
 
     // =========================================================================
-    // TOKEN VALIDATION
+    // TOKEN VALIDATION - Verify Access Token
     // =========================================================================
     /**
-     * Verifies whether a given access token is valid, unexpired, and not blacklisted.
+     * Validates an access token's authenticity and status.
+     *
+     * Checks:
+     * - Token not blacklisted
+     * - Token signature valid
+     * - Token not expired
+     * - Username matches token claims
+     *
+     * @param token The access token to validate
+     * @return true if valid, false otherwise
      */
     public boolean validateToken(String token) {
         try {
+            // Check blacklist first (fast reject)
             if (tokenBlacklistService.isTokenBlacklisted(token)) {
                 return false;
             }
+
+            // Validate JWT structure and expiration
             String username = jwtUtil.extractUsername(token);
             return jwtUtil.validateAccessToken(token, username);
+
         } catch (Exception e) {
             log.warn("Token validation failed: {}", e.getMessage());
             return false;
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =========================================================================
     // HELPER METHODS
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =========================================================================
 
     /**
-     * Generate and Save Refresh Token
+     * Generates a refresh token and persists it to the database.
      *
-     * ✅ FIXED: Changed from private to public for OAuth2Service access
+     * Made public to allow OAuth2Service to generate tokens after
+     * successful OAuth2 authentication.
      *
-     * Creates a new refresh token and persists it in the database.
-     * This method is now public to allow OAuth2Service to generate tokens
-     * after successful OAuth2 authentication.
-     *
-     * @param userId User UUID
-     * @param email User email
-     * @param role User role
-     * @return Refresh token string
+     * @param userId User's unique identifier
+     * @param email User's email address
+     * @param role User's role (YOUTH, EMPLOYER, etc.)
+     * @return The generated refresh token string
      */
     public String generateAndSaveRefreshToken(UUID userId, String email, String role) {
         String tokenValue = jwtUtil.generateRefreshToken(email, userId);
@@ -311,7 +385,7 @@ public class AuthService {
         token.setUserId(userId);
         token.setUserEmail(email);
         token.setUserRole(role);
-        token.setExpiresAt(LocalDateTime.now().plusDays(7));
+        token.setExpiresAt(LocalDateTime.now().plusDays(7)); // 7-day expiration
         token.setCreatedAt(LocalDateTime.now());
         token.setLastUsedAt(LocalDateTime.now());
         token.setRevoked(false);
@@ -320,6 +394,10 @@ public class AuthService {
         return tokenValue;
     }
 
+    /**
+     * Sends welcome email notification to newly registered user.
+     * Failures are logged but don't block registration flow.
+     */
     @CircuitBreaker(name = "notificationService")
     private void sendWelcomeNotification(UserInfoResponse user) {
         try {
@@ -329,11 +407,34 @@ public class AuthService {
         }
     }
 
+    /**
+     * Builds standardized AuthResponse object.
+     */
+    private AuthResponse buildAuthResponse(String accessToken, String refreshToken,
+                                           UserInfoResponse user, String message) {
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .tokenType("Bearer")
+                .expiresIn(jwtUtil.getTokenExpirationSeconds(accessToken))
+                .userId(user.getUserId())
+                .email(user.getEmail())
+                .role(user.getRole())
+                .message(message)
+                .build();
+    }
+
+    /**
+     * Masks sensitive identifier for logging (shows first/last 3 chars).
+     */
     private String maskIdentifier(String id) {
         if (id == null || id.length() < 6) return "***";
         return id.substring(0, 3) + "***" + id.substring(id.length() - 3);
     }
 
+    /**
+     * Masks phone number for logging (shows first/last 3 digits).
+     */
     private String maskPhoneNumber(String phone) {
         if (phone == null) return "***";
         String cleaned = phone.replaceAll("[\\s\\-\\(\\)\\.]", "");
@@ -342,17 +443,39 @@ public class AuthService {
     }
 
     // =========================================================================
-    // CIRCUIT BREAKER FALLBACKS
+    // CIRCUIT BREAKER FALLBACK METHODS
     // =========================================================================
+
+    /**
+     * Fallback when User Service is unavailable during login.
+     */
     private AuthResponse loginFallback(LoginRequest request, Exception e) {
-        throw new RuntimeException("Authentication service temporarily unavailable.");
+        log.error("Login fallback triggered for: {}", maskIdentifier(request.getIdentifier()));
+        log.error("Cause: {}", e.getMessage(), e);
+        throw new RuntimeException("Authentication service temporarily unavailable. Please try again later.");
     }
 
+    /**
+     * Fallback when User Service is unavailable during USSD login.
+     */
     private AuthResponse ussdLoginFallback(UssdLoginRequest request, Exception e) {
-        throw new RuntimeException("USSD authentication service temporarily unavailable.");
+        log.error("USSD login fallback triggered for: {}", maskPhoneNumber(request.getPhoneNumber()));
+        log.error("Cause: {}", e.getMessage(), e);
+        throw new RuntimeException("USSD authentication service temporarily unavailable. Please try again later.");
     }
 
+    /**
+     * Fallback when User Service is unavailable during registration.
+     * Provides specific error messages for common HTTP status codes.
+     */
     private AuthResponse registerFallback(RegisterRequest request, Exception e) {
-        throw new RuntimeException("Registration service temporarily unavailable.");
+        log.error("Registration fallback triggered for email: {}", request.getEmail());
+        log.error("Cause: {}", e.getMessage(), e);
+
+        // Note: With the new try-catch block in the main method, specific
+        // FeignExceptions (403, 409) will be handled there first.
+        // This fallback will primarily catch connectivity issues (Connection Refused, Timeouts).
+
+        throw new RuntimeException("Registration service temporarily unavailable. Please try again later.");
     }
 }

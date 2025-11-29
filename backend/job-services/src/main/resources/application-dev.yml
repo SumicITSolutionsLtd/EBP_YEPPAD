@@ -7,9 +7,9 @@ spring:
       on-profile: dev
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/job_service_db
-    username: postgres
-    password: postgres
+    url: jdbc:postgresql://localhost:5432/youthconnect_job
+    username: youthconnect_user
+    password: YouthConnect2024!
 
   jpa:
     hibernate:

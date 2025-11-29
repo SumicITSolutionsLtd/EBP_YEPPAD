@@ -20,160 +20,60 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.UUID;
 
 /**
- * ═══════════════════════════════════════════════════════════════════════════
- * INTERNAL USER CONTROLLER - SERVICE-TO-SERVICE API
- * ═══════════════════════════════════════════════════════════════════════════
+ * Internal REST API Controller for Microservice-to-Microservice Communication
  *
- * Internal REST API for microservice-to-microservice communication.
- * Provides user lookup, registration, validation, and permission checking.
+ * Purpose:
+ * - Provides internal endpoints for user lookup, registration, and validation.
+ * - Used specifically by Auth-Service, Job-Service, and USSD-Service via Feign clients.
+ * - NOT exposed to public clients via the Gateway (protected by firewall/network rules).
  *
- * <h2>Security - CRITICAL:</h2>
- * <ul>
- *   <li>Only accessible from internal network/VPC</li>
- *   <li>API Gateway MUST block external access to /api/v1/internal/** endpoints</li>
- *   <li>Consider implementing service authentication tokens (JWT/mTLS)</li>
- *   <li>Do NOT expose this controller in public API documentation</li>
- * </ul>
+ * Base Path: /api/v1/internal/users
+ * Matches SecurityConfig: .requestMatchers("/api/v1/internal/**").permitAll()
  *
- * <h2>Primary Use Cases:</h2>
- * <ul>
- *   <li>Job-service validates user permissions before job posting</li>
- *   <li>Job-service fetches user/organization info for job listings</li>
- *   <li>Auth-service registers new users (web/USSD)</li>
- *   <li>Other services validate user existence and status</li>
- * </ul>
- *
- * @author Douglas Kings Kato & Youth Connect Uganda Development Team
- * @version 2.1.0
- * @since 2025-10-31
+ * @author YouthConnect Team
+ * @version 1.0
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/internal/users")
+@RequestMapping("/api/v1/internal/users") // ✅ Matches SecurityConfig allow-list
 @RequiredArgsConstructor
 @Tag(name = "Internal User API", description = "Internal service-to-service endpoints")
-@Hidden // Hide from public Swagger documentation
+@Hidden // ✅ Hides this controller from public Swagger UI
 public class InternalUserController {
 
     private final UserService userService;
 
     // =========================================================================
-    // USER LOOKUP & RETRIEVAL
+    // USER REGISTRATION ENDPOINTS (Called by Auth Service)
     // =========================================================================
 
     /**
-     * Get user by ID
+     * Register new user (Web/App registration)
      *
-     * @param userId User ID to fetch
-     * @return User information response
-     */
-    @GetMapping("/{userId}")
-    @Operation(summary = "Get user by ID", description = "Fetch complete user information by user ID")
-    public ResponseEntity<ApiResponse<UserInfoResponse>> getUserById(@PathVariable UUID userId) {
-        log.debug("Internal API: getUserById {}", userId);
-
-        try {
-            User user = userService.getUserById(userId);
-            return ResponseEntity.ok(
-                    ApiResponse.success(convertToResponse(user), "User found")
-            );
-        } catch (UserNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error("User not found"));
-        }
-    }
-
-    /**
-     * Get user by email or phone (auto-detect)
+     * Flow:
+     * 1. Auth Service receives POST /auth/register
+     * 2. Auth Service validates request
+     * 3. Auth Service calls this internal endpoint to save User data
+     * 4. Returns UserInfoResponse so Auth Service can generate JWT
      *
-     * @param identifier Email address or phone number
-     * @return User information response
-     */
-    @GetMapping("/by-identifier")
-    @Operation(summary = "Get user by email or phone", description = "Auto-detects identifier type and fetches user")
-    public ResponseEntity<ApiResponse<UserInfoResponse>> getUserByIdentifier(@RequestParam String identifier) {
-        log.debug("Internal API: getUserByIdentifier {}", maskIdentifier(identifier));
-
-        try {
-            User user = identifier.contains("@")
-                    ? userService.getUserByEmail(identifier)
-                    : userService.getUserByPhone(cleanPhoneNumber(identifier));
-
-            if (user == null) {
-                throw new UserNotFoundException("User not found with identifier: " + maskIdentifier(identifier));
-            }
-
-            return ResponseEntity.ok(
-                    ApiResponse.success(convertToResponse(user), "User found")
-            );
-        } catch (UserNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error(e.getMessage()));
-        }
-    }
-
-    /**
-     * Get user by phone number
-     *
-     * @param phoneNumber Phone number (will be cleaned and normalized)
-     * @return User information response
-     */
-    @GetMapping("/by-phone")
-    @Operation(summary = "Get user by phone number", description = "Fetch user by phone number")
-    public ResponseEntity<ApiResponse<UserInfoResponse>> getUserByPhone(@RequestParam String phoneNumber) {
-        log.debug("Internal API: getUserByPhone {}", maskPhoneNumber(phoneNumber));
-
-        try {
-            User user = userService.getUserByPhone(cleanPhoneNumber(phoneNumber));
-            if (user == null) {
-                throw new UserNotFoundException("User not found with phone: " + maskPhoneNumber(phoneNumber));
-            }
-
-            return ResponseEntity.ok(
-                    ApiResponse.success(convertToResponse(user), "User found")
-            );
-        } catch (UserNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error(e.getMessage()));
-        }
-    }
-
-    /**
-     * Get user profile summary (lightweight)
-     *
-     * @param userId User ID to fetch
-     * @return UserProfileSummary with essential information
-     */
-    @GetMapping("/{userId}/summary")
-    @Operation(summary = "Get user summary", description = "Fetch lightweight user profile summary for job listings")
-    public ResponseEntity<UserProfileSummary> getUserSummary(@PathVariable UUID userId) {
-        log.debug("Internal API: Fetching user summary for: {}", userId);
-        UserProfileSummary summary = userService.getUserSummary(userId);
-        return ResponseEntity.ok(summary);
-    }
-
-    // =========================================================================
-    // USER REGISTRATION
-    // =========================================================================
-
-    /**
-     * Register new user (standard web registration)
-     *
-     * @param request Registration request with user details
-     * @return Created user information
+     * URL: POST /api/v1/internal/users/register
      */
     @PostMapping("/register")
     @Operation(summary = "Register new user", description = "Create new user account via web/app registration")
     public ResponseEntity<ApiResponse<UserInfoResponse>> registerUser(
             @Valid @RequestBody RegistrationRequest request) {
 
-        log.info("Internal API: Registering user {}", request.getEmail());
+        log.info("Internal API: Registering user email: {}", maskEmail(request.getEmail()));
 
         try {
+            // 1. Create user entity (handles password hashing inside service)
             User user = userService.createUser(request);
+
+            // 2. Create associated user profile
             userService.createUserProfile(user, request);
 
             return ResponseEntity.status(HttpStatus.CREATED)
@@ -182,27 +82,32 @@ public class InternalUserController {
                             "User registered successfully"
                     ));
         } catch (UserAlreadyExistsException e) {
+            log.warn("Registration failed - User exists: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(ApiResponse.error("User already exists with provided email or phone"));
         }
     }
 
     /**
-     * Register USSD user (simplified registration via USSD)
+     * Register USSD user (Feature phone registration)
      *
-     * @param request USSD registration request
-     * @return Created user information
+     * URL: POST /api/v1/internal/users/register-ussd
      */
     @PostMapping("/register-ussd")
-    @Operation(summary = "Register USSD user", description = "Create user account via USSD channel")
+    @Operation(summary = "Register USSD user", description = "Create user account via USSD (feature phone)")
     public ResponseEntity<ApiResponse<UserInfoResponse>> registerUssdUser(
             @Valid @RequestBody UssdRegistrationRequest request) {
 
-        log.info("Internal API: Registering USSD user {}", maskPhoneNumber(request.getPhoneNumber()));
+        log.info("Internal API: Registering USSD user phone: {}", maskPhoneNumber(request.getPhoneNumber()));
 
         try {
+            // Convert USSD request to standard registration format
             RegistrationRequest converted = convertUssdToRegistration(request);
+
+            // Create user entity
             User user = userService.createUser(converted);
+
+            // Create USSD-specific profile (simplified)
             userService.createUssdUserProfile(user, request);
 
             return ResponseEntity.status(HttpStatus.CREATED)
@@ -217,117 +122,108 @@ public class InternalUserController {
     }
 
     // =========================================================================
-    // VALIDATION & EXISTENCE CHECKS
+    // USER LOOKUP ENDPOINTS (Called by Auth & Job Services)
     // =========================================================================
 
     /**
-     * Check if user exists by ID
-     *
-     * @param userId User ID to check
-     * @return Boolean indicating existence
+     * Get user by UUID
+     * URL: GET /api/v1/internal/users/{userId}
      */
-    @GetMapping("/{userId}/exists")
-    @Operation(summary = "Check if user exists", description = "Pre-flight check to verify user existence")
-    public ResponseEntity<Boolean> userExists(@PathVariable UUID userId) {
-        log.debug("Internal API: Checking if user exists: {}", userId);
-        boolean exists = userService.userExists(userId);
-        return ResponseEntity.ok(exists);
+    @GetMapping("/{userId}")
+    @Operation(summary = "Get user by ID", description = "Retrieve user details by UUID")
+    public ResponseEntity<ApiResponse<UserInfoResponse>> getUserById(@PathVariable UUID userId) {
+        log.debug("Internal API: getUserById {}", userId);
+        try {
+            User user = userService.getUserById(userId);
+            return ResponseEntity.ok(ApiResponse.success(convertToResponse(user), "User found"));
+        } catch (UserNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("User not found"));
+        }
     }
 
     /**
+     * Get user by email OR phone number (flexible identifier)
+     * Used by Auth Service during Login
+     * URL: GET /api/v1/internal/users/by-identifier?identifier=...
+     */
+    @GetMapping("/by-identifier")
+    @Operation(summary = "Get user by email or phone", description = "Flexible lookup by identifier")
+    public ResponseEntity<ApiResponse<UserInfoResponse>> getUserByIdentifier(
+            @RequestParam String identifier) {
+
+        log.debug("Internal API: getUserByIdentifier {}", maskIdentifier(identifier));
+
+        try {
+            // Determine if identifier is email or phone based on '@' presence
+            User user = identifier.contains("@")
+                    ? userService.getUserByEmail(identifier)
+                    : userService.getUserByPhone(cleanPhoneNumber(identifier));
+
+            if (user == null) {
+                throw new UserNotFoundException("User not found");
+            }
+
+            return ResponseEntity.ok(ApiResponse.success(convertToResponse(user), "User found"));
+        } catch (UserNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("User not found"));
+        }
+    }
+
+    /**
+     * Get lightweight user summary
+     * Used by Job Service to display "Posted by..."
+     * URL: GET /api/v1/internal/users/{userId}/summary
+     */
+    @GetMapping("/{userId}/summary")
+    @Operation(summary = "Get user summary", description = "Lightweight user profile for display")
+    public ResponseEntity<UserProfileSummary> getUserSummary(@PathVariable UUID userId) {
+        return ResponseEntity.ok(userService.getUserSummary(userId));
+    }
+
+    // =========================================================================
+    // VALIDATION ENDPOINTS
+    // =========================================================================
+
+    /**
      * Check if email exists
-     *
-     * @param email Email address to check
-     * @return ApiResponse with boolean result
+     * URL: GET /api/v1/internal/users/exists/email
      */
     @GetMapping("/exists/email")
-    @Operation(summary = "Check if email exists", description = "Validate email availability during registration")
     public ResponseEntity<ApiResponse<Boolean>> checkEmailExists(@RequestParam String email) {
-        log.debug("Internal API: Checking email existence: {}", maskEmail(email));
         boolean exists = userService.emailExists(email);
-        return ResponseEntity.ok(
-                ApiResponse.success(exists, exists ? "Email exists" : "Email available")
-        );
+        return ResponseEntity.ok(ApiResponse.success(exists, exists ? "Email exists" : "Email available"));
     }
 
     /**
      * Check if phone exists
-     *
-     * @param phoneNumber Phone number to check
-     * @return ApiResponse with boolean result
+     * URL: GET /api/v1/internal/users/exists/phone
      */
     @GetMapping("/exists/phone")
-    @Operation(summary = "Check if phone exists", description = "Validate phone availability during registration")
     public ResponseEntity<ApiResponse<Boolean>> checkPhoneExists(@RequestParam String phoneNumber) {
-        log.debug("Internal API: Checking phone existence: {}", maskPhoneNumber(phoneNumber));
         boolean exists = userService.phoneExists(cleanPhoneNumber(phoneNumber));
-        return ResponseEntity.ok(
-                ApiResponse.success(exists, exists ? "Phone exists" : "Phone available")
-        );
-    }
-
-    // =========================================================================
-    // PERMISSIONS & AUTHORIZATION
-    // =========================================================================
-
-    /**
-     * Check if user can post jobs
-     *
-     * @param userId User ID to check
-     * @return Boolean indicating permission
-     */
-    @GetMapping("/{userId}/can-post-jobs")
-    @Operation(summary = "Check job posting permission", description = "Authorization check before allowing job creation")
-    public ResponseEntity<Boolean> canUserPostJobs(@PathVariable UUID userId) {
-        log.debug("Internal API: Checking job posting permission for: {}", userId);
-        boolean canPost = userService.canUserPostJobs(userId);
-        return ResponseEntity.ok(canPost);
+        return ResponseEntity.ok(ApiResponse.success(exists, exists ? "Phone exists" : "Phone available"));
     }
 
     /**
-     * Get user's organization name
-     *
-     * @param userId User ID to fetch organization for
-     * @return Organization name
-     */
-    @GetMapping("/{userId}/organization")
-    @Operation(summary = "Get user organization", description = "Fetch organization name for job listing display")
-    public ResponseEntity<String> getUserOrganization(@PathVariable UUID userId) {
-        log.debug("Internal API: Fetching organization for: {}", userId);
-        String organization = userService.getUserOrganization(userId);
-        return ResponseEntity.ok(organization);
-    }
-
-    // =========================================================================
-    // HEALTH CHECK
-    // =========================================================================
-
-    /**
-     * Health check endpoint
-     *
-     * @return Health status
+     * Health check for K8s/Gateway
      */
     @GetMapping("/health")
-    @Operation(summary = "Internal API health check", description = "Verify internal API availability")
     public ResponseEntity<ApiResponse<String>> healthCheck() {
-        return ResponseEntity.ok(
-                ApiResponse.success("User service internal API is healthy", "OK")
-        );
+        return ResponseEntity.ok(ApiResponse.success("User service internal API is healthy", "OK"));
     }
 
     // =========================================================================
-    // HELPER METHODS
+    // PRIVATE HELPER METHODS
     // =========================================================================
 
-    /**
-     * Convert User entity to UserInfoResponse DTO
-     */
     private UserInfoResponse convertToResponse(User user) {
         return UserInfoResponse.builder()
                 .userId(user.getId())
                 .email(user.getEmail())
                 .phoneNumber(user.getPhoneNumber())
-                .passwordHash(user.getPasswordHash())
+                .passwordHash(user.getPasswordHash()) // Crucial for Auth Service verification
                 .role(user.getRole().name())
                 .isActive(user.isActive())
                 .emailVerified(user.isEmailVerified())
@@ -336,117 +232,63 @@ public class InternalUserController {
                 .build();
     }
 
-    /**
-     * Convert USSD registration to standard registration request
-     */
     private RegistrationRequest convertUssdToRegistration(UssdRegistrationRequest ussd) {
         RegistrationRequest req = new RegistrationRequest();
         req.setPhoneNumber(cleanPhoneNumber(ussd.getPhoneNumber()));
         req.setFirstName(ussd.getFirstName());
         req.setLastName(ussd.getLastName());
         req.setGender(ussd.getGender());
-        req.setEmail(generateEmailFromPhone(ussd.getPhoneNumber()));
+        // Auto-generate placeholder email for USSD users to satisfy DB constraints
+        String cleanedPhone = req.getPhoneNumber();
+        req.setEmail("ussd_" + cleanedPhone + "@youthconnect.ug");
         req.setRole(Role.YOUTH);
         return req;
     }
 
-    /**
-     * Generate synthetic email from phone number for USSD users
-     */
-    private String generateEmailFromPhone(String phone) {
-        String cleaned = phone.replaceAll("[^0-9]", "");
-        return "ussd_" + cleaned + "@youthconnect.ug";
-    }
-
-    /**
-     * Clean and normalize phone number to Uganda format (256XXXXXXXXX)
-     */
     private String cleanPhoneNumber(String phone) {
         if (phone == null) return null;
+        // Remove non-digits and non-plus
         String cleaned = phone.replaceAll("[^+0-9]", "");
-
-        if (cleaned.startsWith("0")) {
-            return "256" + cleaned.substring(1);
-        } else if (cleaned.startsWith("+256")) {
-            return cleaned.substring(1);
-        } else if (!cleaned.startsWith("256")) {
-            return "256" + cleaned;
-        }
+        // Normalize 07... to 2567...
+        if (cleaned.startsWith("0")) return "256" + cleaned.substring(1);
+        if (cleaned.startsWith("+256")) return cleaned.substring(1);
+        if (!cleaned.startsWith("256")) return "256" + cleaned;
         return cleaned;
     }
 
-    /**
-     * Mask identifier (email or phone) for logging
-     */
     private String maskIdentifier(String identifier) {
         if (identifier == null) return "***";
         return identifier.contains("@") ? maskEmail(identifier) : maskPhoneNumber(identifier);
     }
 
-    /**
-     * Mask email address for secure logging
-     */
     private String maskEmail(String email) {
         if (email == null || !email.contains("@")) return "***";
         String[] parts = email.split("@");
-        if (parts[0].length() > 3) {
-            return parts[0].substring(0, 2) + "***@" + parts[1];
-        }
-        return "***@" + parts[1];
+        return parts[0].length() > 3
+                ? parts[0].substring(0, 2) + "***@" + parts[1]
+                : "***@" + parts[1];
     }
 
-    /**
-     * Mask phone number for secure logging
-     */
     private String maskPhoneNumber(String phone) {
         if (phone == null) return "***";
-        String cleaned = phone.replaceAll("[\\s\\-\\(\\)\\.]", "");
-        if (cleaned.length() >= 6) {
-            return cleaned.substring(0, 3) + "****" + cleaned.substring(cleaned.length() - 3);
-        }
-        return "***";
+        return phone.length() >= 6
+                ? phone.substring(0, 3) + "****" + phone.substring(phone.length() - 3)
+                : "***";
     }
 
     // =========================================================================
-    // INTERNAL DTOs
+    // INNER DTO CLASS
     // =========================================================================
 
-    /**
-     * User Profile Summary DTO
-     *
-     * Lightweight DTO containing essential user information for job-service.
-     * Excludes sensitive data like passwords and personal details.
-     */
     @Data
     @AllArgsConstructor
     public static class UserProfileSummary {
-        /** User's unique identifier */
         private UUID userId;
-
-        /** User's email address */
         private String email;
-
-        /**
-         * Full name or organization name
-         * Format depends on role:
-         * - YOUTH/MENTOR: "FirstName LastName"
-         * - NGO/COMPANY: Organization name
-         */
         private String fullName;
-
-        /** User's role in the system (for permission checks) */
         private String role;
-
-        /**
-         * Organization name (for job posters)
-         * Null for individual users (YOUTH, MENTOR)
-         */
         private String organizationName;
-
-        /** Account active status */
         private boolean isActive;
-
-        /** Email verification status */
         private boolean emailVerified;
     }
 }

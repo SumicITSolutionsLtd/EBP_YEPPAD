@@ -129,6 +129,7 @@
         <module>analytics-service</module>
         <module>edge_functions</module> <!-- Consider standard artifactId: edge-functions -->
         <module>job-services</module> <!-- Consider standard artifactId: job-service -->
+        <module>common-library</module>
     </modules>
 
     <!-- ================================================================== -->

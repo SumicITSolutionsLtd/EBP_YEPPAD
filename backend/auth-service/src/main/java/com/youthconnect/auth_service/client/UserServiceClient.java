@@ -11,43 +11,41 @@ import java.util.UUID;
 /**
  * Feign Client for User Service Communication
  *
- * UPDATED: Fixed type parameter to use UUID consistently
+ * PURPOSE:
+ * Provides type-safe HTTP client for Auth Service to communicate with User Service.
+ * All requests go through the INTERNAL API endpoints protected by network rules.
  *
- * Handles inter-service communication with user-service for:
- * - User retrieval by various identifiers
- * - User registration
- * - Email/phone existence checks
- * - Password updates
+ * CONFIGURATION:
+ * - Service Name: "user-service" (Resolved via Eureka/Kubernetes DNS)
+ * - Base Path: /api/v1/internal/users (Matches InternalUserController)
+ * - Fallback: UserServiceClientFallbackFactory (Circuit Breaker)
  *
- * Features:
- * - Service discovery via Eureka
- * - Circuit breaker fallback support
- * - Automatic retry on failures
- *
- * @author Douglas Kings Kato
- * @version 2.0.0
+ * @author YouthConnect Team
+ * @see UserServiceClientFallbackFactory
  */
 @FeignClient(
-        name = "user-service",
-        path = "/api/v1/users/internal",
-        fallbackFactory = UserServiceClientFallbackFactory.class
+        name = "user-service",                          // Service discovery name
+        path = "/api/v1/internal/users",                // Base path matching User Service InternalController
+        fallbackFactory = UserServiceClientFallbackFactory.class  // Circuit breaker fallback
 )
 public interface UserServiceClient {
 
     /**
-     * Get user by identifier (email or phone)
+     * Get user by email or phone number (flexible identifier)
      *
-     * @param identifier Email or phone number
-     * @return User information
+     * Used during Login to fetch user credentials (password hash).
+     *
+     * Target: GET /api/v1/internal/users/by-identifier
      */
     @GetMapping("/by-identifier")
     ApiResponse<UserInfoResponse> getUserByIdentifier(@RequestParam("identifier") String identifier);
 
     /**
-     * Get user by phone number
+     * Get user by phone number (strict phone lookup)
      *
-     * @param phoneNumber Phone number in Uganda format
-     * @return User information
+     * Used for USSD login validation and phone verification.
+     *
+     * Target: GET /api/v1/internal/users/by-phone
      */
     @GetMapping("/by-phone")
     ApiResponse<UserInfoResponse> getUserByPhone(@RequestParam("phoneNumber") String phoneNumber);
@@ -55,46 +53,54 @@ public interface UserServiceClient {
     /**
      * Get user by UUID
      *
-     * @param userId User UUID
-     * @return User information
+     * Used for Token Refresh and fetching latest profile data.
+     *
+     * Target: GET /api/v1/internal/users/{userId}
      */
     @GetMapping("/{userId}")
     ApiResponse<UserInfoResponse> getUserById(@PathVariable("userId") UUID userId);
 
     /**
-     * Register new user
+     * Register new user (Web/App registration)
      *
-     * @param request Registration details
-     * @return Created user information
+     * This endpoints saves the user data to the User Database.
+     * The password must be hashed by Auth Service BEFORE sending.
+     *
+     * Target: POST /api/v1/internal/users/register
+     *
+     * @param request Contains user details + hashed password
+     * @return Created user info
      */
     @PostMapping("/register")
     ApiResponse<UserInfoResponse> registerUser(@RequestBody RegisterRequest request);
 
     /**
-     * Check if email exists
+     * Check if email already exists
      *
-     * @param email Email to check
-     * @return True if email exists
+     * Used for pre-registration validation.
+     *
+     * Target: GET /api/v1/internal/users/exists/email
      */
     @GetMapping("/exists/email")
     ApiResponse<Boolean> checkEmailExists(@RequestParam("email") String email);
 
     /**
-     * Check if phone number exists
+     * Check if phone number already exists
      *
-     * @param phoneNumber Phone number to check
-     * @return True if phone exists
+     * Used for pre-registration validation.
+     *
+     * Target: GET /api/v1/internal/users/exists/phone
      */
     @GetMapping("/exists/phone")
     ApiResponse<Boolean> checkPhoneExists(@RequestParam("phoneNumber") String phoneNumber);
 
     /**
      * Update user password
-     * Required for password reset functionality
      *
-     * @param userId User UUID
-     * @param request New password hash
-     * @return Success response
+     * Used for Password Reset or Change Password flows.
+     * Auth Service must hash the new password before calling this.
+     *
+     * Target: PUT /api/v1/internal/users/{userId}/password
      */
     @PutMapping("/{userId}/password")
     ApiResponse<Void> updatePassword(
@@ -102,9 +108,13 @@ public interface UserServiceClient {
             @RequestBody PasswordUpdateRequest request
     );
 
+    // =========================================================================
+    // INNER DTOs
+    // =========================================================================
+
     /**
-     * Password Update Request DTO
-     * Used internally for password reset
+     * DTO for password update payload
+     * @param newPasswordHash The new BCrypt password hash
      */
     record PasswordUpdateRequest(String newPasswordHash) {}
 }

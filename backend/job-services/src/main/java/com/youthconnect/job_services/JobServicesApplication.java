@@ -10,61 +10,57 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * Job Service Application - Main Entry Point
+ * ═══════════════════════════════════════════════════════════════════════════
+ * JOB SERVICE APPLICATION - MAIN ENTRY POINT (FIXED v3.0.5)
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * Microservice responsible for managing job postings and applications in the
- * Youth Entrepreneurship Booster Platform.
+ * Microservice for managing job postings and applications.
+ *
+ * FIXES APPLIED:
+ * ❌ REMOVED: @EnableConfigurationProperties(FileUploadProperties.class)
+ *    - FileUploadProperties now has @Component annotation
+ *    - This prevents duplicate bean creation
  *
  * KEY FEATURES:
- * - Job posting and management (CRUD operations)
- * - Job application submission and tracking
- * - AI-powered job recommendations
+ * - Job posting and management (CRUD)
+ * - Job application tracking
+ * - AI-powered recommendations
+ * - File upload management
  * - Advanced search and filtering
- * - Automatic job expiration handling
- * - Real-time notifications integration
- * - Redis caching for performance
- * - Service discovery with Eureka
+ * - Redis caching
+ * - Service discovery (Eureka)
  *
  * TECHNOLOGY STACK:
  * - Spring Boot 3.2.0
- * - PostgreSQL 15 (primary database)
- * - Redis (caching layer)
- * - Spring Cloud (microservices)
- * - Feign (inter-service communication)
- * - JWT (authentication - validated by API Gateway)
- *
- * ARCHITECTURE:
- * - Clean architecture with layered separation
- * - DTOs for API contracts
- * - Entities for database mapping
- * - Mappers for transformations
- * - Services for business logic
- * - Repositories for data access
+ * - PostgreSQL 15+
+ * - Redis 7+
+ * - Spring Cloud 2023.0.0
+ * - JWT Authentication
  *
  * @author Douglas Kings Kato
- * @version 3.0.0 (UUID Migration Complete)
+ * @version 3.0.5 (Bean Conflict Fix)
  * @since 1.0.0
  */
 @SpringBootApplication
-@EnableDiscoveryClient      // Register with Eureka for service discovery
-@EnableFeignClients         // Enable Feign for inter-service REST calls
-@EnableCaching             // Enable Spring Cache abstraction (Caffeine + Redis)
-@EnableAsync               // Enable async processing for non-blocking operations
-@EnableScheduling          // Enable scheduled tasks (job expiration, reminders)
-@EnableJpaAuditing        // Enable automatic created_at/updated_at timestamps
+@EnableDiscoveryClient      // Eureka service discovery
+@EnableFeignClients         // Feign client for inter-service calls
+@EnableCaching             // Caffeine + Redis caching
+@EnableAsync               // Async processing
+@EnableScheduling          // Scheduled tasks
+@EnableJpaAuditing        // Automatic timestamps
 public class JobServicesApplication {
 
 	/**
-	 * Main application entry point
+	 * Application entry point
 	 *
-	 * Starts the Spring Boot application with all configured components:
-	 * - Embedded Tomcat server (port 8000)
-	 * - PostgreSQL connection pooling
-	 * - Redis cache connections
-	 * - Eureka service registration
-	 * - Scheduled task executors
+	 * Starts Spring Boot application with:
+	 * - Embedded Tomcat (port 8000)
+	 * - PostgreSQL connection pool
+	 * - Redis cache
+	 * - Eureka registration
+	 * - File upload service
 	 *
-	 * @param args Command-line arguments (not used)
+	 * @param args Command-line arguments
 	 */
 	public static void main(String[] args) {
 		SpringApplication.run(JobServicesApplication.class, args);

@@ -11,209 +11,237 @@ import com.youthconnect.auth_service.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
- * ============================================================================
- *  AUTH CONTROLLER
- * ============================================================================
- * Handles all authentication-related endpoints for the Youth Connect platform.
+ * Authentication Controller
+ * Handles registration, login, token management, and security checks.
  *
- * ✅ Supports:
- *   - Web & USSD Login
- *   - User Registration
- *   - Token Refresh
- *   - Token Validation
- *   - Logout
- *   - Health Check
- *
- * This controller returns consistent JSON responses via the {@link ApiResponse} wrapper.
- *
- * @author
- *     Douglas Kings Kato
- * @version
- *     2.0.0 (Refined Edition)
+ * CRITICAL CONFIGURATION:
+ * Base Path: /api/auth
+ * Matches Gateway Route: - Path=/api/auth/**
  */
 @Slf4j
 @RestController
+// ✅ CRITICAL FIX: Matches the API Gateway "Path" predicate exactly
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-@Tag(name = "Authentication", description = "Authentication and Authorization APIs")
+@CrossOrigin(origins = "*", allowedHeaders = "*") // Allow direct access if bypassing Gateway (Testing)
+@Tag(name = "Authentication", description = "Endpoints for User Registration, Login, and Token Management")
 public class AuthController {
 
     private final AuthService authService;
 
     // =========================================================================
-    // LOGIN (Web)
+    // 1. REGISTRATION
     // =========================================================================
-    /**
-     * Authenticates a user with email/phone and password.
-     *
-     * @param request Login credentials
-     * @return AuthResponse containing JWT tokens
-     */
-    @PostMapping("/login")
-    @ResponseStatus(HttpStatus.OK)
-    @Operation(summary = "User Login", description = "Authenticate user with email/phone and password. Returns JWT tokens.")
+    @PostMapping(value = "/register", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Register New User", description = "Creates a new user account with Email or Phone.")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "User created successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Validation failed (Invalid email/phone/password)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "User already exists")
+    })
+    public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
+        log.info("📝 Registration attempt for: {}", maskEmail(request.getEmail()));
+
+        try {
+            AuthResponse authResponse = authService.register(request);
+            log.info("✅ User registered successfully. ID: {}", authResponse.getUserId());
+
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ApiResponse.success(authResponse, "Registration successful"));
+
+        } catch (IllegalArgumentException e) {
+            log.warn("⚠️ Registration validation error: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(e.getMessage()));
+
+        } catch (RuntimeException e) {
+            // Check for specific duplicates (naive check, better handled by specific exceptions)
+            if (e.getMessage() != null && (e.getMessage().toLowerCase().contains("exist") || e.getMessage().toLowerCase().contains("duplicate"))) {
+                log.warn("⚠️ Duplicate user registration: {}", e.getMessage());
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ApiResponse.error(e.getMessage()));
+            }
+            log.error("❌ Registration failed (Runtime): {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Registration failed. Please try again."));
+        }
+    }
+
+    // =========================================================================
+    // 2. LOGIN (WEB/MOBILE APP)
+    // =========================================================================
+    @PostMapping(value = "/login", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "User Login", description = "Authenticates user and returns JWT Access & Refresh tokens.")
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Login successful"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Invalid credentials"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request format")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Invalid credentials")
     })
-    public ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        log.info("Login request received for: {}", maskIdentifier(request.getIdentifier()));
-        AuthResponse authResponse = authService.login(request);
-        return ApiResponse.success(authResponse, "Login successful");
+    public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
+        log.info("🔐 Login attempt for identifier: {}", maskIdentifier(request.getIdentifier()));
+
+        try {
+            AuthResponse authResponse = authService.login(request);
+            return ResponseEntity.ok(ApiResponse.success(authResponse, "Login successful"));
+
+        } catch (Exception e) {
+            log.error("❌ Login failed: {}", e.getMessage());
+            // Security Best Practice: Don't reveal exactly why login failed (User vs Password)
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Invalid email/phone or password"));
+        }
     }
 
     // =========================================================================
-    // LOGIN (USSD)
+    // 3. USSD LOGIN (PHONE ONLY)
     // =========================================================================
-    /**
-     * Simplified login for USSD users using only phone number.
-     */
-    @PostMapping("/ussd/login")
-    @ResponseStatus(HttpStatus.OK)
-    @Operation(summary = "USSD Login", description = "Authenticate USSD user with phone number only.")
-    @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "USSD login successful"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Phone number not registered")
-    })
-    public ApiResponse<AuthResponse> ussdLogin(@Valid @RequestBody UssdLoginRequest request) {
-        log.info("USSD login request received for phone: {}", maskPhoneNumber(request.getPhoneNumber()));
-        AuthResponse authResponse = authService.loginUssd(request);
-        return ApiResponse.success(authResponse, "USSD login successful");
+    @PostMapping(value = "/ussd/login", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "USSD Authentication", description = "Simplified login for USSD menu interaction.")
+    public ResponseEntity<ApiResponse<AuthResponse>> ussdLogin(@Valid @RequestBody UssdLoginRequest request) {
+        log.info("📱 USSD Login attempt for: {}", maskPhoneNumber(request.getPhoneNumber()));
+
+        try {
+            AuthResponse authResponse = authService.loginUssd(request);
+            return ResponseEntity.ok(ApiResponse.success(authResponse, "USSD Login successful"));
+        } catch (Exception e) {
+            log.warn("⚠️ USSD Login failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("User not found or PIN incorrect"));
+        }
     }
 
     // =========================================================================
-    // REGISTRATION
+    // 4. REFRESH TOKEN
     // =========================================================================
-    /**
-     * Registers a new user and automatically logs them in.
-     */
-    @PostMapping("/register")
-    @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "User Registration", description = "Register new user with email/phone and role.")
-    @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Registration successful"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid registration data"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Email or phone already exists")
-    })
-    public ApiResponse<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
-        log.info("Registration request received for email: {}", request.getEmail());
-        AuthResponse authResponse = authService.register(request);
-        return ApiResponse.success(authResponse, "Registration successful. Welcome to Youth Connect Uganda!");
+    @PostMapping(value = "/refresh", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Refresh Access Token", description = "Uses a valid Refresh Token to obtain a new Access Token.")
+    public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        log.debug("🔄 Refreshing token...");
+
+        try {
+            AuthResponse authResponse = authService.refreshAccessToken(request.getRefreshToken());
+            return ResponseEntity.ok(ApiResponse.success(authResponse, "Token refreshed successfully"));
+        } catch (Exception e) {
+            log.error("❌ Token refresh failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Invalid or expired refresh token"));
+        }
     }
 
     // =========================================================================
-    // REFRESH TOKEN
+    // 5. LOGOUT
     // =========================================================================
-    /**
-     * Generates a new access token using a valid refresh token.
-     */
-    @PostMapping("/refresh")
-    @ResponseStatus(HttpStatus.OK)
-    @Operation(summary = "Refresh Access Token", description = "Get new access token using refresh token.")
-    @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Token refreshed successfully"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Invalid or expired refresh token")
-    })
-    public ApiResponse<AuthResponse> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
-        log.debug("Token refresh request received");
-        AuthResponse authResponse = authService.refreshAccessToken(request.getRefreshToken());
-        return ApiResponse.success(authResponse, "Token refreshed successfully");
-    }
-
-    // =========================================================================
-    // LOGOUT
-    // =========================================================================
-    /**
-     * Logs out the user by revoking refresh token and blacklisting access token.
-     */
     @PostMapping("/logout")
-    @ResponseStatus(HttpStatus.OK)
-    @Operation(summary = "User Logout", description = "Invalidate access and refresh tokens.")
-    @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Logout successful"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Invalid token")
-    })
-    public ApiResponse<Void> logout(
-            @RequestHeader("Authorization") String authHeader,
+    @Operation(summary = "Logout", description = "Invalidates the Refresh Token and clears security context.", security = @SecurityRequirement(name = "bearerAuth"))
+    public ResponseEntity<ApiResponse<Void>> logout(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody(required = false) RefreshTokenRequest request) {
 
-        // Extract token from "Bearer ..." header
-        String token = authHeader.replace("Bearer ", "");
-        String refreshToken = request != null ? request.getRefreshToken() : null;
+        try {
+            String accessToken = (authHeader != null && authHeader.startsWith("Bearer "))
+                    ? authHeader.substring(7)
+                    : null;
 
-        log.info("Logout request received");
-        authService.logout(token, refreshToken);
+            String refreshToken = (request != null) ? request.getRefreshToken() : null;
 
-        return ApiResponse.success(null, "Logout successful");
+            if (accessToken == null && refreshToken == null) {
+                return ResponseEntity.badRequest().body(ApiResponse.error("No token provided for logout"));
+            }
+
+            authService.logout(accessToken, refreshToken);
+            log.info("👋 Logout processed.");
+
+            return ResponseEntity.ok(ApiResponse.success(null, "Logged out successfully"));
+
+        } catch (Exception e) {
+            log.error("❌ Logout error: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Logout failed"));
+        }
     }
 
     // =========================================================================
-    // TOKEN VALIDATION
+    // 6. VALIDATE TOKEN (INTERNAL USE)
     // =========================================================================
-    /**
-     * Validates an access token to ensure it’s still valid and not blacklisted.
-     */
     @GetMapping("/validate")
-    @ResponseStatus(HttpStatus.OK)
-    @Operation(summary = "Validate Token", description = "Check if access token is valid and not blacklisted.")
-    @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Token validation complete"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Invalid token")
-    })
-    public ApiResponse<Boolean> validateToken(@RequestHeader("Authorization") String authHeader) {
-        String token = authHeader.replace("Bearer ", "");
-        log.debug("Token validation request received");
+    @Operation(summary = "Validate Token", description = "Checks if the provided Access Token is valid and not expired.")
+    public ResponseEntity<ApiResponse<Boolean>> validateToken(@RequestHeader("Authorization") String authHeader) {
+        try {
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.ok(ApiResponse.success(false, "Missing Bearer token"));
+            }
 
-        boolean isValid = authService.validateToken(token);
-        String message = isValid ? "Token is valid" : "Token is invalid or expired";
+            String token = authHeader.substring(7);
+            boolean isValid = authService.validateToken(token);
 
-        return ApiResponse.success(isValid, message);
+            return ResponseEntity.ok(ApiResponse.success(isValid, isValid ? "Token is valid" : "Token is invalid"));
+        } catch (Exception e) {
+            return ResponseEntity.ok(ApiResponse.success(false, "Token validation error"));
+        }
     }
 
     // =========================================================================
-    // HEALTH CHECK
+    // 7. HEALTH CHECK
     // =========================================================================
-    /**
-     * Simple public endpoint for health checks and uptime monitoring.
-     */
     @GetMapping("/health")
-    @ResponseStatus(HttpStatus.OK)
-    @Operation(summary = "Health Check", description = "Check if auth service is running.")
-    public ApiResponse<String> health() {
-        return ApiResponse.success("UP", "Auth service is healthy");
+    @Operation(summary = "Service Health", description = "Simple connectivity check.")
+    public ResponseEntity<ApiResponse<String>> health() {
+        return ResponseEntity.ok(ApiResponse.success("UP", "Auth Service is running"));
     }
 
     // =========================================================================
-    // PRIVATE HELPERS
+    // EXCEPTION HANDLER (VALIDATION)
     // =========================================================================
-    /**
-     * Masks identifier (email/phone) for privacy in logs.
-     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+        Map<String, String> errors = new HashMap<>();
+        ex.getBindingResult().getAllErrors().forEach((error) -> {
+            String fieldName = ((FieldError) error).getField();
+            String errorMessage = error.getDefaultMessage();
+            errors.put(fieldName, errorMessage);
+        });
+
+        log.warn("⚠️ Input validation failed: {}", errors);
+        return ResponseEntity.badRequest().body(ApiResponse.error("Validation failed", errors));
+    }
+
+    // =========================================================================
+    // PRIVATE HELPERS FOR SECURE LOGGING
+    // =========================================================================
+
     private String maskIdentifier(String identifier) {
-        if (identifier == null || identifier.length() < 6) {
-            return "***";
-        }
-        return identifier.substring(0, 3) + "***" + identifier.substring(identifier.length() - 3);
+        if (identifier == null) return "null";
+        if (identifier.contains("@")) return maskEmail(identifier);
+        return maskPhoneNumber(identifier);
     }
 
-    /**
-     * Masks phone number for privacy in logs.
-     */
+    private String maskEmail(String email) {
+        if (email == null || !email.contains("@")) return "***";
+        String[] parts = email.split("@");
+        if (parts[0].length() <= 2) return "***@" + parts[1];
+        return parts[0].substring(0, 3) + "***@" + parts[1];
+    }
+
     private String maskPhoneNumber(String phone) {
-        if (phone == null) return "***";
-        String cleaned = phone.replaceAll("[\\s\\-\\(\\)\\.]", "");
-        if (cleaned.length() >= 6) {
-            return cleaned.substring(0, 3) + "****" + cleaned.substring(cleaned.length() - 3);
-        }
-        return "***";
+        if (phone == null || phone.length() < 4) return "***";
+        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 2);
     }
 }
