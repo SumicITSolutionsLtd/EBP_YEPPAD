@@ -51,10 +51,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F9F8),
+      backgroundColor: Colors.white, // clean background
       appBar: AppBar(
         title: const Text("My Profile"),
-        backgroundColor: Colors.teal,
+        backgroundColor: const Color(0xFF003C9E), // Deep Blue
         elevation: 0,
         centerTitle: true,
       ),
@@ -70,21 +70,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   CircleAvatar(
                     radius: 55,
-                    backgroundColor: Colors.teal.shade100,
+                    backgroundColor: const Color(0xFF00AEEF).withOpacity(0.2), // Bright Blue tint
                     backgroundImage: _image != null
                         ? FileImage(_image!)
                         : (profile.imagePath.isNotEmpty
                         ? FileImage(File(profile.imagePath))
                         : null),
                     child: profile.imagePath.isEmpty && _image == null
-                        ? const Icon(Icons.person, size: 55, color: Colors.white)
+                        ? const Icon(Icons.person, size: 55, color: Color(0xFF003C9E)) // Deep Blue
                         : null,
                   ),
                   Positioned(
                     bottom: 0,
                     right: 0,
                     child: CircleAvatar(
-                      backgroundColor: Colors.teal,
+                      backgroundColor: const Color(0xFF003C9E), // Deep Blue
                       radius: 18,
                       child: const Icon(Icons.camera_alt,
                           color: Colors.white, size: 18),
@@ -98,20 +98,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Text(
               profile.name,
               style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.teal),
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF003C9E), // Deep Blue
+              ),
             ),
-            Text(profile.location,
-                style: const TextStyle(color: Colors.grey, fontSize: 14)),
+            Text(
+              profile.location,
+              style: const TextStyle(
+                color: Color(0xFF002F6C), // Dark Navy Blue
+                fontSize: 14,
+              ),
+            ),
             const SizedBox(height: 8),
 
             ElevatedButton.icon(
               onPressed: _navigateToEditProfile,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.teal,
+                backgroundColor: const Color(0xFFF28A2E), // Bold Orange
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30)),
+                  borderRadius: BorderRadius.circular(30),
+                ),
               ),
               icon: const Icon(Icons.edit, color: Colors.white),
               label: const Text("Edit Profile",
@@ -123,16 +130,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
             // About Me Section
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text("About Me",
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.teal)),
+              child: Text(
+                "About Me",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF003C9E), // Deep Blue
+                ),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               profile.bio,
-              style: const TextStyle(fontSize: 15, color: Colors.black87),
+              style: const TextStyle(
+                fontSize: 15,
+                color: Color(0xFF002F6C), // Dark Navy Blue
+              ),
             ),
 
             const SizedBox(height: 20),
@@ -147,23 +160,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Contact Info",
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: Colors.teal)),
+                    const Text(
+                      "Contact Info",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Color(0xFF003C9E), // Deep Blue
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     ListTile(
-                      leading: const Icon(Icons.email, color: Colors.teal),
+                      leading: const Icon(Icons.email, color: Color(0xFF00AEEF)), // Bright Blue
                       title: Text(profile.email),
                     ),
                     ListTile(
-                      leading: const Icon(Icons.phone, color: Colors.teal),
+                      leading: const Icon(Icons.phone, color: Color(0xFF005ECF)), // Royal Blue
                       title: Text(profile.phone),
                     ),
                     ListTile(
-                      leading:
-                      const Icon(Icons.location_on, color: Colors.teal),
+                      leading: const Icon(Icons.location_on, color: Color(0xFFF28A2E)), // Bold Orange
                       title: Text(profile.location),
                     ),
                   ],
@@ -177,9 +192,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ElevatedButton.icon(
               onPressed: () {},
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
+                backgroundColor: Colors.redAccent, // keep red for logout
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30)),
+                  borderRadius: BorderRadius.circular(30),
+                ),
               ),
               icon: const Icon(Icons.logout, color: Colors.white),
               label: const Text("Logout",

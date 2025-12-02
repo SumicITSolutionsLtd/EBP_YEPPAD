@@ -1,11 +1,6 @@
-// lib/screens/jobs/jobs_screen.dart
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'job_model.dart';
-import 'job_card.dart';
-import 'add_job_screen.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:share_plus/share_plus.dart';
+import 'job_details_screen.dart';
+import './job_model.dart';
 
 class JobsScreen extends StatefulWidget {
   const JobsScreen({super.key});
@@ -16,134 +11,214 @@ class JobsScreen extends StatefulWidget {
 
 class _JobsScreenState extends State<JobsScreen> {
   final TextEditingController _searchController = TextEditingController();
-  String _selectedCategory = 'All';
+  List<Job> jobs = [];
 
-  List<Job> jobs = [
-    Job(
-      id: '1',
-      title: 'Tailor needed for wedding dresses',
-      company: 'Luma Boutique',
-      category: 'Tailoring',
-      location: 'Kampala',
-      postedAt: DateTime.now().subtract(const Duration(hours: 2)),
-      pay: 50000,
-      currency: 'UGX',
-      contactPhone: '+256701234567',
-      imageUrl: 'https://via.placeholder.com/150',
-    ),
-    Job(
-      id: '2',
-      title: 'Junior Flutter Developer',
-      company: 'TechHub',
-      category: 'IT',
-      location: 'Entebbe',
-      postedAt: DateTime.now().subtract(const Duration(days: 1, hours: 3)),
-      pay: 250000,
-      currency: 'UGX',
-      contactPhone: '+256702345678',
-      imageUrl: 'https://via.placeholder.com/150',
-    ),
-  ];
-
-  final categories = ['All', 'IT', 'Tailoring', 'Construction', 'Marketing', 'Design'];
-
-  Future<void> _refreshJobs() async {
-    // demo: pretend to fetch; in real app call API
-    await Future.delayed(const Duration(seconds: 1));
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Jobs refreshed')));
-    setState(() {});
-  }
-
-  void _openAddJob() async {
-    final newJob = await Navigator.push(context, MaterialPageRoute(builder: (_) => const AddJobScreen()));
-    if (newJob != null && newJob is Job) {
-      setState(() { jobs.insert(0, newJob); });
-    }
-  }
-
-  void _callNumber(String phone) async {
-    final uri = Uri(scheme: 'tel', path: phone);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cannot open dialer')));
-    }
-  }
-
-  void _shareJob(Job job) {
-    final text = '${job.title} at ${job.company} • ${job.location} • ${job.currency} ${job.pay}\nContact: ${job.contactPhone}';
-    Share.share(text);
+  @override
+  void initState() {
+    super.initState();
+    jobs = [
+      Job(
+        id: '1',
+        title: 'Flutter Developer',
+        company: 'TechHub Uganda',
+        location: 'Kampala',
+        employmentType: 'Full-time',
+        salaryRange: 'UGX 2,000,000 - 2,500,000',
+        postedAt: DateTime.now().subtract(const Duration(hours: 6)),
+        deadline: DateTime.now().add(const Duration(days: 10)),
+        shortDescription: 'Join our mobile team to build next-gen Flutter apps.',
+        aboutCompany:
+        'TechHub Uganda is a leading software company specializing in app and web development.',
+        responsibilities:
+        '- Build cross-platform apps using Flutter.\n- Collaborate with backend teams.\n- Maintain code quality.',
+        qualifications:
+        '- Bachelor’s degree in Computer Science.\n- Experience with Flutter & Dart.\n- Git proficiency.',
+        howToApply: 'Send your CV and portfolio to careers@techhub.co.ug',
+        industry: 'Information Technology',
+        companyLogo: 'assets/images/techhub.jpg',
+      ),
+      Job(
+        id: '2',
+        title: 'Graphic Designer',
+        company: 'Vision Arts Studio',
+        location: 'Entebbe',
+        employmentType: 'Part-time',
+        salaryRange: 'UGX 800,000 - 1,200,000',
+        postedAt: DateTime.now().subtract(const Duration(days: 1)),
+        deadline: DateTime.now().add(const Duration(days: 7)),
+        shortDescription:
+        'Creative designer wanted for branding and digital campaigns.',
+        aboutCompany:
+        'Vision Arts Studio helps businesses grow through visual storytelling and branding.',
+        responsibilities:
+        '- Create designs for marketing.\n- Work with clients to visualize ideas.',
+        qualifications:
+        '- Proficient in Adobe Photoshop and Illustrator.\n- Strong portfolio.',
+        howToApply: 'Email your CV to hr@visionarts.com',
+        industry: 'Design & Creative',
+      ),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
     final query = _searchController.text.toLowerCase();
-    final filtered = jobs.where((j) {
-      final matchesSearch = j.title.toLowerCase().contains(query) || j.company.toLowerCase().contains(query);
-      final matchesCategory = _selectedCategory == 'All' || j.category == _selectedCategory;
-      return matchesSearch && matchesCategory;
+    final filteredJobs = jobs.where((job) {
+      return job.title.toLowerCase().contains(query) ||
+          job.company.toLowerCase().contains(query) ||
+          job.location.toLowerCase().contains(query);
     }).toList();
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.deepOrangeAccent,
         title: const Text('Jobs'),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
-        actions: [
-          IconButton(onPressed: _refreshJobs, icon: const Icon(Icons.refresh)),
-        ],
+        backgroundColor: const Color(0xFF003C9E), // Deep Blue
+        centerTitle: true,
       ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Post Job',
-        backgroundColor: Colors.deepOrangeAccent,
-        onPressed: _openAddJob,
-        child: const Icon(Icons.post_add), // "clear icon" you mentioned - use post_add as Post icon
-      ),
+      backgroundColor: Colors.white,
       body: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            // Search
+            // Search bar
             TextField(
               controller: _searchController,
-              decoration: InputDecoration(prefixIcon: const Icon(Icons.search), hintText: 'Search jobs...', border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
-              onChanged: (_) => setState((){}),
-            ),
-            const SizedBox(height: 10),
-
-            // category chips
-            SizedBox(
-              height: 42,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: categories.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, i) {
-                  final cat = categories[i];
-                  final isSelected = cat == _selectedCategory;
-                  return ChoiceChip(
-                    label: Text(cat),
-                    selected: isSelected,
-                    onSelected: (_) => setState(() => _selectedCategory = cat),
-                    selectedColor: Colors.deepOrangeAccent.shade100,
-                  );
-                },
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search, color: Color(0xFF00AEEF)), // Bright Blue
+                hintText: 'Search jobs...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade100,
               ),
+              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 12),
 
-            // list
+            // Job list
             Expanded(
-              child: filtered.isEmpty
-                  ? const Center(child: Text('No jobs match your filters.', style: TextStyle(color: Colors.grey)))
-                  : ListView.builder(
-                itemCount: filtered.length,
-                itemBuilder: (context, idx) {
-                  final job = filtered[idx];
-                  return JobCard(
-                    job: job,
-                    onCall: () => _callNumber(job.contactPhone),
-                    onShare: () => _shareJob(job),
+              child: ListView.builder(
+                itemCount: filteredJobs.length,
+                itemBuilder: (context, index) {
+                  final job = filteredJobs[index];
+                  return GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => JobDetailsScreen(job: job),
+                      ),
+                    ),
+                    child: Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 3,
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Logo + Title + Company
+                            Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.asset(
+                                    job.displayLogo,
+                                    width: 60,
+                                    height: 60,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        job.title,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF003C9E), // Deep Blue
+                                        ),
+                                      ),
+                                      Text(
+                                        job.company,
+                                        style: const TextStyle(
+                                          color: Color(0xFF002F6C), // Dark Navy Blue
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+
+                            // Location + Posted
+                            Row(
+                              children: [
+                                const Icon(Icons.location_on,
+                                    color: Color(0xFF00AEEF), size: 18), // Bright Blue
+                                const SizedBox(width: 4),
+                                Text(job.location),
+                                const Spacer(),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.access_time,
+                                        color: Color(0xFF005ECF), size: 16), // Royal Blue
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      "Posted ${job.postedAgo}", // 👈 Added "Posted"
+                                      style: const TextStyle(color: Colors.grey),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+
+                            // Employment type + Salary
+                            Row(
+                              children: [
+                                const Icon(Icons.work_outline,
+                                    color: Color(0xFF005ECF), size: 18), // Royal Blue
+                                const SizedBox(width: 4),
+                                Text(job.employmentType),
+                                const Spacer(),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.attach_money,
+                                        color: Color(0xFFF28A2E), size: 18), // Bold Orange
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      job.salaryRange,
+                                      style: const TextStyle(
+                                        color: Color(0xFFF28A2E), // Bold Orange
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+
+                            // Short description
+                            Text(
+                              job.shortDescription,
+                              style: const TextStyle(
+                                fontStyle: FontStyle.italic,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   );
                 },
               ),

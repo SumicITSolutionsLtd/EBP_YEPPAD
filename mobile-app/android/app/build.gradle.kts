@@ -7,8 +7,16 @@ plugins {
 
 android {
     namespace = "com.yonah.ebp_platform"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36 // ✅ Explicitly set to latest installed SDK
     ndkVersion = flutter.ndkVersion
+
+    defaultConfig {
+        minSdk = flutter.minSdkVersion
+        targetSdk = 36 // ✅ Required for Play Protect compliance
+        versionCode = 1
+        versionName = "1.0"
+        multiDexEnabled = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -19,22 +27,30 @@ android {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
-    defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.yonah.ebp_platform"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+    signingConfigs {
+        create("release") {
+            keyAlias = "key"
+            keyPassword = "EBP@25*#**@8"
+            storeFile = file("C:/Users/yonah/key.jks")
+            storePassword = "EBP@25*#**@8"
+        }
     }
 
     buildTypes {
-        release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
+    }
+
+    // ✅ ABI splits to support all architectures
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            isUniversalApk = true // ✅ Ensures one APK works on all devices
         }
     }
 }

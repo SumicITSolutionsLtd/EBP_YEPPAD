@@ -1,117 +1,79 @@
 import 'package:flutter/material.dart';
-import 'add_skill_screen.dart';
-import 'skill_card.dart';
-import 'skill_model.dart';
 
-class SkillsScreen extends StatefulWidget {
+const Color kSkillsColor = Color(0xFFF28A2E); // Orange accent
+
+class SkillsScreen extends StatelessWidget {
   const SkillsScreen({super.key});
 
   @override
-  State<SkillsScreen> createState() => _SkillsScreenState();
-}
-
-class _SkillsScreenState extends State<SkillsScreen> {
-  List<Skill> allSkills = [];
-  String selectedCategory = 'All';
-  String searchQuery = '';
-
-  final List<String> categories = [
-    'All',
-    'Tailoring',
-    'Carpentry',
-    'Cooking',
-    'Hairdressing',
-    'IT',
-    'Crafts',
-  ];
-
-  void addSkill(Skill skill) {
-    setState(() => allSkills.add(skill));
-  }
-
-  @override
   Widget build(BuildContext context) {
-    List<Skill> filteredSkills = allSkills.where((skill) {
-      final matchesSearch =
-      skill.name.toLowerCase().contains(searchQuery.toLowerCase());
-      final matchesCategory =
-          selectedCategory == 'All' || skill.category == selectedCategory;
-      return matchesSearch && matchesCategory;
-    }).toList();
-
     return Scaffold(
-      appBar: AppBar(title: const Text('My Skills')),
-      body: Column(
-        children: [
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search),
-                hintText: 'Search skills...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
+      appBar: AppBar(
+        backgroundColor: kSkillsColor,
+        title: const Text(
+          "My Skills",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        centerTitle: true,
+      ),
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: SingleChildScrollView( // ✅ scrollable for landscape
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.build, // 🛠️ icon for skills
+                size: MediaQuery.of(context).size.height * 0.12,
+                color: kSkillsColor,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                "Skills Coming Soon!",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF003C9E), // Deep Blue
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "We are preparing a full skills showcasing experience:\n\n"
+                    "• Showcase your talents\n"
+                    "• Add certifications\n"
+                    "• Track growth and progress\n"
+                    "• Share achievements with peers\n\n"
+                    "Stay tuned for Version 2!",
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Color(0xFF002F6C), // Navy Blue
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 30),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                decoration: BoxDecoration(
+                  color: kSkillsColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Text(
+                  "Coming Soon...",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: kSkillsColor,
+                  ),
                 ),
               ),
-              onChanged: (value) => setState(() => searchQuery = value),
-            ),
+            ],
           ),
-
-          // Category Chips
-          SizedBox(
-            height: 40,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: categories.length,
-              itemBuilder: (context, index) {
-                final category = categories[index];
-                final isSelected = category == selectedCategory;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: ChoiceChip(
-                    label: Text(category),
-                    selected: isSelected,
-                    onSelected: (_) =>
-                        setState(() => selectedCategory = category),
-                  ),
-                );
-              },
-            ),
-          ),
-
-          // Skills List
-          Expanded(
-            child: filteredSkills.isEmpty
-                ? const Center(child: Text('No skills found.'))
-                : ListView.builder(
-              itemCount: filteredSkills.length,
-              itemBuilder: (context, index) {
-                final skill = filteredSkills[index];
-                return SkillCard(
-                  skill: skill,
-                  onEdit: () {},
-                  onDelete: () {
-                    setState(() => allSkills.remove(skill));
-                  },
-                  onShare: () {},
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-
-      // Floating Action Button
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final newSkill = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const AddSkillScreen()),
-          );
-          if (newSkill != null && newSkill is Skill) addSkill(newSkill);
-        },
-        child: const Icon(Icons.add),
+        ),
       ),
     );
   }

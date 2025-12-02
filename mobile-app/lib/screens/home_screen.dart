@@ -1,11 +1,37 @@
-import 'package:ebp_platform/screens/login_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:device_preview/device_preview.dart'; // 👈 added
+import 'package:flutter/foundation.dart'; // 👈 added for kReleaseMode
 import 'jobs/jobs_screen.dart';
-import 'learn/learn_screen.dart';
 import 'mentorship/mentorship_screen.dart';
 import 'skills/skills_screen.dart';
 import 'community_screen.dart';
 import 'profile/profile_screen.dart';
+
+/// 👇 main() entry point with DevicePreview wrapper
+void main() {
+  runApp(
+    DevicePreview(
+      enabled: !kReleaseMode, // 👈 shows toolbar in debug, hides in release
+      builder: (context) => const MyApp(),
+    ),
+  );
+}
+
+/// 👇 MyApp root widget holding MaterialApp
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      useInheritedMediaQuery: true, // 👈 important for responsiveness
+      locale: DevicePreview.locale(context), // 👈 allows locale simulation
+      builder: DevicePreview.appBuilder, // 👈 wraps app with preview
+      debugShowCheckedModeBanner: false,
+      home: const HomeScreen(), // 👈 your existing HomeScreen
+    );
+  }
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,13 +43,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  // List of screens for bottom navigation
   final List<Widget> _screens = [
     const DashboardView(),
-    const LearnScreen(),
+    const CommunityScreen(),
     const MentorshipScreen(),
     const SkillsScreen(),
-    const CommunityScreen(),
     const ProfileScreen(),
   ];
 
@@ -38,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() => _selectedIndex = index);
         },
         backgroundColor: Colors.white,
-        selectedItemColor: Colors.teal,
+        selectedItemColor: const Color(0xFF003C9E), // Deep Blue
         unselectedItemColor: Colors.grey,
         showUnselectedLabels: true,
         items: const [
@@ -47,8 +71,8 @@ class _HomeScreenState extends State<HomeScreen> {
             label: "Home",
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.school),
-            label: "Learn",
+            icon: Icon(Icons.forum),
+            label: "Community",
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.people),
@@ -56,11 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.lightbulb),
-            label: "Skills",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.forum),
-            label: "Community",
+            label: "My Skills",
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person),
@@ -79,10 +99,11 @@ class DashboardView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1FDFB),
+      backgroundColor: Colors.white, // Clean background
       appBar: AppBar(
-        backgroundColor: Colors.teal,
+        backgroundColor: const Color(0xFF003C9E), // Deep Blue
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: const Text(
           'Entrepreneurship Booster',
           style: TextStyle(
@@ -101,13 +122,16 @@ class DashboardView extends StatelessWidget {
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.teal,
+                color: Color(0xFF003C9E), // Deep Blue
               ),
             ),
             const SizedBox(height: 10),
             const Text(
               'Explore resources to grow your entrepreneurial journey.',
-              style: TextStyle(fontSize: 16, color: Colors.black54),
+              style: TextStyle(
+                fontSize: 16,
+                color: Color(0xFF002F6C), // Dark Navy Blue
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -117,42 +141,35 @@ class DashboardView extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF00BFA5), Color(0xFF1DE9B6)],
+                  colors: [Color(0xFFF28A2E), Color(0xFF005ECF)], // Bold Orange + Royal Blue
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
               ),
-              child: Stack(
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            "Boost Your Skills 🚀",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            "Access free business training and mentorship",
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      "Boost Your Skills 🚀",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                ],
+                    SizedBox(height: 8),
+                    Text(
+                      "Access free business training and mentorship",
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
 
@@ -170,28 +187,28 @@ class DashboardView extends StatelessWidget {
                   context,
                   title: "Jobs",
                   icon: Icons.work_outline,
-                  color: Colors.orangeAccent,
+                  color: const Color(0xFFF28A2E), // Bold Orange
                   destination: const JobsScreen(),
                 ),
                 _buildTile(
                   context,
-                  title: "Learn",
-                  icon: Icons.school,
-                  color: Colors.blueAccent,
-                  destination: const LearnScreen(),
+                  title: "Community",
+                  icon: Icons.forum,
+                  color: const Color(0xFF005ECF), // Royal Blue
+                  destination: const CommunityScreen(),
                 ),
                 _buildTile(
                   context,
                   title: "Mentorship",
                   icon: Icons.people,
-                  color: Colors.purpleAccent,
+                  color: const Color(0xFF00AEEF), // Bright Blue
                   destination: const MentorshipScreen(),
                 ),
                 _buildTile(
                   context,
-                  title: "Skills",
+                  title: "My Skills",
                   icon: Icons.lightbulb,
-                  color: Colors.greenAccent,
+                  color: const Color(0xFF003C9E), // Deep Blue
                   destination: const SkillsScreen(),
                 ),
               ],
@@ -228,8 +245,8 @@ class DashboardView extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               title,
-              style: TextStyle(
-                color: Colors.teal.shade700,
+              style: const TextStyle(
+                color: Color(0xFF002F6C), // Dark Navy Blue for labels
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),

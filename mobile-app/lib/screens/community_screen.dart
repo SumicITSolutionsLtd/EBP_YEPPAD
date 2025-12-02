@@ -9,7 +9,7 @@ class CommunityScreen extends StatelessWidget {
     return const ScreenTemplate(
       title: "Community",
       icon: Icons.forum,
-      color: Colors.orangeAccent,
+      color: Colors.blueAccent,
     );
   }
 }

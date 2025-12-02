@@ -45,9 +45,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white, // clean background
       appBar: AppBar(
-        title: const Text("Edit Profile"),
-        backgroundColor: Colors.teal,
+        title: const Text(
+          "Edit Profile",
+          style: TextStyle(color: Colors.white),
+        ),
+        backgroundColor: const Color(0xFF003C9E), // Deep Blue
         centerTitle: true,
       ),
       body: Padding(
@@ -67,12 +71,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ElevatedButton(
               onPressed: _saveProfile,
               style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12))),
-              child: const Text("Save Changes",
-                  style: TextStyle(fontSize: 18, color: Colors.white)),
+                backgroundColor: const Color(0xFFF28A2E), // Bold Orange
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                "Save Changes",
+                style: TextStyle(fontSize: 18, color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -87,10 +95,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       maxLines: maxLines,
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: const TextStyle(color: Color(0xFF002F6C)), // Dark Navy Blue
+        prefixIcon: const Icon(Icons.edit, color: Color(0xFF00AEEF)), // Bright Blue
         filled: true,
-        fillColor: Colors.white,
-        border:
-        OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        fillColor: Colors.grey.shade100,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
       ),
     );
   }

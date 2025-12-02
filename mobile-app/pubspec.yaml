@@ -44,6 +44,12 @@ dependencies:
   share_plus: ^10.0.0
   url_launcher: ^6.3.1
 
+  google_sign_in: ^6.2.1
+  font_awesome_flutter: ^10.7.0
+  smooth_page_indicator: ^1.0.0   # For nice dots indicator
+  device_preview: ^1.1.0
+
+
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -55,10 +61,12 @@ dev_dependencies:
     sdk: flutter
 
 
+
 flutter_icons:
     android: true
     ios: true
     image_path: "assets/images/ebplogotwo.png"
+
 
 
 
@@ -84,6 +92,14 @@ flutter:
   assets:
   #   - images/a_dot_burr.jpeg
      - assets/images/ebplogotwo.png
+     - assets/images/placeholder_logo.png
+     - assets/images/techhub.jpg
+     - assets/images/mentor1.png
+     - assets/images/google.png
+     - assets/images/jobs.png
+     - assets/images/mentors.png
+     - assets/images/skills.png
+     - assets/images/logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

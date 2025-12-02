@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'login_screen.dart';
+import 'onboarding.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -24,11 +24,11 @@ class _SplashScreenState extends State<SplashScreen>
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
     _controller.forward();
 
-    // Navigate to login screen after 3 seconds
+    // Navigate to onboarding after 3 seconds
     Timer(const Duration(seconds: 3), () {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        MaterialPageRoute(builder: (_) => OnboardingScreen()),
       );
     });
   }
@@ -42,43 +42,40 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.teal.shade700,
+      backgroundColor: Colors.white, // White background for logo contrast
       body: Stack(
         children: [
-          // Logo positioned higher
+          // Logo positioned near the top
           Positioned(
-            top: 100, // pushes logo up
+            top: MediaQuery.of(context).size.height * 0.15, // 15% from top
             left: 0,
             right: 0,
             child: FadeTransition(
               opacity: _animation,
               child: Image.asset(
                 'assets/images/ebplogotwo.png',
-                width: 220, // bigger logo
-                height: 220,
+                height: MediaQuery.of(context).size.height * 0.20,
+                fit: BoxFit.contain,
               ),
             ),
           ),
 
-          // Bottom content: progress bar + "Empowering the youth"
+          // Bottom tagline
           Positioned(
-            bottom: 40,
+            bottom: 60,
             left: 0,
             right: 0,
-            child: Column(
-              children: const [
-                CircularProgressIndicator(color: Colors.white),
-                SizedBox(height: 20),
-                Text(
-                  "Empowering the youth",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.white70,
-                    fontWeight: FontWeight.bold,
-                  ),
+            child: FadeTransition(
+              opacity: _animation,
+              child: const Text(
+                "Empowering the youth",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 20,
+                  color: Color(0xFF003C9E), // Deep Blue tagline
+                  fontWeight: FontWeight.bold,
                 ),
-              ],
+              ),
             ),
           ),
         ],
