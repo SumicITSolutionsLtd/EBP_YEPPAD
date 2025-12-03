@@ -1,20 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:device_preview/device_preview.dart'; // 👈 added
-import 'package:flutter/foundation.dart'; // 👈 added for kReleaseMode
 import 'jobs/jobs_screen.dart';
 import 'mentorship/mentorship_screen.dart';
 import 'skills/skills_screen.dart';
 import 'community_screen.dart';
 import 'profile/profile_screen.dart';
 
-/// 👇 main() entry point with DevicePreview wrapper
+/// 👇 main() entry point without DevicePreview
 void main() {
-  runApp(
-    DevicePreview(
-      enabled: !kReleaseMode, // 👈 shows toolbar in debug, hides in release
-      builder: (context) => const MyApp(),
-    ),
-  );
+  runApp(const MyApp());
 }
 
 /// 👇 MyApp root widget holding MaterialApp
@@ -24,9 +17,6 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      useInheritedMediaQuery: true, // 👈 important for responsiveness
-      locale: DevicePreview.locale(context), // 👈 allows locale simulation
-      builder: DevicePreview.appBuilder, // 👈 wraps app with preview
       debugShowCheckedModeBanner: false,
       home: const HomeScreen(), // 👈 your existing HomeScreen
     );
