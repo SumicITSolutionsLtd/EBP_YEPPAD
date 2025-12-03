@@ -1,4 +1,0 @@
-package com.youthconnect.edge_functions.config;
-
-public class ResilienceConfig {
-}

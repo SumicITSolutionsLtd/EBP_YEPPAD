@@ -1,4 +1,0 @@
-package com.youthconnect.mentor_service.exception;
-
-public class ValidationException {
-}

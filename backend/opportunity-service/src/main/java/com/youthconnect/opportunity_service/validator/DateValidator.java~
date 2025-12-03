@@ -1,4 +1,0 @@
-package com.youthconnect.opportunity_service.validator;
-
-public class DateValidator {
-}
